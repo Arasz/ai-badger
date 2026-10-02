@@ -67,11 +67,13 @@ def capture_server():
     server.stop()
 
 
-def post(url, share=2.0, key=KEY, body=None):
-    """`post_json` that must return a `Reply` carrying no key text, never raise."""
+def post(url, share=2.0, key=KEY, body=None, **route):
+    """`post_json` that must return a `Reply` carrying no key text, never raise; *route* is the
+    egress `env`/`cwd` pair."""
     budget = share if isinstance(share, mc.Budget) else mc.Budget(share)
     try:
-        reply = oc.post_json(url, body if body is not None else {"model": "m"}, key, budget)
+        reply = oc.post_json(url, body if body is not None else {"model": "m"}, key, budget,
+                             **route)
     except Exception as err:  # pylint: disable=broad-except
         for marker in LEAK_MARKERS:
             assert marker not in str(err)
@@ -82,9 +84,9 @@ def post(url, share=2.0, key=KEY, body=None):
     return reply
 
 
-def timed_post(url, share, key=KEY):
+def timed_post(url, share, key=KEY, **route):
     start = time.monotonic()
-    reply = post(url, share, key)
+    reply = post(url, share, key, **route)
     return reply, time.monotonic() - start
 
 
@@ -339,7 +341,7 @@ def test_o10_every_connect_attempt_shares_one_deadline(fake, monkeypatch):
 # ---------------------------------------------------------------- O11 DNS
 
 
-def test_o11_dns_is_under_the_deadline_with_one_resolver_per_host(fake, monkeypatch):
+def test_o11_dns_is_under_the_deadline_with_one_resolver_per_host(fake, monkeypatch, tmp_path):
     release = threading.Event()
     resolved_on = []
     guarded = socket.getaddrinfo
@@ -353,16 +355,20 @@ def test_o11_dns_is_under_the_deadline_with_one_resolver_per_host(fake, monkeypa
 
     monkeypatch.setattr(socket, "getaddrinfo", getaddrinfo)
     url = f"http://openrouter.test:{fake.port}{CHAT_PATH}"
+    # A named host is third-party: only the opt-in from an unlocked cwd lets it be resolved.
+    opted_in = {"env": {oc.ALLOW_ENV: "1"}, "cwd": str(tmp_path)}
+    assert post(url, 0.3).error == oc.EGRESS_REFUSED
+    assert resolved_on == []
 
     def dns_threads():
         return [t for t in threading.enumerate()
                 if t.is_alive() and t.name == "ai-badger-openrouter-dns"]
 
     try:
-        reply, elapsed = timed_post(url, 0.3)
+        reply, elapsed = timed_post(url, 0.3, **opted_in)
         assert reply.error == oc.TIMEOUT
         assert elapsed < 0.8
-        again, again_elapsed = timed_post(url, 0.3)
+        again, again_elapsed = timed_post(url, 0.3, **opted_in)
         assert again.error == oc.TIMEOUT
         assert again_elapsed < 0.1
         assert len(dns_threads()) == 1

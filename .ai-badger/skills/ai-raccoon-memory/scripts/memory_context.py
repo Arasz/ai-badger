@@ -27,6 +27,7 @@ ENV_NAMES = (
     "AI_BADGER_MEMORY_CONTEXT_PLANNER_MODEL",
     "AI_BADGER_MEMORY_CONTEXT_TEST_OPENROUTER_BASE",
     "OPENROUTER_API_KEY",
+    "AI_BADGER_ALLOW_THIRD_PARTY",
 )
 KILL_SWITCH = "AI_BADGER_MEMORY_CONTEXT"
 PIPELINE_SWITCH = "AI_BADGER_MEMORY_CONTEXT_PIPELINE"
@@ -603,8 +604,8 @@ def stage_limits(total: float) -> tuple:
 
 
 def pipeline_for(env: Mapping[str, str], cwd: str, limits: Any) -> Optional[Pipeline]:
-    """The pipeline when the switch is not `"0"`, the key is set and every sibling loads;
-    *limits* is `(total, planner, search, score)`, pi's when None."""
+    """The pipeline when the switch is not `"0"`, the key is set, every sibling loads and the base
+    is loopback or opted in from an unlocked *cwd*; *limits* is `(total, planner, search, score)`."""
     if env.get(PIPELINE_SWITCH) == "0":
         return None
     try:
@@ -616,13 +617,15 @@ def pipeline_for(env: Mapping[str, str], cwd: str, limits: Any) -> Optional[Pipe
         if key is None:
             return None
         base = client.api_base(env, key)
+        if base is None or not client.egress_allowed(base, env, cwd):
+            return None
         model = planner_model(env, cwd, stages)
         limits = stages.Limits(*(limits or stage_limits(PIPELINE_TOTAL_SECONDS)))
+        post = functools.partial(client.post_json, env=env, cwd=cwd)
         return Pipeline(
             stages,
-            functools.partial(stages.plan, post=client.post_json, base=base, key=key,
-                              model=model),
-            functools.partial(stages.score, post=client.post_json, base=base, key=key),
+            functools.partial(stages.plan, post=post, base=base, key=key, model=model),
+            functools.partial(stages.score, post=post, base=base, key=key),
             limits)
     except Exception:  # pylint: disable=broad-exception-caught
         return None
@@ -652,8 +655,8 @@ def build(prompt: str, cwd: str, session_id: Optional[str], *,
     """The memory-context block for *prompt*, or None; never raises, and returns within the
     budget plus the proxy reap.
 
-    With a key and the pipeline switch not `"0"`, runs the query pipeline (stage *limits*,
-    pi's by default) over one proxy session; otherwise one search on the prompt. An exception
+    With a key, the pipeline switch not `"0"` and egress allowed (`pipeline_for`), runs the query
+    pipeline over one proxy session; otherwise one search on the prompt. An exception
     outside `EXPECTED_ERRORS` is handed to *on_error* (called inside the handler) once.
     """
     try:

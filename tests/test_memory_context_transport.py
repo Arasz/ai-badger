@@ -734,7 +734,7 @@ def test_env_names_and_sibling_constants():
     assert set(mc.ENV_NAMES) == {
         "AI_BADGER_PROJECT_ID", "AI_BADGER_MEMORY_CONTEXT", "AI_BADGER_MEMORY_CONTEXT_PIPELINE",
         "AI_BADGER_MEMORY_CONTEXT_PLANNER_MODEL", "AI_BADGER_MEMORY_CONTEXT_TEST_OPENROUTER_BASE",
-        "OPENROUTER_API_KEY"}
+        "OPENROUTER_API_KEY", "AI_BADGER_ALLOW_THIRD_PARTY"}
     assert mc.SIBLINGS == ("openrouter_client.py", "query_pipeline.py")
     assert mc.RESOLVER == "model_groups.py"
     assert Path(mc.__file__).name == "memory_context.py"

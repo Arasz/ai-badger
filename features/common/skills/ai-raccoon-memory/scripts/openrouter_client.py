@@ -1,35 +1,44 @@
 """The memory-context pipeline's one network surface: JSON POSTs to OpenRouter under one deadline.
 
-No proxy, no redirect, verified TLS. The deadline covers DNS, every connect attempt, the TLS
-handshake and the reply; the key comes from the environment and appears only in one header.
+No proxy, no redirect, verified TLS, and no host but loopback unless the session opts in. The
+deadline covers DNS, every connect attempt, the TLS handshake and the reply; the key comes from
+the environment and appears only in one header.
 """
 from __future__ import annotations
 
 import http.client
 import ipaddress
 import json
+import os
 import socket
 import ssl
+import stat
 import threading
 import urllib.error
 import urllib.parse
 import urllib.request
+from pathlib import Path
 from typing import Any, Dict, List, Mapping, NamedTuple, Optional, Tuple
 
 PRODUCTION_BASE = "https://openrouter.ai"
 TEST_BASE_ENV = "AI_BADGER_MEMORY_CONTEXT_TEST_OPENROUTER_BASE"
 TEST_KEY_PREFIX = "sk-test-"
+ALLOW_ENV = "AI_BADGER_ALLOW_THIRD_PARTY"
+LOCAL_ONLY = "local-only"
 LOOPBACK = "127.0.0.1"
+LOOPBACK_HOSTS = ("127.0.0.1", "localhost", "::1")
 BODY_MAX = 1024 * 1024
 READ_CHUNK = 64 * 1024
 TIMEOUT = "timeout"
 TRANSPORT = "transport"
+EGRESS_REFUSED = "egress-refused"
 DNS_THREAD = "ai-badger-openrouter-dns"
 WATCHDOG_THREAD = "ai-badger-openrouter-watchdog"
 
 
 class Reply(NamedTuple):
-    """Status, lower-cased headers and body; on failure status 0 and `error` `timeout`/`transport`."""
+    """Status, lower-cased headers and body; on failure status 0 and `error` `timeout`,
+    `transport` or `egress-refused`."""
 
     status: int
     headers: Dict[str, str]
@@ -68,6 +77,57 @@ def api_base(env: Mapping[str, str], key: Optional[str]) -> Optional[str]:
         return None
     base = f"http://{LOOPBACK}:{port}"
     return base if port is not None and raw == base else None
+
+
+def is_loopback(url: str) -> bool:
+    """True only for an http(s) URL with no userinfo whose host is 127.0.0.1, localhost or ::1."""
+    try:
+        parts = urllib.parse.urlsplit(url)
+        _ = parts.port
+    except (ValueError, TypeError, AttributeError):
+        return False
+    return (parts.scheme in ("http", "https") and "@" not in parts.netloc
+            and parts.username is None and parts.hostname in LOOPBACK_HOSTS)
+
+
+def _config_locks(path: str) -> bool:
+    """True when *path* exists and is not a regular file holding a JSON object without
+    `dataPolicy`; a FIFO or directory is never read."""
+    if not os.path.lexists(path):
+        return False
+    try:
+        if not stat.S_ISREG(os.stat(path).st_mode):
+            return True
+        descriptor = os.open(path, os.O_RDONLY | getattr(os, "O_NONBLOCK", 0))
+        with os.fdopen(descriptor, "rb") as handle:
+            if not stat.S_ISREG(os.fstat(handle.fileno()).st_mode):
+                return True
+            data = json.loads(handle.read().decode("utf-8"))
+    except Exception:  # pylint: disable=broad-except
+        return True
+    return not isinstance(data, dict) or "dataPolicy" in data
+
+
+def project_locked(cwd: str) -> bool:
+    """True when any `.ai-badger/config.json` above *cwd*, as given or resolved, sets
+    `dataPolicy` or cannot be read as a JSON object; never raises."""
+    try:
+        starts = {Path(os.path.abspath(cwd)), Path(cwd).resolve()}
+        folders = {folder for start in starts for folder in (start, *start.parents)}
+        return any(_config_locks(os.path.join(folder, ".ai-badger", "config.json"))
+                   for folder in folders)
+    except Exception:  # pylint: disable=broad-except
+        return True
+
+
+def third_party_allowed(env: Mapping[str, str], cwd: str) -> bool:
+    """`AI_BADGER_ALLOW_THIRD_PARTY` is exactly `1` and no config above *cwd* locks the project."""
+    return env.get(ALLOW_ENV) == "1" and not project_locked(cwd)
+
+
+def egress_allowed(url: str, env: Mapping[str, str], cwd: str) -> bool:
+    """Whether a POST to *url* may leave: loopback always, any other host only on opt-in."""
+    return is_loopback(url) or third_party_allowed(env, cwd)
 
 
 class _Expired(TimeoutError):
@@ -301,19 +361,23 @@ def _is_timeout(err: BaseException) -> bool:
         reason, (TimeoutError, socket.timeout))
 
 
-def post_json(url: str, body: Any, key: str, budget: Any) -> Reply:
-    """POST *body* as JSON with a bearer *key* inside *budget*; never raises, never follows."""
+def post_json(url: str, body: Any, key: Optional[str], budget: Any, *,
+              env: Optional[Mapping[str, str]] = None, cwd: Optional[str] = None) -> Reply:
+    """POST *body* as JSON inside *budget*, bearer *key* when given; never raises, never follows.
+    A non-loopback *url* is refused before any dial unless *env* opts in from an unlocked *cwd*."""
+    if not egress_allowed(url, env if env is not None else {}, cwd if cwd is not None else "."):
+        return _failure(EGRESS_REFUSED)
     if budget.remaining() <= 0:
         return _failure(TIMEOUT)
-    clean = _clean_key(key)
-    if clean is None or clean != key:
+    if key is not None and _clean_key(key) != key:
         return _failure(TRANSPORT)
     call = Call(budget)
     try:
         data = json.dumps(body, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
         request = urllib.request.Request(url, data=data, method="POST")
         request.add_header("Content-Type", "application/json")
-        request.add_unredirected_header("Authorization", f"Bearer {key}")
+        if key is not None:
+            request.add_unredirected_header("Authorization", f"Bearer {key}")
         opener = make_opener(call)
         call.arm()
         reply = _exchange(opener, request, call)

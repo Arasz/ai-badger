@@ -123,6 +123,14 @@ deterministic file/resource rule — the hint never removes a wave the derivatio
 - flags off, a missing key, or a failed call means **no proposal**, and the deterministic
 result stands. Nothing reaches the network while the flags are off.
 
+**Where the plan text goes.** The advisory sends step goals, instructions and acceptance
+criteria to the classifier. With no `AI_BADGER_JEV_ENDPOINT` that is OpenRouter's decisions
+endpoint, which also needs `AI_BADGER_ALLOW_THIRD_PARTY=1` and a project with no `dataPolicy`
+lock. A loopback `AI_BADGER_JEV_ENDPOINT` (a local decider such as `Mapika/decider` on
+`/v1/systemone`) works everywhere. A non-loopback one must be `https://` and needs the same
+opt-in. A custom endpoint authenticates with `AI_BADGER_JEV_ENDPOINT_KEY`, or with no header
+when that is unset; it never receives `OPENROUTER_API_KEY`.
+
 The advisory is an input to the plan review, not a substitute for it: record what it changed
 and why, or leave it off.
 

@@ -11,12 +11,16 @@ proposal (tier) or the safe `serialize` direction (waves).
 Parser semantics are ported from pi's `decision-router-client.ts` (`clampProbability` /
 `parseAnswer` / `parseJevResponseBody`). Nothing in the parser or the classifier raises: bodies
 become `malformed`, answers become per-question rejects, transport failures become `None`.
-The one network surface is the vendored `openrouter_client.py` beside this file; the key is
-read from the process env and appears only in the Authorization header, never in a log.
+The one network surface is the vendored `openrouter_client.py` beside this file. A loopback
+`AI_BADGER_JEV_ENDPOINT` (a local decider) always works; OpenRouter or any other remote host
+needs `AI_BADGER_ALLOW_THIRD_PARTY=1` outside a `dataPolicy`-locked project. A custom endpoint
+gets only `AI_BADGER_JEV_ENDPOINT_KEY`, never the OpenRouter key; keys appear only in the
+Authorization header, never in a log.
 """
 from __future__ import annotations
 
 import argparse
+import functools
 import importlib.util
 import json
 import math
@@ -63,6 +67,7 @@ TIER_ENV = "AI_BADGER_JEV_TIER"
 WAVES_ENV = "AI_BADGER_JEV_WAVES"
 MODEL_ENV = "AI_BADGER_JEV_MODEL"
 ENDPOINT_ENV = "AI_BADGER_JEV_ENDPOINT"
+ENDPOINT_KEY_ENV = "AI_BADGER_JEV_ENDPOINT_KEY"
 TIMEOUT_ENV = "AI_BADGER_JEV_TIMEOUT_MS"
 TEST_BASE_ENV = client.TEST_BASE_ENV
 
@@ -317,17 +322,34 @@ def timeout_seconds(env: Mapping[str, str]) -> float:
     return parsed / 1000
 
 
-def endpoint_url(env: Mapping[str, str]) -> Optional[str]:
-    """The decisions URL, or `None`; a test base must be loopback with an `sk-test-` key."""
-    key = client.api_key(env)
-    if key is None:
+def _custom_target(url: str, env: Mapping[str, str]) -> Optional[Tuple[str, Optional[str]]]:
+    """`AI_BADGER_JEV_ENDPOINT` with its own key: https, or http only to loopback; a dirty key
+    resolves nothing, and the OpenRouter key is never sent there."""
+    if not (url.startswith("https://") or (url.startswith("http://") and client.is_loopback(url))):
         return None
-    base = client.api_base(env, key)
-    if base is None:
+    raw = env.get(ENDPOINT_KEY_ENV)
+    if raw is None:
+        return url, None
+    clean = client._clean_key(raw)  # pylint: disable=protected-access
+    return (url, raw) if clean is not None and clean == raw else None
+
+
+def endpoint_target(env: Mapping[str, str], cwd: Optional[str] = None
+                    ) -> Optional[Tuple[str, Optional[str]]]:
+    """`(url, key)` for the decisions call, or `None`: the loopback test seam, else a custom
+    endpoint with its own key, else OpenRouter; a non-loopback url needs the third-party opt-in."""
+    if TEST_BASE_ENV in env:
+        key = client.api_key(env)
+        base = client.api_base(env, key)
+        target = None if key is None or base is None else (base + DECISIONS_PATH, key)
+    elif env.get(ENDPOINT_ENV):
+        target = _custom_target(env[ENDPOINT_ENV], env)
+    else:
+        key = client.api_key(env)
+        target = None if key is None else (ENDPOINT_DEFAULT, key)
+    if target is None or not client.egress_allowed(target[0], env, cwd or "."):
         return None
-    if base != client.PRODUCTION_BASE:
-        return base + DECISIONS_PATH
-    return endpoint(env)
+    return target
 
 
 # ------------------------------------------------------------------ prompt builders (R4 §3-4)
@@ -521,7 +543,7 @@ def classify(reply: Any, spec: Mapping[str, QuestionSpec]) -> Verdict:
 
 def request_choices(body: Mapping, names: List[str], *, env: Mapping[str, str],
                     post: Optional[Callable] = None, budget: Optional[Budget] = None,
-                    clock: Callable[[], float] = time.monotonic,
+                    clock: Callable[[], float] = time.monotonic, cwd: Optional[str] = None,
                     ) -> Dict[str, Optional[ChoiceAnswer]]:
     """One decisions body, at most `ATTEMPTS` attempts, no sleep, never raises."""
     names = list(names)
@@ -529,13 +551,14 @@ def request_choices(body: Mapping, names: List[str], *, env: Mapping[str, str],
     if not names:
         return failed
     try:
-        key = client.api_key(env)
-        url = endpoint_url(env)
-        if key is None or url is None:
+        target = endpoint_target(env, cwd)
+        if target is None:
             return failed
+        url, key = target
         envelope = budget if budget is not None else Budget(timeout_seconds(env) * ATTEMPTS,
                                                             clock=clock)
-        transport = post if post is not None else client.post_json
+        transport = post if post is not None else functools.partial(
+            client.post_json, env=env, cwd=cwd or ".")
         spec = _spec_from_body(body, names)
         per_attempt = timeout_seconds(env)
         for _ in range(ATTEMPTS):
@@ -553,7 +576,8 @@ def request_choices(body: Mapping, names: List[str], *, env: Mapping[str, str],
 
 def tier_proposals(steps: Any, *, env: Mapping[str, str], post: Optional[Callable] = None,
                    clock: Callable[[], float] = time.monotonic,
-                   budget: Optional[Budget] = None) -> Dict[str, TierProposal]:
+                   budget: Optional[Budget] = None,
+                   cwd: Optional[str] = None) -> Dict[str, TierProposal]:
     """Advisory upgrades by question name; `{}` when off, nothing asked, or a call fails.
 
     One `budget` bounds every step's call when the caller threads one through; without it a
@@ -570,7 +594,7 @@ def tier_proposals(steps: Any, *, env: Mapping[str, str], post: Optional[Callabl
                 continue
             name, body = build_tier_request(step, model_id=model(env))
             answers = request_choices(body, [name], env=env, post=post, clock=clock,
-                                      budget=envelope)
+                                      budget=envelope, cwd=cwd)
             proposal = propose_tier(step, answers.get(name))
             if proposal is not None:
                 proposals[name] = proposal
@@ -582,7 +606,7 @@ def tier_proposals(steps: Any, *, env: Mapping[str, str], post: Optional[Callabl
 def wave_hints(ready: Any, *, done: Any = (), edges: Any = (), env: Mapping[str, str],
                post: Optional[Callable] = None,
                clock: Callable[[], float] = time.monotonic,
-               budget: Optional[Budget] = None) -> Dict[str, str]:
+               budget: Optional[Budget] = None, cwd: Optional[str] = None) -> Dict[str, str]:
     """Pair name -> `share-wave`/`serialize`; off returns `{}`, anything else serializes.
 
     One `budget` bounds every chunk's call when the caller threads one through; without it a
@@ -604,7 +628,7 @@ def wave_hints(ready: Any, *, done: Any = (), edges: Any = (), env: Mapping[str,
             chunk_names, body = build_wave_request(chunk, done=done, edges=edges,
                                                    model_id=chosen)
             answers = request_choices(body, chunk_names, env=env, post=post, clock=clock,
-                                      budget=envelope)
+                                      budget=envelope, cwd=cwd)
             for name in chunk_names:
                 if pair_decision(answers.get(name)) == SHARE_WAVE:
                     decisions[name] = SHARE_WAVE
@@ -705,8 +729,9 @@ def _resolve_context(document: Mapping,
 
 
 def run(document: Any, *, want_tier: bool, want_waves: bool, env: Mapping[str, str],
-        post: Optional[Callable] = None) -> Dict[str, Any]:
-    """The advisory envelope: `ok` with both proposal maps, `off` when nothing is enabled.
+        post: Optional[Callable] = None, cwd: Optional[str] = None) -> Dict[str, Any]:
+    """The advisory envelope: `ok` with both proposal maps, `off` when nothing is enabled or no
+    decisions endpoint is permitted.
 
     One `Budget` covers the whole invocation, so tier and wave calls share a single deadline
     and a slow plan cannot multiply the window per chunk.
@@ -721,10 +746,15 @@ def run(document: Any, *, want_tier: bool, want_waves: bool, env: Mapping[str, s
         reason = (f"{MASTER_ENV} is not set to 1" if env.get(MASTER_ENV) != "1"
                   else f"requested capabilities are off: {TIER_ENV}/{WAVES_ENV} must be 1")
         return {"status": "off", "reason": reason, "tier_proposals": {}, "wave_hints": {}}
+    if endpoint_target(env, cwd) is None:
+        reason = (f"no permitted decisions endpoint: set {ENDPOINT_ENV} to a loopback decider, "
+                  f"or {client.ALLOW_ENV}=1 outside a dataPolicy-locked project")
+        return {"status": "off", "reason": reason, "tier_proposals": {}, "wave_hints": {}}
     budget = Budget(timeout_seconds(env) * ATTEMPTS)
-    proposals = (tier_proposals(steps, env=env, post=post, budget=budget)
+    proposals = (tier_proposals(steps, env=env, post=post, budget=budget, cwd=cwd)
                  if tier_on else {})
-    hints = (wave_hints(ready, done=done, edges=edges, env=env, post=post, budget=budget)
+    hints = (wave_hints(ready, done=done, edges=edges, env=env, post=post, budget=budget,
+                        cwd=cwd)
              if waves_on else {})
     return {"status": "ok",
             "tier_proposals": {name: {"level": proposal.level,
@@ -764,7 +794,7 @@ def main(argv=None) -> int:
     want_waves = args.waves or args.both or not chosen
     try:
         payload = run(_read_document(args.plan), want_tier=want_tier, want_waves=want_waves,
-                      env=os.environ)
+                      env=os.environ, cwd=os.getcwd())
     except Exception as exc:  # pylint: disable=broad-except  # the CLI never tracebacks
         payload = {"status": "error", "reason": f"{type(exc).__name__}: {exc}",
                    "tier_proposals": {}, "wave_hints": {}}

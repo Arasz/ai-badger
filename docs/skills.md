@@ -606,11 +606,12 @@ promoted with `memory_share`, never automatically.
 searches memory before the model sees each gated prompt and injects a "Memory context" block,
 the same one pi's `mem-based-rag` produces. It runs on Claude Code, on Copilot CLI (flat
 `additionalContext`, and only in a repo listed in `trustedFolders`) and in Hermes CLI sessions,
-never on pi. Every run spawns the `ai-raccoon` proxy once and never touches its token. With
-`OPENROUTER_API_KEY` set, an OpenRouter planner and the Jev scorer turn one search into several
-(90 s cap, 25 s under Hermes), and the gated prompt plus the matched memory and source-code
-excerpts go to OpenRouter. Without the key, or with `AI_BADGER_MEMORY_CONTEXT_PIPELINE=0`, it
-runs one local search capped at 5 s. `AI_BADGER_MEMORY_CONTEXT=0` turns the hook off. The
+never on pi. Every run spawns the `ai-raccoon` proxy once and never touches its token. Only when
+you opt in (`AI_BADGER_ALLOW_THIRD_PARTY=1` with `OPENROUTER_API_KEY` set, and no `dataPolicy`
+lock in the project's config) do an OpenRouter planner and the Jev scorer turn one search into
+several (90 s cap, 25 s under Hermes), sending the gated prompt plus the matched memory and
+source-code excerpts to OpenRouter. Otherwise (the default since 0.185.0) it runs one local
+search capped at 5 s; see [data access](reference/data-access.md). `AI_BADGER_MEMORY_CONTEXT=0` turns the hook off. The
 skill's section 8 and [ADR-0031](adr/0031-per-prompt-memory-context-through-the-ai-raccoon-proxy.md)
 carry the details.
 

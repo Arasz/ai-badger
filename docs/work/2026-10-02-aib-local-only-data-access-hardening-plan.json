@@ -1,0 +1,97 @@
+{
+  "task_id": "aib-local-only-data-access-hardening",
+  "task_description_ref": "docs/work/2026-10-02-aib-local-only-data-access-hardening-research.md",
+  "research_ref": "docs/work/2026-10-02-aib-local-only-data-access-hardening-research.md",
+  "loop": "high",
+  "source_refs": ["docs/work/2026-10-02-aib-local-only-data-access-hardening-research.md", "docs/adr/0031-per-prompt-memory-context-through-the-ai-raccoon-proxy.md", "features/common/skills/ai-raccoon-memory/scripts/openrouter_client.py", "features/common/skills/ai-raccoon-memory/scripts/memory_context.py", "features/common/skills/task-decomposition/scripts/jev_choice.py", "schemas/config.schema.json", "tests/test_jev_client_vendored.py", ".pre-commit-config.yaml", "gates/scaffold_freshness_guard.py"],
+  "task_context": "Goal: by default no data reaches any provider but the agent host's approved one. Policy predicate third_party_allowed(env, cwd) = env AI_BADGER_ALLOW_THIRD_PARTY == '1' AND nearest .ai-badger/config.json does not lock (fail-closed: unreadable/malformed/non-object/dataPolicy other than 'opt-in' locks; absent file defers to env). Version 0.185.0 (minor, default flip). PY=/Users/arasz/RiderProjects/ai-badger/.venv/bin/python3; every check runs from the integrating worktree root /Users/arasz/RiderProjects/ai-badger/.ai-badger/worktrees/aib-local-only-data-access-hardening. TDD: each code step pastes RED output of its named witness before production edits, then performs its named mutation and pastes the red run. NO TEST MAY REACH REAL openrouter.ai: use the memory_context_env fixture guards (env.guards.net_attempts), the fake/capture fixtures of tests/test_memory_context_openrouter.py, or an injected post spy. COMMIT DISCIPLINE (pre-commit always_run gates): before every commit run `$PY tooling/sync_plugin_skills.py && $PY tooling/index_build.py && $PY tooling/changelog_index.py && $PY tooling/version_sync.py`, then `$PY gates/scaffold_freshness_guard.py` and on failure run the exact command it prints, and commit the regenerated skills/, index.json and .ai-badger/ outputs. Generated files merge by regeneration, never by hand. Lanes stage; the integrator commits through the hooks (no --no-verify). Name every rewritten test in the PR body.",
+  "steps": [
+    {
+      "id": "s1",
+      "goal": "Both vendored openrouter_client.py copies expose third_party_allowed, gate the production base on it, and accept a None key; no prompt leaves the machine by key presence alone",
+      "instructions": "Own: both openrouter_client.py copies, the ENV_NAMES tuple in memory_context.py (that line only), tests/test_memory_context_openrouter.py, tests/test_memory_context_transport.py, and in tests/test_jev_choice.py only env_on (:157), the :286 assertion and the cli_env clear-list (:617). Edit the ai-raccoon-memory copy then produce the task-decomposition copy by copying it and re-applying only the TEST_BASE_ENV line (tests/test_jev_client_vendored.py byte-compares the rest). Add ALLOW_ENV='AI_BADGER_ALLOW_THIRD_PARTY', LOCAL_ONLY='local-only', OPT_IN='opt-in'; third_party_allowed(env, cwd) per task_context (walk Path(cwd).resolve() and parents, nearest .ai-badger/config.json only). api_base(env, key, cwd=None) (None -> os.getcwd()): test-seam branch unchanged; otherwise PRODUCTION_BASE only when allowed, else None. post_json key: Optional[str]: None -> no Authorization header; present-but-dirty key still TRANSPORT. Pass cwd at memory_context.pipeline_for's api_base call. Add ALLOW_ENV to ENV_NAMES and to the literal set in test_env_names_and_sibling_constants. test_jev_choice: env_on and the :286 assertion gain ALLOW='1'; cli_env clears ALLOW. RED witnesses: (1) new matrix test of third_party_allowed (unset/'0'/'true'/'1' x config absent/opt-in/local-only/malformed JSON/non-object/'Local-Only') - AttributeError before; (2) new: api_base({}, KEY, cwd=tmp) is None and with ALLOW='1' is production; (3) new: post_json(fake.url+path, body, None, budget) returns 200 and fake saw no authorization header - TRANSPORT before; (4) new transport test: build() with OPENROUTER_API_KEY='sk-or-v1-x', no test base, ALLOW unset -> env.guards.net_attempts == [] (red before: planner dials openrouter.ai, guard catches it). Mutations: == \"1\" -> != \"0\" (matrix row unset red); and->or (local-only row red); malformed branch returns True (fail-closed row red); post_json always adds Bearer (no-header test red).",
+      "effort": "high", "level": "high", "depends_on": [],
+      "files": ["features/common/skills/ai-raccoon-memory/scripts/openrouter_client.py", "features/common/skills/task-decomposition/scripts/openrouter_client.py", "features/common/skills/ai-raccoon-memory/scripts/memory_context.py", "tests/test_memory_context_openrouter.py", "tests/test_memory_context_transport.py", "tests/test_jev_choice.py"],
+      "resources": [],
+      "acceptance_criteria": [
+        {"id": "s1-ac1", "statement": "Policy matrix, api_base gating, keyless post_json and the no-egress build test pass; vendored copies stay byte-identical but the sanctioned line", "check": "$PY -m pytest -q tests/test_memory_context_openrouter.py tests/test_memory_context_transport.py tests/test_jev_client_vendored.py tests/test_jev_choice.py tests/test_memory_context_pipeline_wiring.py tests/test_memory_context_hook.py tests/test_memory_context_hermes.py tests/test_memory_context_integration.py"},
+        {"id": "s1-ac2", "statement": "Both copies define third_party_allowed and the opt-in env name", "check": "test $(grep -l 'def third_party_allowed' features/common/skills/*/scripts/openrouter_client.py | wc -l) -eq 2 && grep -q 'AI_BADGER_ALLOW_THIRD_PARTY' features/common/skills/ai-raccoon-memory/scripts/memory_context.py"},
+        {"id": "s1-ac3", "statement": "RED output for witnesses 1-4 and the four mutation runs are pasted as evidence", "check": null}
+      ]
+    },
+    {
+      "id": "s2",
+      "goal": "memory_context.pipeline_for builds no pipeline unless the base resolves (opted-in production or loopback test seam); single local search stays the default",
+      "instructions": "Own memory_context.py (pipeline_for + its docstring) and tests/test_memory_context_pipeline_wiring.py. After the key check: if base is None: return None. RED witnesses: (a) OPENROUTER_API_KEY='sk-or-v1-x', no test base, ALLOW unset: pipeline_for(env, str(cwd), None) is None (after s1 it returns a Pipeline with base None -> red); (b) ALLOW='1', no config -> not None (do not run it); (c) ALLOW='1' + project .ai-badger/config.json dataPolicy 'local-only' -> None; (d) build() under (a) never calls Pipeline.run. Loopback-seam tests stay green unchanged. Mutation: delete the guard -> (a),(d) red.",
+      "effort": "medium", "level": "medium", "depends_on": ["s1"],
+      "files": ["features/common/skills/ai-raccoon-memory/scripts/memory_context.py", "tests/test_memory_context_pipeline_wiring.py"],
+      "resources": [],
+      "acceptance_criteria": [
+        {"id": "s2-ac1", "statement": "pipeline_for None by default and under local-only, present when opted in; loopback-seam suite unchanged and green", "check": "$PY -m pytest -q tests/test_memory_context_pipeline_wiring.py tests/test_memory_context_pipeline.py tests/test_memory_context_core.py tests/test_memory_context_transport.py"},
+        {"id": "s2-ac2", "statement": "RED output + guard-deletion mutation run pasted", "check": null}
+      ]
+    },
+    {
+      "id": "s3",
+      "goal": "jev_choice sends to production only when allowed; a custom AI_BADGER_JEV_ENDPOINT never receives OPENROUTER_API_KEY and uses optional AI_BADGER_JEV_ENDPOINT_KEY",
+      "instructions": "Own jev_choice.py and tests/test_jev_choice.py. Replace endpoint_url with endpoint_target(env, cwd=None) -> Optional[(url, key)]. Precedence: (1) test base set: loopback seam as today with OpenRouter sk-test- key; (2) AI_BADGER_JEV_ENDPOINT set: require https:// or http:// to 127.0.0.1/localhost/[::1] (else None); key = cleaned AI_BADGER_JEV_ENDPOINT_KEY or None when unset (dirty -> None target); OpenRouter key and ALLOW never consulted; (3) else OpenRouter key + api_base(env,key,cwd)==PRODUCTION_BASE -> (ENDPOINT_DEFAULT, key), else None. request_choices takes cwd=None and uses the target's key. Update the module docstring and the CLI off-reason. cli_env also clears ENDPOINT_KEY. RED: (a) custom https endpoint + OPENROUTER_API_KEY='sk-or-v1-secret' + ENDPOINT_KEY='corp-k' -> spy key 'corp-k', secret nowhere in args; (b) no OpenRouter key, no ENDPOINT_KEY -> spy called with key None; (c) OpenRouter key only, ALLOW unset, cwd=tmp -> endpoint_target None; (d) http://decider.corp.example refused. Mutations: key = endpoint_key or client.api_key(env) -> (a) red; drop scheme rule -> (d) red. Rewrite test_endpoint_url_resolution_and_the_loopback_rule.",
+      "effort": "medium", "level": "high", "depends_on": ["s1"],
+      "files": ["features/common/skills/task-decomposition/scripts/jev_choice.py", "tests/test_jev_choice.py"],
+      "resources": [],
+      "acceptance_criteria": [
+        {"id": "s3-ac1", "statement": "Custom-endpoint key isolation, keyless custom endpoint, gated production and scheme rule pass with the existing Jev suites", "check": "$PY -m pytest -q tests/test_jev_choice.py tests/test_jev_choice_parser.py tests/test_jev_client_vendored.py tests/test_memory_context_jev.py"},
+        {"id": "s3-ac2", "statement": "No code path passes the OpenRouter key to a custom endpoint", "check": "! grep -n 'endpoint_url' features/common/skills/task-decomposition/scripts/jev_choice.py"},
+        {"id": "s3-ac3", "statement": "RED output + both mutation runs pasted", "check": null}
+      ]
+    },
+    {
+      "id": "s4",
+      "goal": "schemas/config.schema.json accepts dataPolicy (enum local-only|opt-in, absent = opt-in), enum pinned to the client's constants",
+      "instructions": "Own schemas/config.schema.json and new tests/test_config_data_policy.py. RED: this repo's config + dataPolicy 'local-only' fails validation today (additionalProperties false); 'bogus' rejected; absent passes. Twin test: set(schema enum) == {client.LOCAL_ONLY, client.OPT_IN}. Mutations: remove enum -> bogus test red; rename client constant -> twin red.",
+      "effort": "low", "level": "low", "depends_on": ["s1"],
+      "files": ["schemas/config.schema.json", "tests/test_config_data_policy.py"],
+      "resources": [],
+      "acceptance_criteria": [
+        {"id": "s4-ac1", "statement": "dataPolicy validates per enum; enum equals client constants", "check": "$PY -m pytest -q tests/test_config_data_policy.py"},
+        {"id": "s4-ac2", "statement": "RED output + both mutation runs pasted", "check": null}
+      ]
+    },
+    {
+      "id": "s5",
+      "goal": "ADR-0034 records opt-in egress and supersedes ADR-0031 D2's key-presence default; 0.185.0 release entry exists",
+      "instructions": "ADR 0034 (Nygard), ADR-0031 status note, docs/adr/README.md rows, VERSION 0.185.0, changelog stub with upgrade note; run changelog_index, version_sync, index_build.",
+      "effort": "medium", "level": "medium", "depends_on": [],
+      "files": ["docs/adr/0034-third-party-egress-is-opt-in-and-lockable.md", "docs/adr/0031-per-prompt-memory-context-through-the-ai-raccoon-proxy.md", "docs/adr/README.md", "VERSION", "docs/changelog/0.185.0-local-only-data-policy.md", "docs/changelog/README.md"],
+      "resources": [],
+      "acceptance_criteria": [
+        {"id": "s5-ac1", "statement": "Release entry, index row and version stamps agree", "check": "$PY tooling/changelog_index.py --check && $PY tooling/version_sync.py --check && $PY gates/docs_guard.py"},
+        {"id": "s5-ac2", "statement": "ADR index lists 0034; ADR-0031 names its superseder", "check": "$PY -m pytest -q tests/test_docs_tree_is_canonical.py && grep -q '0034' docs/adr/0031-per-prompt-memory-context-through-the-ai-raccoon-proxy.md"}
+      ]
+    },
+    {
+      "id": "s6",
+      "goal": "User-facing docs state what leaves the machine, under which switch, and how a project locks it",
+      "instructions": "docs/reference/data-access.md + docs/reference/README.md row; ai-raccoon-memory SKILL.md flag table; task-decomposition decomposition-method.md + mcp-plan-tools.md; docs/skills.md:610; docs/work/README.md; finish the changelog. Wording matches merged s2-s4 code.",
+      "effort": "medium", "level": "medium", "depends_on": ["s2", "s3", "s4", "s5"],
+      "files": ["docs/reference/data-access.md", "docs/reference/README.md", "features/common/skills/ai-raccoon-memory/SKILL.md", "features/common/skills/task-decomposition/references/decomposition-method.md", "features/common/skills/task-decomposition/references/mcp-plan-tools.md", "docs/skills.md", "docs/work/README.md", "docs/changelog/0.185.0-local-only-data-policy.md"],
+      "resources": [],
+      "acceptance_criteria": [
+        {"id": "s6-ac1", "statement": "Docs indexes name every file, links resolve, skill mirror matches", "check": "$PY -m pytest -q tests/test_docs_tree_is_canonical.py && $PY gates/docs_guard.py && $PY tooling/sync_plugin_skills.py --check"},
+        {"id": "s6-ac2", "statement": "No doc claims key presence enables egress; every touched doc names the opt-in", "check": "! grep -rn 'Turns the pipeline on' features/common/skills/ai-raccoon-memory/SKILL.md"}
+      ]
+    },
+    {
+      "id": "s7",
+      "goal": "Join: generated copies fresh, touched suites pass together, shipped copies carry the policy",
+      "instructions": "Regenerate, freshness guard, touched suites once, pylint changed non-test .py, PR body names rewritten tests.",
+      "effort": "medium", "level": "medium", "depends_on": ["s6"],
+      "files": [], "resources": [],
+      "acceptance_criteria": [
+        {"id": "s7-ac1", "statement": "Every generated artifact matches its source", "check": "$PY tooling/index_build.py --check && $PY tooling/sync_plugin_skills.py --check && $PY tooling/version_sync.py --check && $PY tooling/changelog_index.py --check && $PY gates/scaffold_freshness_guard.py && $PY gates/docs_guard.py"},
+        {"id": "s7-ac2", "statement": "Touched suites pass together", "check": "$PY -m pytest -q tests/test_memory_context_openrouter.py tests/test_memory_context_transport.py tests/test_memory_context_pipeline_wiring.py tests/test_memory_context_pipeline.py tests/test_memory_context_core.py tests/test_memory_context_hook.py tests/test_jev_choice.py tests/test_jev_choice_parser.py tests/test_jev_client_vendored.py tests/test_memory_context_jev.py tests/test_config_data_policy.py tests/test_docs_tree_is_canonical.py"},
+        {"id": "s7-ac3", "statement": "Self-scaffolded copies of the client equal the source", "check": "cmp features/common/skills/ai-raccoon-memory/scripts/openrouter_client.py .ai-badger/skills/ai-raccoon-memory/scripts/openrouter_client.py"},
+        {"id": "s7-ac4", "statement": "Changed production Python lints clean", "check": "$PY -m pylint features/common/skills/ai-raccoon-memory/scripts/openrouter_client.py features/common/skills/task-decomposition/scripts/openrouter_client.py features/common/skills/ai-raccoon-memory/scripts/memory_context.py features/common/skills/task-decomposition/scripts/jev_choice.py"}
+      ]
+    }
+  ]
+}
