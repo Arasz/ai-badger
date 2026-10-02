@@ -740,7 +740,7 @@ class Scaffolder:
         plugin_cmds = self.install_plugins()
         dep_result = self._check_dependencies()
         written_config = write_config(self.aib, self.config, self.index["frameworkVersion"],
-                                      self.notes)
+                                      self.notes, self.root)
         self.mcp.generate_mcp_json()
         self._record_progress("config-and-mcp")
         project_servers, user_servers = self.mcp.split_servers_by_scope(

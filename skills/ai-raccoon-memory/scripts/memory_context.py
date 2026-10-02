@@ -18,7 +18,7 @@ import subprocess
 import sys
 import time
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Mapping, NamedTuple, Optional
+from typing import Any, Callable, Dict, List, Mapping, NamedTuple, Optional, Tuple
 
 ENV_NAMES = (
     "AI_BADGER_PROJECT_ID",
@@ -543,6 +543,32 @@ def _project_id(cwd: str, env: Mapping[str, str]) -> Optional[str]:
     return found.strip() if isinstance(found, str) and found.strip() else None
 
 
+def _override(env: Mapping[str, str]) -> Optional[str]:
+    """`AI_BADGER_PROJECT_ID` stripped, from *env* else the process env (where the store's
+    resolution falls back to); None when both are blank or unset."""
+    for value in (env.get(PROJECT_ID_ENV), os.environ.get(PROJECT_ID_ENV)):
+        if value and value.strip():
+            return value.strip()
+    return None
+
+
+def _walked_id(cwd: str) -> Tuple[Optional[str], str]:
+    """The id in the nearest `.ai-badger/project-id` above *cwd* (never the override) and, when
+    there is none, why: `store-unavailable`, `no-file`, or `unreadable` (a read error or a blank
+    file); `differs` when an id was found, for the caller to report if it does not match."""
+    store = load_badger_store()
+    if store is None:
+        return None, "store-unavailable"
+    found = store._nearest_project_id_file(cwd)  # pylint: disable=protected-access
+    if found is None:
+        return None, "no-file"
+    try:
+        walked = found.read_text(encoding="utf-8").strip()
+    except (OSError, ValueError):
+        return None, "unreadable"
+    return (walked, "differs") if walked else (None, "unreadable")
+
+
 def resolver_path() -> Optional[Path]:
     """The one `model_groups.py` this layout may load: the task skill's in the skill layout,
     a flat sibling otherwise; None when it is absent or resolves elsewhere."""
@@ -605,9 +631,11 @@ def stage_limits(total: float) -> tuple:
 
 def pipeline_for(env: Mapping[str, str], cwd: str, limits: Any, *,
                  on_error: Optional[Callable[[str], None]] = None) -> Optional[Pipeline]:
-    """The pipeline when the switch is not `"0"`, the key is set, every sibling loads and the base
-    is loopback or opted in from an unlocked *cwd*; *limits* is `(total, planner, search, score)`.
-    An opt-in refused by a lock is handed to *on_error* once, naming the config, never the prompt."""
+    """The pipeline when the switch is not `"0"`, the key is set, every sibling loads, a set
+    `AI_BADGER_PROJECT_ID` names the project *cwd* walks to, and the client's egress rule admits the
+    base; *limits* is `(total, planner, search, score)`. An opted-in refusal is handed to
+    *on_error* once: a refusal names the config that denies the base (`bad-base` when no lock
+    does), and a project-id mismatch names why but neither id."""
     if env.get(PIPELINE_SWITCH) == "0":
         return None
     try:
@@ -621,9 +649,17 @@ def pipeline_for(env: Mapping[str, str], cwd: str, limits: Any, *,
         base = client.api_base(env, key)
         if base is None:
             return None
+        override = _override(env)
+        if override is not None:
+            walked, why = _walked_id(cwd)
+            if override != walked:
+                if client.opted_in(env):
+                    _report(f"memory_context.project-id-mismatch: {why}", on_error)
+                return None
         if not client.egress_allowed(base, env, cwd):
-            reason = client.lock_reason(cwd) if client.opted_in(env) else None
-            if reason is not None:
+            if client.opted_in(env):
+                lock = client.denying_lock(base, cwd)
+                reason = lock.reason() if lock is not None else "bad-base"
                 _report("memory_context.egress-refused " + reason, on_error)
             return None
         model = planner_model(env, cwd, stages)

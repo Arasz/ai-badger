@@ -314,6 +314,79 @@ def lock(path):
     return str(path)
 
 
+def allow_lock(path, hosts=("decider.corp.example",)):
+    """Write an object-form lock allowlisting *hosts* into *path*'s config; return *path* as str."""
+    (path / ".ai-badger").mkdir(parents=True, exist_ok=True)
+    policy = {"mode": "local-only", "allowHosts": list(hosts)}
+    (path / ".ai-badger" / "config.json").write_text(json.dumps({"dataPolicy": policy}),
+                                                     encoding="utf-8")
+    return str(path)
+
+
+def test_j1_an_allowlisted_custom_endpoint_resolves_in_a_locked_project(mod, tmp_path):
+    cwd = allow_lock(tmp_path / "proj")
+    env = {ENDPOINT: CORP, ENDPOINT_KEY: "corp-k", ALLOW: "1", "OPENROUTER_API_KEY": SECRET}
+    assert mod.endpoint_refusal(env, cwd) is None
+    assert mod.endpoint_target(env, cwd) == (CORP, "corp-k")
+
+
+def test_j2_an_allowlisted_custom_endpoint_still_needs_the_opt_in(mod, tmp_path):
+    cwd = allow_lock(tmp_path / "proj")
+    refusal = mod.endpoint_refusal({ENDPOINT: CORP, ENDPOINT_KEY: "corp-k"}, cwd)
+    assert refusal is not None and refusal[0] == "not-opted-in"
+
+
+def test_j3_openrouter_from_an_allowlisted_lock_is_refused_naming_the_config(mod, tmp_path):
+    cwd = allow_lock(tmp_path / "proj")
+    code, reason = mod.endpoint_refusal({"OPENROUTER_API_KEY": SECRET, ALLOW: "1"}, cwd)
+    assert code == "locked"
+    assert os.path.join(cwd, ".ai-badger", "config.json") in reason
+    assert "openrouter.ai" in reason and "allowHosts" in reason
+    assert SECRET not in reason
+
+
+def config_of(cwd):
+    return os.path.join(cwd, ".ai-badger", "config.json")
+
+
+def test_j5_a_lock_with_no_allowlist_says_so(mod, tmp_path):
+    cwd = lock(tmp_path / "proj")
+    refusal = mod.endpoint_refusal({"OPENROUTER_API_KEY": SECRET, ALLOW: "1"}, cwd)
+    assert refusal == ("locked", f"locked by {config_of(cwd)} (no allowHosts)")
+
+
+def test_j5_a_voided_allowlist_names_its_cause(mod, tmp_path):
+    cwd = allow_lock(tmp_path / "proj", hosts=["decider.corp.example"] * 2)
+    refusal = mod.endpoint_refusal({ENDPOINT: CORP, ALLOW: "1"}, cwd)
+    assert refusal == ("locked", f"locked by {config_of(cwd)}: "
+                                 "dataPolicy (allowHosts duplicate: list ignored)")
+
+
+def test_j5_a_valid_allowlist_lacking_the_host_names_host_and_config(mod, tmp_path):
+    parent = allow_lock(tmp_path / "parent", hosts=["openrouter.ai"])
+    cwd = allow_lock(tmp_path / "parent" / "child", hosts=["openrouter.ai", "x.corp.example"])
+    refusal = mod.endpoint_refusal({ENDPOINT: "https://x.corp.example/v1", ALLOW: "1"}, cwd)
+    assert refusal == ("locked", f"x.corp.example is not in the allowHosts of {config_of(parent)}")
+
+
+def test_j5_an_unresolvable_cwd_is_named_as_the_lock(mod):
+    refusal = mod.endpoint_refusal({ENDPOINT: CORP, ALLOW: "1"}, "/tmp/bad\0cwd")
+    assert refusal == ("locked", "locked by unresolvable cwd")
+
+
+def test_j5_a_refusal_no_lock_explains_is_an_inconsistent_state(mod, tmp_path, monkeypatch):
+    monkeypatch.setattr(mod.client, "egress_allowed", lambda url, env, cwd: False)
+    refusal = mod.endpoint_refusal({ENDPOINT: CORP, ALLOW: "1"}, str(tmp_path))
+    assert refusal == ("locked", "inconsistent lock state")
+
+
+def test_j4_a_lookalike_custom_endpoint_is_refused(mod, tmp_path):
+    cwd = allow_lock(tmp_path / "proj")
+    env = {ENDPOINT: "https://evil-decider.corp.example/v1", ALLOW: "1"}
+    assert mod.endpoint_target(env, cwd) is None
+    assert mod.endpoint_refusal(env, cwd)[0] == "locked"
+
+
 def test_a_custom_endpoint_gets_its_own_key_never_the_openrouter_key(mod, tmp_path):
     cwd = str(tmp_path)
     env = {MASTER: "1", "OPENROUTER_API_KEY": SECRET, ENDPOINT: CORP, ENDPOINT_KEY: "corp-k",
@@ -395,11 +468,16 @@ def test_an_opted_in_locked_run_names_the_lock_not_the_flag(mod, tmp_path):
     ({ALLOW: "1"}, "no-key", "no OpenRouter key"),
     ({TEST_BASE: "http://127.0.0.1:9"}, "no-key", "no OpenRouter key"),
     ({TEST_BASE: "http://127.0.0.1:9", "OPENROUTER_API_KEY": SECRET}, "bad-test-base", TEST_BASE),
-    ({ENDPOINT: "http://decider.corp.example/x", ALLOW: "1"}, "bad-endpoint",
-     f"bad {ENDPOINT}"),
+    ({ENDPOINT: "http://decider.corp.example/x", ALLOW: "1"}, "plaintext", ENDPOINT),
+    ({ENDPOINT: "http://decider.corp.example/x"}, "plaintext", ENDPOINT),
+    ({ENDPOINT: "http://decider.corp.example/x", ENDPOINT_KEY: " k ", ALLOW: "1"}, "plaintext",
+     ENDPOINT),
+    ({ENDPOINT: "ftp://decider.corp.example/x", ALLOW: "1"}, "bad-endpoint", f"bad {ENDPOINT}"),
+    ({ENDPOINT: "http://local\thost/x"}, "bad-endpoint", f"bad {ENDPOINT}"),
     ({ENDPOINT: CORP, ENDPOINT_KEY: " k ", ALLOW: "1"}, "bad-endpoint-key", f"bad {ENDPOINT_KEY}"),
 ], ids=["openrouter", "custom", "no-key", "test-base-no-key", "test-base-real-key",
-        "bad-endpoint", "bad-endpoint-key"])
+        "plaintext", "plaintext-before-opt-in", "plaintext-before-a-dirty-key", "bad-endpoint",
+        "screened-loopback", "bad-endpoint-key"])
 def test_an_off_run_names_its_actual_cause(mod, tmp_path, env, refusal, named):
     payload = run_enabled(mod, env, str(tmp_path))
     assert (payload["status"], payload["refusal"]) == ("off", refusal)

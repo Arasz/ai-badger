@@ -19,6 +19,7 @@ When cutting a release:
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
+| 0.186.0 | [a locked project can allow named hosts; plaintext and mismatched project ids are refused](0.186.0-egress-allowlist-project-binding.md) |
 | 0.185.0 | [third-party egress is opt-in, and a project can lock it](0.185.0-local-only-data-policy.md) |
 | 0.184.1 | [the home-form dead entry cannot hide behind a hand-edit note](0.184.1-pi-unavailable-home-form-candidates.md) |
 | 0.184.0 | [the scaffold writes pi's native `.pi/mcp.json`, union-merged; `.mcp.json` is Claude's and Copilot's again](0.184.0-scaffold-pi-native-mcp-config.md) |

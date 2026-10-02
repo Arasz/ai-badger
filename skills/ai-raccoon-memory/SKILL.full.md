@@ -124,7 +124,9 @@ locking config is written there too.
 pooled hits their file path, kind and a 500-character excerpt of memory *and source code*.
 The key is read from the environment only and is never logged or written anywhere. Without
 the opt-in everything but the ai-raccoon search stays local; a project that commits
-`"dataPolicy": "local-only"` keeps it local whatever a developer's shell sets. The full
+`"dataPolicy": "local-only"` keeps it local whatever a developer's shell sets (its object form
+can allow named company hosts, still only with the opt-in). An exported `AI_BADGER_PROJECT_ID`
+that differs from the working directory's project id keeps the single local search. The full
 inventory is `docs/reference/data-access.md` in the ai-badger repository.
 
 **Switches.** Only the literal `"0"` counts for the two off switches, and only `"1"` for the opt-in.

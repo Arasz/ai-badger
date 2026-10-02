@@ -107,3 +107,97 @@ class TestRescaffoldKeepsTheDataPolicyLock:
         written = _scaffold_into(make_scaffolder, _config())
 
         assert "dataPolicy" not in written
+
+
+class TestRescaffoldKeepsTheAllowlist:
+    """The object form carries an `allowHosts` list: a valid one survives a re-run verbatim."""
+
+    POLICY = {"mode": "local-only", "allowHosts": ["decider.corp.example", "Other.Corp.Example."]}
+
+    def test_a_valid_object_form_is_kept_verbatim(self, make_scaffolder):
+        _prior_config(make_scaffolder.target, {**_config(), "dataPolicy": self.POLICY})
+
+        written = _scaffold_into(make_scaffolder, _config())
+
+        assert written["dataPolicy"] == self.POLICY
+
+    @pytest.mark.parametrize("policy", [
+        {"mode": "local-only", "allowHosts": ["*.corp.example"]},
+        {"mode": "open", "allowHosts": ["decider.corp.example"]},
+        {"mode": "local-only", "allowHosts": ["decider.corp.example"], "extra": 1},
+        {"mode": "local-only", "allowHosts": "decider.corp.example"},
+    ], ids=["wildcard", "other-mode", "unknown-key", "not-a-list"])
+    def test_an_invalid_object_form_is_written_back_as_the_string_lock(self, make_scaffolder,
+                                                                       policy):
+        _prior_config(make_scaffolder.target, {**_config(), "dataPolicy": policy})
+
+        result = make_scaffolder(config=_config()).run(generated_at="2026-07-27T00:00:00Z")
+
+        written = json.loads((make_scaffolder.target / ".ai-badger" / "config.json")
+                             .read_text(encoding="utf-8"))
+        assert written["dataPolicy"] == "local-only"
+        notes = [note for note in result["notes"] if "dataPolicy" in note]
+        assert notes and "allowHosts" in notes[0] and "dropped" in notes[0]
+
+
+def _dropped_note(make_scaffolder, policy):
+    """Re-scaffold over a prior *policy*; the written `dataPolicy` and its one dataPolicy note."""
+    _prior_config(make_scaffolder.target, {**_config(), "dataPolicy": policy})
+    result = make_scaffolder(config=_config()).run(generated_at="2026-07-27T00:00:00Z")
+    written = json.loads((make_scaffolder.target / ".ai-badger" / "config.json")
+                         .read_text(encoding="utf-8"))
+    [note] = [note for note in result["notes"] if "dataPolicy" in note]
+    return written["dataPolicy"], note
+
+
+class TestTheDroppedNoteNamesTheErrorWithoutTheEntry:
+    """An invalid object form is written back as `local-only`; its note says what was wrong but
+    never repeats an entry, so a host name in a config never reaches the scaffold output."""
+
+    def test_a_duplicate_entry_is_dropped_and_located_without_its_text(self, make_scaffolder):
+        policy = {"mode": "local-only", "allowHosts": ["secret.corp.example"] * 2}
+
+        written, note = _dropped_note(make_scaffolder, policy)
+
+        assert written == "local-only"
+        assert "dropped" in note and "($.allowHosts)" in note
+        assert "secret" not in note
+
+    def test_a_bad_entry_is_located_by_its_index(self, make_scaffolder):
+        policy = {"mode": "local-only", "allowHosts": ["decider.corp.example", "*.secret.example"]}
+
+        written, note = _dropped_note(make_scaffolder, policy)
+
+        assert written == "local-only"
+        assert "($.allowHosts[1])" in note
+        assert "secret" not in note
+
+    def test_an_error_holding_no_entry_text_is_quoted(self, make_scaffolder):
+        policy = {"mode": "open", "allowHosts": ["secret.corp.example"]}
+
+        written, note = _dropped_note(make_scaffolder, policy)
+
+        assert written == "local-only"
+        assert "($.mode: 'local-only' was expected)" in note
+        assert "secret" not in note
+
+
+@pytest.mark.parametrize("schema", [None, "{not json", '{"properties": {}}'],
+                         ids=["missing", "invalid-json", "no-data-policy"])
+def test_an_unreadable_schema_drops_the_allowlist_and_keeps_the_lock(make_scaffolder, tmp_path,
+                                                                    schema):
+    root = tmp_path / "framework"
+    (root / "schemas").mkdir(parents=True)
+    if schema is not None:
+        (root / "schemas" / "config.schema.json").write_text(schema, encoding="utf-8")
+    aib = tmp_path / "proj" / ".ai-badger"
+    policy = {"mode": "local-only", "allowHosts": ["decider.corp.example"]}
+    _prior_config(aib.parent, {**_config(), "dataPolicy": policy})
+    notes = []
+
+    written = make_scaffolder.module.write_config(aib, _config(), "9.9.9", notes, root)
+
+    assert written["dataPolicy"] == "local-only"
+    assert json.loads((aib / "config.json").read_text(encoding="utf-8"))["dataPolicy"] == \
+        "local-only"
+    assert [note for note in notes if "schema unreadable, allowlist dropped" in note]
