@@ -10,6 +10,7 @@ and their Claude/Copilot/Hermes hook wiring (`features/common/hooks/hooks.json`,
 `features/common/hooks/hooks-manifest.json`, `features/common/hooks/ai_badger_hooks.py`,
 `features/copilot/adjustments/adjust_hooks.py`).
 **Supersedes:** Nothing.
+**Superseded in part by:** [ADR-0034](0034-third-party-egress-is-opt-in-and-lockable.md) (0.185.0): D2.2's key-presence default — the pipeline now also needs `AI_BADGER_ALLOW_THIRD_PARTY=1` and an unlocked project.
 
 ## Context
 

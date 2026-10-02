@@ -453,3 +453,10 @@ def test_w13_a_failing_skill_check_keeps_the_other_parts(memory_context_env, hoo
     assert END not in context
     assert "PermissionError" in caplog.text
     assert runs(env) == []
+
+
+def test_a_hermes_notice_outside_an_exception_names_no_failure(hooks, caplog):
+    where = "memory_context.egress-refused /corp/.ai-badger/config.json: dataPolicy"
+    with caplog.at_level("WARNING"):
+        hooks._memory_context_failed(where)  # pylint: disable=protected-access
+    assert [r.getMessage() for r in caplog.records] == [f"memory context: {where}"]

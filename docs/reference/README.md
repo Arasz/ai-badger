@@ -9,7 +9,11 @@ If it walks the reader through doing a thing, it belongs in `../how-to/`.
 
 ## Files
 
-Empty. The framework's reference material still sits at the docs root
+| File | Holds |
+|---|---|
+| [`data-access.md`](data-access.md) | Every surface that can send project data off the machine, its default, `AI_BADGER_ALLOW_THIRD_PARTY`, the `dataPolicy` lock, Jev endpoints and local classifier options |
+
+The rest of the framework's reference material still sits at the docs root
 (`../dictionary.md`, `../scripts.md`, `../skills.md`, `../retrieval.md`) and has not yet been
 re-placed — that is a job for the `documentation` gateway's `migrate-documentation`
 member, with its own PR, because several of those

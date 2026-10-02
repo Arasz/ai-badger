@@ -706,6 +706,25 @@ class Scaffolder:
             self.notes.append(f"{step} failed ({type(exc).__name__}) — skipped; "
                               f"the project scaffold is unaffected")
 
+    def _keep_data_policy(self, config: Dict[str, Any]) -> None:
+        """Carry the on-disk config's `dataPolicy` lock into *config* when *config* lacks one;
+        an existing config that cannot be read as an object locks too, as it does at runtime."""
+        path = self.aib / "config.json"
+        if "dataPolicy" in config or not os.path.lexists(path):
+            return
+        try:
+            prior = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            prior = None
+        if not isinstance(prior, dict):
+            why = "because the existing config could not be read as an object"
+        else:
+            why = "from the existing config" if "dataPolicy" in prior else None
+        if why is None:
+            return
+        config["dataPolicy"] = "local-only"
+        self.notes.append(f"kept dataPolicy 'local-only' {why} (third-party egress stays locked)")
+
     def run(self, generated_at: Optional[str] = None) -> Dict[str, Any]:
         """Run every scaffold step in order and return the manifest, plugin commands, and notes."""
         self.aib.mkdir(parents=True, exist_ok=True)
@@ -740,6 +759,7 @@ class Scaffolder:
         dep_result = self._check_dependencies()
         written_config = dict(self.config)
         written_config["frameworkVersion"] = self.index["frameworkVersion"]
+        self._keep_data_policy(written_config)
         bl.dump_json(self.aib / "config.json", written_config)
         self.mcp.generate_mcp_json()
         self._record_progress("config-and-mcp")

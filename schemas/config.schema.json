@@ -286,6 +286,13 @@
           "description": "Wire the capture wrapper into .claude/settings.json. Off by default: statusLine is a personal setting and a project-level entry overrides the user's own."
         }
       }
+    },
+    "dataPolicy": {
+      "type": "string",
+      "enum": [
+        "local-only"
+      ],
+      "description": "Lock this project to loopback-only model calls: ai-badger's OpenRouter client sends no prompt, plan, memory or code to a non-loopback host even when AI_BADGER_ALLOW_THIRD_PARTY=1. The key's presence locks, in this directory and every directory below it; any other value, or a config that cannot be read, also locks (fail closed)."
     }
   }
 }
