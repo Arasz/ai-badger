@@ -743,6 +743,9 @@ def test_env_names_and_sibling_constants():
 # ------------------------------------------------------------------- env names against real use
 
 ENV_OWNED_BY_THE_FIXTURE = {"PATH", "HOME"}
+# The shell's logical cwd, read by the client's lock walk: it can only add a lock, and only when
+# it resolves to the cwd being checked, so the scrub leaves it alone rather than listing it.
+ENV_READ_AS_A_PATH = {"PWD"}
 
 
 def _env_reads(path, module):
@@ -780,7 +783,7 @@ def test_env_names_are_every_variable_the_modules_read():
     for name, module in modules.items():
         read |= _env_reads(SCRIPTS / name, module)
     assert None not in read, "an env read the scan cannot name"
-    assert read - ENV_OWNED_BY_THE_FIXTURE == set(mc.ENV_NAMES)
+    assert read - ENV_OWNED_BY_THE_FIXTURE - ENV_READ_AS_A_PATH == set(mc.ENV_NAMES)
 
 
 # ------------------------------------------------------------------- failure recording

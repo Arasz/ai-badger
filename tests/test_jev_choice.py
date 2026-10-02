@@ -271,9 +271,6 @@ def test_wire_defaults_and_overrides(mod):
     assert mod.ENDPOINT_DEFAULT == "https://openrouter.ai/api/alpha/decisions"
     assert mod.model({}) == mod.MODEL_DEFAULT
     assert mod.model({MODEL: "other/jev-2"}) == "other/jev-2"
-    assert mod.endpoint({}) == mod.ENDPOINT_DEFAULT
-    assert (mod.endpoint({ENDPOINT: "http://example.test/decisions"})
-            == "http://example.test/decisions")
 
 
 @pytest.mark.parametrize("raw,expected", [
@@ -366,10 +363,48 @@ def test_a_remote_endpoint_without_the_opt_in_is_refused(mod, tmp_path):
     assert mod.endpoint_target({**env, ALLOW: "1"}, str(tmp_path)) == (mod.ENDPOINT_DEFAULT, "k")
 
 
-@pytest.mark.parametrize("dirty", [" k ", "", "k\nX-Injected: 1", "k\u00e9"])
+@pytest.mark.parametrize("dirty", [" k ", "k\nX-Injected: 1", "k\u00e9"])
 def test_a_dirty_endpoint_key_resolves_nothing(mod, tmp_path, dirty):
     env = {ENDPOINT: CORP, ENDPOINT_KEY: dirty, ALLOW: "1"}
     assert mod.endpoint_target(env, str(tmp_path)) is None
+
+
+def test_an_empty_endpoint_key_is_keyless(mod, tmp_path):
+    env = {ENDPOINT: CORP, ENDPOINT_KEY: "", ALLOW: "1"}
+    assert mod.endpoint_target(env, str(tmp_path)) == (CORP, None)
+
+
+def run_enabled(mod, env, cwd):
+    """`run()` on the CLI plan with every Jev flag on and *env* on top; no transport is reached."""
+    return mod.run(CLI_PLAN, want_tier=True, want_waves=True, cwd=cwd, post=Post(TRANSPORT),
+                   env={MASTER: "1", TIER: "1", WAVES: "1", **env})
+
+
+def test_an_opted_in_locked_run_names_the_lock_not_the_flag(mod, tmp_path):
+    cwd = lock(tmp_path / "proj")
+    payload = run_enabled(mod, {"OPENROUTER_API_KEY": SECRET, ALLOW: "1"}, cwd)
+    assert payload["status"] == "off"
+    assert payload["refusal"] == "locked"
+    assert os.path.join(cwd, ".ai-badger", "config.json") in payload["reason"]
+    assert ALLOW not in payload["reason"]
+
+
+@pytest.mark.parametrize("env,refusal,named", [
+    ({"OPENROUTER_API_KEY": SECRET}, "not-opted-in", ALLOW),
+    ({ENDPOINT: CORP}, "not-opted-in", ALLOW),
+    ({ALLOW: "1"}, "no-key", "no OpenRouter key"),
+    ({TEST_BASE: "http://127.0.0.1:9"}, "no-key", "no OpenRouter key"),
+    ({TEST_BASE: "http://127.0.0.1:9", "OPENROUTER_API_KEY": SECRET}, "bad-test-base", TEST_BASE),
+    ({ENDPOINT: "http://decider.corp.example/x", ALLOW: "1"}, "bad-endpoint",
+     f"bad {ENDPOINT}"),
+    ({ENDPOINT: CORP, ENDPOINT_KEY: " k ", ALLOW: "1"}, "bad-endpoint-key", f"bad {ENDPOINT_KEY}"),
+], ids=["openrouter", "custom", "no-key", "test-base-no-key", "test-base-real-key",
+        "bad-endpoint", "bad-endpoint-key"])
+def test_an_off_run_names_its_actual_cause(mod, tmp_path, env, refusal, named):
+    payload = run_enabled(mod, env, str(tmp_path))
+    assert (payload["status"], payload["refusal"]) == ("off", refusal)
+    assert named in payload["reason"]
+    assert SECRET not in json.dumps(payload)
 
 
 def test_the_default_transport_carries_env_and_cwd_to_the_client(mod, tmp_path, monkeypatch):

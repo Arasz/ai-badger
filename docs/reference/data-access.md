@@ -61,15 +61,22 @@ To make a repository local-only for every developer, whatever their shell sets, 
 The lock is checked by walking up from the session's working directory. Egress is locked when
 any ancestor's `.ai-badger/config.json` matches any of these:
 - it carries a `dataPolicy` key (any value);
-- it is not a regular file;
-- it cannot be read, or it is not a JSON object.
+- it is not a regular file (a directory, a FIFO, a dangling symlink);
+- it cannot be reached or read (for example an unsearchable `.ai-badger/` folder), is larger
+  than 1 MiB, or is not a JSON object.
 
-The walk follows both the logical path and the symlink-resolved path. So a nested project, an
-in-tree worktree or a symlinked checkout under a locked directory stays locked. A config without
-`dataPolicy` leaves the decision to `AI_BADGER_ALLOW_THIRD_PARTY`.
+The walk follows the symlink-resolved path, the path as given, and `$PWD` when it names the same
+directory, so a host that reports the physical working directory still sees a lock above a
+symlinked checkout. A nested project or an in-tree worktree under a locked directory stays
+locked. A config without `dataPolicy` leaves the decision to `AI_BADGER_ALLOW_THIRD_PARTY`.
 
-Scaffolders older than 0.185.0 reject a config containing `dataPolicy`. Upgrade ai-badger before
-committing it.
+When you opted in and a lock refuses egress, the memory hook writes one line per process to
+`~/.ai-badger/hook-errors.log` (a Hermes warning under Hermes) naming the locking config, never
+the prompt: `memory_context.egress-refused <path>: dataPolicy`. Without the opt-in a refusal is
+the normal default and is not logged.
+
+Re-running `welcome-ai-badger` keeps an existing `dataPolicy`. Scaffolders older than 0.185.0
+reject a config containing it, so upgrade ai-badger before committing it.
 
 ## Jev endpoints
 
@@ -83,7 +90,11 @@ committing it.
   no lock. This covers a company-cloud deployment.
 
 A custom endpoint authenticates with `AI_BADGER_JEV_ENDPOINT_KEY`, and sends no `Authorization`
-header when that is unset. It never receives `OPENROUTER_API_KEY`.
+header when that is unset or empty. It never receives `OPENROUTER_API_KEY`.
+
+When the advisory is enabled but no endpoint is permitted, `jev_choice.py` reports
+`status: off` with a `refusal` code and a reason naming the cause: `locked` (with the config
+path), `not-opted-in`, `no-key`, `bad-endpoint`, `bad-endpoint-key` or `bad-test-base`.
 
 ## Local classifiers instead of Jev
 

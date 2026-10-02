@@ -1,7 +1,7 @@
 {
   "$schema": "../schemas/manifest.schema.json",
   "frameworkVersion": "0.185.0",
-  "frameworkCommit": "eba9a7bee5cf88c33e49c4e9b0c24478504d477c",
+  "frameworkCommit": "4fe3dad14727e59b7640a17405c868a793333829",
   "frameworkDirty": true,
   "frameworkRoot": ".",
   "generatedAt": null,
@@ -539,12 +539,12 @@
       "source": "features/common/skills/ai-raccoon-memory",
       "target": ".ai-badger/skills/ai-raccoon-memory",
       "frameworkVersion": "0.185.0",
-      "hash": "08ce05a913730363361af5989544f46aa548695389bc85146c0323270b41b256",
+      "hash": "c8e5d99d46b3ea2dfa99c07585f33b81a6aa2b1995a208181469009e15f27bc4",
       "dirMeta": {
         "file_count": 10,
         "dir_count": 1
       },
-      "sourceHash": "08ce05a913730363361af5989544f46aa548695389bc85146c0323270b41b256",
+      "sourceHash": "c8e5d99d46b3ea2dfa99c07585f33b81a6aa2b1995a208181469009e15f27bc4",
       "sourceMeta": {
         "file_count": 10,
         "dir_count": 1
@@ -1470,12 +1470,12 @@
       "source": "features/common/skills/task-decomposition",
       "target": ".ai-badger/skills/task-decomposition",
       "frameworkVersion": "0.185.0",
-      "hash": "6620c8df5aedfd27ea363f61d7dc70e79107ae4df40a4323d04e583f160f11cf",
+      "hash": "0b3164fb2ab3bb243a82fd44580ed908b09a7ea99f86f33f8f94c76474051bc4",
       "dirMeta": {
         "file_count": 12,
         "dir_count": 2
       },
-      "sourceHash": "6620c8df5aedfd27ea363f61d7dc70e79107ae4df40a4323d04e583f160f11cf",
+      "sourceHash": "0b3164fb2ab3bb243a82fd44580ed908b09a7ea99f86f33f8f94c76474051bc4",
       "sourceMeta": {
         "file_count": 12,
         "dir_count": 2
@@ -1512,12 +1512,12 @@
       "source": "features/common/skills/welcome-ai-badger",
       "target": ".ai-badger/skills/welcome-ai-badger",
       "frameworkVersion": "0.185.0",
-      "hash": "e14c1ffe474e2033b1ed79f803994f5fc142ce64d2ad4d69ccdd78da4014dea3",
+      "hash": "370740db762f61e32c0cb4a097ba0d44ef5bceb6096b65b3f0d704d2d09347fc",
       "dirMeta": {
         "file_count": 26,
         "dir_count": 2
       },
-      "sourceHash": "e14c1ffe474e2033b1ed79f803994f5fc142ce64d2ad4d69ccdd78da4014dea3",
+      "sourceHash": "370740db762f61e32c0cb4a097ba0d44ef5bceb6096b65b3f0d704d2d09347fc",
       "sourceMeta": {
         "file_count": 26,
         "dir_count": 2
@@ -2776,7 +2776,7 @@
       "target": ".ai-badger/hooks/ai_badger_hooks.py",
       "frameworkVersion": "0.185.0",
       "hash": "c3af0003f21768f8e415b8e7e8adc908f75ab5ff4b51fd4fc04b980c93528f0f",
-      "outputHash": "11a212082a0b4ab6149fbcda734cdacb5ed98f5987228d257d9992b68b9af70e"
+      "outputHash": "551d36c426b8e30e3d6b2f778c21193ba51c26f92329007962c74caef192e822"
     },
     {
       "feature": "adjustments",
@@ -2906,7 +2906,7 @@
       "target": ".ai-badger/hooks/memory_context.py",
       "frameworkVersion": "0.185.0",
       "hash": "c3af0003f21768f8e415b8e7e8adc908f75ab5ff4b51fd4fc04b980c93528f0f",
-      "outputHash": "fe333306a055cc8441d8ca8cd5bbd161f66b1837f0ce2f79fdd367711fd2f6ce"
+      "outputHash": "c456f12a070e87e46b974b0013bd83ed84a282af7a0a61b8cc1d5ad6668f1538"
     },
     {
       "feature": "adjustments",
@@ -2916,7 +2916,7 @@
       "target": ".ai-badger/hooks/openrouter_client.py",
       "frameworkVersion": "0.185.0",
       "hash": "c3af0003f21768f8e415b8e7e8adc908f75ab5ff4b51fd4fc04b980c93528f0f",
-      "outputHash": "0fb3b99e54b19e26209900e38feade92bf4091638b38937f1a7e48f175241e9b"
+      "outputHash": "c9ae9a0339a49ccb3d88015bea4a5e7c0fdc1f005a85f5ccf06ce314f7881648"
     },
     {
       "feature": "adjustments",
@@ -2986,7 +2986,7 @@
       "target": ".ai-badger/hooks/ai_badger_hooks.py",
       "frameworkVersion": "0.185.0",
       "hash": "a306dd37c27ea55ad6d321e9b4dd05a0ca2e2fab3b4aa5e429140b5e2e2babbd",
-      "outputHash": "11a212082a0b4ab6149fbcda734cdacb5ed98f5987228d257d9992b68b9af70e"
+      "outputHash": "551d36c426b8e30e3d6b2f778c21193ba51c26f92329007962c74caef192e822"
     },
     {
       "feature": "adjustments",

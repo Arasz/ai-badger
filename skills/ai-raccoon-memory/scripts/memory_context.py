@@ -603,9 +603,11 @@ def stage_limits(total: float) -> tuple:
     return (total, PLANNER_SECONDS * scale, SEARCH_SECONDS * scale, SCORE_SECONDS * scale)
 
 
-def pipeline_for(env: Mapping[str, str], cwd: str, limits: Any) -> Optional[Pipeline]:
+def pipeline_for(env: Mapping[str, str], cwd: str, limits: Any, *,
+                 on_error: Optional[Callable[[str], None]] = None) -> Optional[Pipeline]:
     """The pipeline when the switch is not `"0"`, the key is set, every sibling loads and the base
-    is loopback or opted in from an unlocked *cwd*; *limits* is `(total, planner, search, score)`."""
+    is loopback or opted in from an unlocked *cwd*; *limits* is `(total, planner, search, score)`.
+    An opt-in refused by a lock is handed to *on_error* once, naming the config, never the prompt."""
     if env.get(PIPELINE_SWITCH) == "0":
         return None
     try:
@@ -617,7 +619,12 @@ def pipeline_for(env: Mapping[str, str], cwd: str, limits: Any) -> Optional[Pipe
         if key is None:
             return None
         base = client.api_base(env, key)
-        if base is None or not client.egress_allowed(base, env, cwd):
+        if base is None:
+            return None
+        if not client.egress_allowed(base, env, cwd):
+            reason = client.lock_reason(cwd) if client.opted_in(env) else None
+            if reason is not None:
+                _report("memory_context.egress-refused " + reason, on_error)
             return None
         model = planner_model(env, cwd, stages)
         limits = stages.Limits(*(limits or stage_limits(PIPELINE_TOTAL_SECONDS)))
@@ -628,6 +635,7 @@ def pipeline_for(env: Mapping[str, str], cwd: str, limits: Any) -> Optional[Pipe
             functools.partial(stages.score, post=post, base=base, key=key),
             limits)
     except Exception:  # pylint: disable=broad-exception-caught
+        _report("memory_context.pipeline_for", on_error)
         return None
 
 
@@ -672,7 +680,7 @@ def build(prompt: str, cwd: str, session_id: Optional[str], *,
         exe = find_executable(env, home if home is not None else env.get("HOME"))
         if exe is None:
             return None
-        pipeline = pipeline_for(env, cwd, limits)
+        pipeline = pipeline_for(env, cwd, limits, on_error=on_error)
         if budget is not None:
             run_budget = budget
         else:

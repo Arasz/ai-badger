@@ -60,3 +60,29 @@ class TestScaffoldStampsFrameworkVersion:
         for key, value in config.items():
             if key != "frameworkVersion":
                 assert written[key] == value, key
+
+
+def _prior_config(target, config):
+    (target / ".ai-badger").mkdir(parents=True, exist_ok=True)
+    (target / ".ai-badger" / "config.json").write_text(json.dumps(config), encoding="utf-8")
+
+
+class TestRescaffoldKeepsTheDataPolicyLock:
+    """A welcome re-run proposes a config without `dataPolicy`; the lock on disk must survive it."""
+
+    def test_a_prior_lock_is_carried_into_a_config_that_lacks_it(self, make_scaffolder):
+        _prior_config(make_scaffolder.target, {**_config(), "dataPolicy": "local-only"})
+
+        result = make_scaffolder(config=_config()).run(generated_at="2026-07-27T00:00:00Z")
+
+        written = json.loads((make_scaffolder.target / ".ai-badger" / "config.json")
+                             .read_text(encoding="utf-8"))
+        assert written["dataPolicy"] == "local-only"
+        assert [note for note in result["notes"] if "dataPolicy" in note]
+
+    def test_no_prior_lock_adds_none(self, make_scaffolder):
+        _prior_config(make_scaffolder.target, _config())
+
+        written = _scaffold_into(make_scaffolder, _config())
+
+        assert "dataPolicy" not in written

@@ -302,12 +302,6 @@ def model(env: Mapping[str, str]) -> str:
     return value if isinstance(value, str) and value else MODEL_DEFAULT
 
 
-def endpoint(env: Mapping[str, str]) -> str:
-    """`AI_BADGER_JEV_ENDPOINT`, defaulting to the alpha decisions URL."""
-    value = env.get(ENDPOINT_ENV)
-    return value if isinstance(value, str) and value else ENDPOINT_DEFAULT
-
-
 def timeout_seconds(env: Mapping[str, str]) -> float:
     """Per-attempt timeout from `AI_BADGER_JEV_TIMEOUT_MS`; unset/garbage/non-positive → 8 s."""
     raw = env.get(TIMEOUT_ENV)
@@ -322,34 +316,69 @@ def timeout_seconds(env: Mapping[str, str]) -> float:
     return parsed / 1000
 
 
-def _custom_target(url: str, env: Mapping[str, str]) -> Optional[Tuple[str, Optional[str]]]:
-    """`AI_BADGER_JEV_ENDPOINT` with its own key: https, or http only to loopback; a dirty key
-    resolves nothing, and the OpenRouter key is never sent there."""
+Target = Tuple[str, Optional[str]]
+Refusal = Tuple[str, str]
+
+
+def _refused(code: str, reason: str) -> Tuple[None, Refusal]:
+    return None, (code, reason)
+
+
+def _custom_target(url: str, env: Mapping[str, str]) -> Tuple[Optional[Target], Optional[Refusal]]:
+    """`AI_BADGER_JEV_ENDPOINT` with its own key (empty is keyless): https, or http only to
+    loopback; a dirty key resolves nothing, and the OpenRouter key is never sent there."""
     if not (url.startswith("https://") or (url.startswith("http://") and client.is_loopback(url))):
-        return None
+        return _refused("bad-endpoint", f"bad {ENDPOINT_ENV}: https, or http to loopback only")
     raw = env.get(ENDPOINT_KEY_ENV)
-    if raw is None:
-        return url, None
-    clean = client._clean_key(raw)  # pylint: disable=protected-access
-    return (url, raw) if clean is not None and clean == raw else None
+    if not raw:
+        return (url, None), None
+    if client._clean_key(raw) != raw:  # pylint: disable=protected-access
+        return _refused("bad-endpoint-key", f"bad {ENDPOINT_KEY_ENV}: blank, spaced or non-ASCII")
+    return (url, raw), None
 
 
-def endpoint_target(env: Mapping[str, str], cwd: Optional[str] = None
-                    ) -> Optional[Tuple[str, Optional[str]]]:
-    """`(url, key)` for the decisions call, or `None`: the loopback test seam, else a custom
-    endpoint with its own key, else OpenRouter; a non-loopback url needs the third-party opt-in."""
+def _resolve(env: Mapping[str, str], cwd: Optional[str]
+             ) -> Tuple[Optional[Target], Optional[Refusal]]:
+    """The decisions target, or the `(code, reason)` that names why none is permitted."""
     if TEST_BASE_ENV in env:
         key = client.api_key(env)
+        if key is None:
+            return _refused("no-key", "no OpenRouter key: OPENROUTER_API_KEY is unset or dirty")
         base = client.api_base(env, key)
-        target = None if key is None or base is None else (base + DECISIONS_PATH, key)
+        if base is None:
+            return _refused("bad-test-base", f"bad {TEST_BASE_ENV}: loopback with an sk-test- key")
+        target: Target = (base + DECISIONS_PATH, key)
     elif env.get(ENDPOINT_ENV):
-        target = _custom_target(env[ENDPOINT_ENV], env)
+        custom, refusal = _custom_target(env[ENDPOINT_ENV], env)
+        if custom is None:
+            return None, refusal
+        target = custom
     else:
         key = client.api_key(env)
-        target = None if key is None else (ENDPOINT_DEFAULT, key)
-    if target is None or not client.egress_allowed(target[0], env, cwd or "."):
-        return None
-    return target
+        if key is None:
+            return _refused("no-key", f"no OpenRouter key: set OPENROUTER_API_KEY, or "
+                                      f"{ENDPOINT_ENV} to a loopback decider")
+        target = (ENDPOINT_DEFAULT, key)
+    if client.is_loopback(target[0]):
+        return target, None
+    if not client.opted_in(env):
+        return _refused("not-opted-in", f"{client.ALLOW_ENV} is not 1 (or set {ENDPOINT_ENV} "
+                                        f"to a loopback decider)")
+    lock = client.lock_reason(cwd or ".")
+    if lock is not None:
+        return _refused("locked", f"locked by {lock}")
+    return target, None
+
+
+def endpoint_target(env: Mapping[str, str], cwd: Optional[str] = None) -> Optional[Target]:
+    """`(url, key)` for the decisions call, or `None`: the loopback test seam, else a custom
+    endpoint with its own key, else OpenRouter; a non-loopback url needs the third-party opt-in."""
+    return _resolve(env, cwd)[0]
+
+
+def endpoint_refusal(env: Mapping[str, str], cwd: Optional[str] = None) -> Optional[Refusal]:
+    """`(code, reason)` when no decisions endpoint is permitted, else `None`."""
+    return _resolve(env, cwd)[1]
 
 
 # ------------------------------------------------------------------ prompt builders (R4 §3-4)
@@ -730,8 +759,8 @@ def _resolve_context(document: Mapping,
 
 def run(document: Any, *, want_tier: bool, want_waves: bool, env: Mapping[str, str],
         post: Optional[Callable] = None, cwd: Optional[str] = None) -> Dict[str, Any]:
-    """The advisory envelope: `ok` with both proposal maps, `off` when nothing is enabled or no
-    decisions endpoint is permitted.
+    """The advisory envelope: `ok` with both proposal maps, `off` with a `refusal` code and its
+    `reason` when nothing is enabled or no decisions endpoint is permitted.
 
     One `Budget` covers the whole invocation, so tier and wave calls share a single deadline
     and a slow plan cannot multiply the window per chunk.
@@ -745,11 +774,12 @@ def run(document: Any, *, want_tier: bool, want_waves: bool, env: Mapping[str, s
     if not tier_on and not waves_on:
         reason = (f"{MASTER_ENV} is not set to 1" if env.get(MASTER_ENV) != "1"
                   else f"requested capabilities are off: {TIER_ENV}/{WAVES_ENV} must be 1")
-        return {"status": "off", "reason": reason, "tier_proposals": {}, "wave_hints": {}}
-    if endpoint_target(env, cwd) is None:
-        reason = (f"no permitted decisions endpoint: set {ENDPOINT_ENV} to a loopback decider, "
-                  f"or {client.ALLOW_ENV}=1 outside a dataPolicy-locked project")
-        return {"status": "off", "reason": reason, "tier_proposals": {}, "wave_hints": {}}
+        return {"status": "off", "refusal": "flags-off", "reason": reason,
+                "tier_proposals": {}, "wave_hints": {}}
+    refusal = endpoint_refusal(env, cwd)
+    if refusal is not None:
+        return {"status": "off", "refusal": refusal[0], "reason": refusal[1],
+                "tier_proposals": {}, "wave_hints": {}}
     budget = Budget(timeout_seconds(env) * ATTEMPTS)
     proposals = (tier_proposals(steps, env=env, post=post, budget=budget, cwd=cwd)
                  if tier_on else {})

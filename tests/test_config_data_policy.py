@@ -1,11 +1,10 @@
 """`dataPolicy` in the project config schema: `local-only` is the one value, absent is valid.
 
-The repo's own `.ai-badger/config.json` is read (never written) and extended in memory; the
-schema's enum is compared against the OpenRouter client's `LOCAL_ONLY`, the value it documents.
+A minimal valid config is built here and extended per row; the schema's enum is compared against
+the OpenRouter client's `LOCAL_ONLY`, the value it documents.
 """
 from __future__ import annotations
 
-import copy
 import importlib.util
 import json
 from pathlib import Path
@@ -15,8 +14,13 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 SCHEMA = json.loads((ROOT / "schemas" / "config.schema.json").read_text(encoding="utf-8"))
-CONFIG = json.loads((ROOT / ".ai-badger" / "config.json").read_text(encoding="utf-8"))
 CLIENT = ROOT / "features/common/skills/ai-raccoon-memory/scripts/openrouter_client.py"
+
+
+def minimal_config():
+    """The schema's required keys and nothing else."""
+    return {"frameworkVersion": "1.0.0", "project": {"name": "probe"}, "stacks": ["python"],
+            "agents": ["claude"]}
 
 
 def errors(config):
@@ -25,14 +29,13 @@ def errors(config):
 
 
 def with_policy(value):
-    config = copy.deepcopy(CONFIG)
+    config = minimal_config()
     config["dataPolicy"] = value
     return config
 
 
-def test_the_repo_config_validates_without_a_data_policy():
-    assert "dataPolicy" not in CONFIG
-    assert errors(CONFIG) == []
+def test_a_config_without_a_data_policy_validates():
+    assert errors(minimal_config()) == []
 
 
 def test_local_only_is_a_valid_data_policy():

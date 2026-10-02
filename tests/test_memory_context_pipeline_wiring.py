@@ -583,6 +583,55 @@ def test_a_locked_project_builds_no_pipeline_even_with_the_opt_in(memory_context
     assert module.pipeline_for(production_env(**{ALLOW: "1"}), str(cwd), None) is None
 
 
+def recorder():
+    """An `on_error` that records `where` and the exception being handled, nothing else."""
+    seen = []
+
+    def record(where):
+        seen.append((where, sys.exc_info()[0]))
+    return seen, record
+
+
+def test_an_opted_in_build_refused_by_a_lock_reports_the_config_once(memory_context_env,
+                                                                     monkeypatch):
+    cwd, module = scaffold(memory_context_env)
+    lock(cwd)
+    monkeypatch.setattr(module, "_REPORTED", set())
+    seen, record = recorder()
+    for _ in range(2):
+        run_build(module, memory_context_env, cwd, production_env(**{ALLOW: "1"}),
+                  on_error=record)
+    config = os.path.join(os.path.abspath(cwd), ".ai-badger", "config.json")
+    assert seen == [(f"memory_context.egress-refused {config}: dataPolicy", None)]
+    assert PROMPT not in repr(seen)
+    assert memory_context_env.guards.net_attempts == []
+
+
+@pytest.mark.parametrize("extra", [{}, {ALLOW: "true"}, {ALLOW: "1", "OPENROUTER_API_KEY": ""}],
+                         ids=["not-opted-in", "not-literal-one", "no-key"])
+def test_a_lock_refusal_is_not_reported_without_the_opt_in_and_a_key(memory_context_env,
+                                                                     monkeypatch, extra):
+    cwd, module = scaffold(memory_context_env)
+    lock(cwd)
+    monkeypatch.setattr(module, "_REPORTED", set())
+    seen, record = recorder()
+    assert module.pipeline_for(production_env(**extra), str(cwd), None, on_error=record) is None
+    assert seen == []
+
+
+def test_a_defect_inside_pipeline_for_is_reported(memory_context_env, monkeypatch):
+    cwd, module = scaffold(memory_context_env)
+    monkeypatch.setattr(module, "_REPORTED", set())
+
+    def broken(stem):
+        raise NameError(stem)
+    monkeypatch.setattr(module, "_load_sibling", broken)
+    seen, record = recorder()
+    assert module.pipeline_for(production_env(**{ALLOW: "1"}), str(cwd), None,
+                               on_error=record) is None
+    assert seen == [("memory_context.pipeline_for", NameError)]
+
+
 def test_a_production_key_alone_serves_the_single_local_search(memory_context_env, router,
                                                                monkeypatch):
     env = memory_context_env

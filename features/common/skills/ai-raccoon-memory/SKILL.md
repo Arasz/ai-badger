@@ -102,6 +102,8 @@ nothing, and the hook always exits 0. An expected failure (no proxy, a timeout, 
 reply) is silent. A missing or broken `memory_context.py`, or a defect in the hook's own
 code, leaves one line in `~/.ai-badger/hook-errors.log` naming the exception type and where it
 was raised, never the prompt; under Hermes the same line goes to Hermes's log as a warning.
+If you opted in to third-party egress and a `dataPolicy` lock refuses it, one line naming the
+locking config is written there too.
 
 **Two modes.** Both inject the same block.
 

@@ -44,14 +44,15 @@ the parsed hostname exactly against `127.0.0.1`, `localhost` and `::1`, and refu
 
 ### D2: a project locks egress with `dataPolicy`
 
-`project_locked(cwd)` walks every ancestor of the cwd, through both the logical path and the
-symlink-resolved path. Egress is locked if any ancestor's `.ai-badger/config.json` meets one of
+`project_locked(cwd)` walks every ancestor of the cwd, through the path as given, the
+symlink-resolved path, and `$PWD` when it names the same directory (hosts report the physical
+cwd). Egress is locked if any ancestor's `.ai-badger/config.json` meets one of
 these conditions:
 
 - it carries a `dataPolicy` key (the schema accepts only `"local-only"`; any other value also
   locks);
-- it is not a regular file;
-- it cannot be read, or is not a JSON object.
+- it is not a regular file (directory, FIFO, dangling symlink — never opened);
+- it cannot be reached or read, is larger than 1 MiB, or is not a JSON object.
 
 A config without `dataPolicy` defers to the environment. The reasons for this shape:
 
@@ -71,13 +72,21 @@ no HTTP. This replaces D2.2's "key present ⇒ pipeline".
 
 - **Loopback test seam.** Unchanged.
 - **Custom `AI_BADGER_JEV_ENDPOINT`.** It must use `https://`, or loopback `http://`. Its key is
-  the optional `AI_BADGER_JEV_ENDPOINT_KEY`; when that is unset, no `Authorization` header is
-  sent. The OpenRouter key is never used here.
+  the optional `AI_BADGER_JEV_ENDPOINT_KEY`; when that is unset or empty, no `Authorization`
+  header is sent. The OpenRouter key is never used here.
 - **Default.** The OpenRouter production endpoint, with the OpenRouter key.
 
 Every resolved url must still pass D1. A loopback decider, such as the Apache-2.0
 `Mapika/decider` server on `/v1/systemone`, therefore works in a locked project. A company-cloud
 endpoint needs the opt-in and an unlocked project.
+
+### D5: a refusal the user asked to avoid is visible, without prompt content
+
+`lock_reason(cwd)` names the locking config and its cause. When `AI_BADGER_ALLOW_THIRD_PARTY=1`
+and a key are set but a lock refuses the pipeline, the memory hook reports one line per process
+to `~/.ai-badger/hook-errors.log` (a warning under Hermes). A refusal without the opt-in is the
+default and stays silent. `jev_choice.py`'s off envelope carries a `refusal` code and a reason
+naming the cause.
 
 ## Consequences
 

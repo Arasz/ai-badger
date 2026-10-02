@@ -28,6 +28,7 @@ LOCAL_ONLY = "local-only"
 LOOPBACK = "127.0.0.1"
 LOOPBACK_HOSTS = ("127.0.0.1", "localhost", "::1")
 BODY_MAX = 1024 * 1024
+CONFIG_MAX = 1 << 20
 READ_CHUNK = 64 * 1024
 TIMEOUT = "timeout"
 TRANSPORT = "transport"
@@ -90,39 +91,74 @@ def is_loopback(url: str) -> bool:
             and parts.username is None and parts.hostname in LOOPBACK_HOSTS)
 
 
-def _config_locks(path: str) -> bool:
-    """True when *path* exists and is not a regular file holding a JSON object without
-    `dataPolicy`; a FIFO or directory is never read."""
-    if not os.path.lexists(path):
-        return False
+def _config_lock(path: str) -> Optional[str]:
+    """Why the config at *path* locks (`dataPolicy`, `unreadable`, `not-object`), or `None`
+    when it is absent or a JSON object without `dataPolicy`; a FIFO or directory is never read."""
+    try:
+        os.lstat(path)
+    except (FileNotFoundError, NotADirectoryError):
+        return None
+    except OSError:
+        return "unreadable"
     try:
         if not stat.S_ISREG(os.stat(path).st_mode):
-            return True
+            return "unreadable"
         descriptor = os.open(path, os.O_RDONLY | getattr(os, "O_NONBLOCK", 0))
         with os.fdopen(descriptor, "rb") as handle:
             if not stat.S_ISREG(os.fstat(handle.fileno()).st_mode):
-                return True
-            data = json.loads(handle.read().decode("utf-8"))
+                return "unreadable"
+            raw = handle.read(CONFIG_MAX + 1)
+        if len(raw) > CONFIG_MAX:
+            return "unreadable"
+        data = json.loads(raw.decode("utf-8"))
     except Exception:  # pylint: disable=broad-except
-        return True
-    return not isinstance(data, dict) or "dataPolicy" in data
+        return "unreadable"
+    if not isinstance(data, dict):
+        return "not-object"
+    return "dataPolicy" if "dataPolicy" in data else None
+
+
+def _starts(cwd: str) -> List[Path]:
+    """*cwd* as given and resolved, plus the shell's logical `PWD` when it names the same place."""
+    starts = [Path(os.path.abspath(cwd)), Path(cwd).resolve()]
+    logical = os.environ.get("PWD")
+    if logical and os.path.isabs(logical) and Path(logical).resolve() == starts[1]:
+        starts.append(Path(logical))
+    return starts
+
+
+def lock_reason(cwd: str) -> Optional[str]:
+    """`<config path>: <cause>` for the nearest `.ai-badger/config.json` above *cwd* (as given,
+    resolved, or through `PWD`) that locks the project, `unresolvable cwd`, or `None`."""
+    try:
+        seen = set()
+        for start in _starts(cwd):
+            for folder in (start, *start.parents):
+                if folder in seen:
+                    continue
+                seen.add(folder)
+                path = os.path.join(folder, ".ai-badger", "config.json")
+                cause = _config_lock(path)
+                if cause is not None:
+                    return f"{path}: {cause}"
+        return None
+    except Exception:  # pylint: disable=broad-except
+        return "unresolvable cwd"
 
 
 def project_locked(cwd: str) -> bool:
-    """True when any `.ai-badger/config.json` above *cwd*, as given or resolved, sets
-    `dataPolicy` or cannot be read as a JSON object; never raises."""
-    try:
-        starts = {Path(os.path.abspath(cwd)), Path(cwd).resolve()}
-        folders = {folder for start in starts for folder in (start, *start.parents)}
-        return any(_config_locks(os.path.join(folder, ".ai-badger", "config.json"))
-                   for folder in folders)
-    except Exception:  # pylint: disable=broad-except
-        return True
+    """True when any `.ai-badger/config.json` above *cwd* locks the project; never raises."""
+    return lock_reason(cwd) is not None
+
+
+def opted_in(env: Mapping[str, str]) -> bool:
+    """`AI_BADGER_ALLOW_THIRD_PARTY` is exactly `1`."""
+    return env.get(ALLOW_ENV) == "1"
 
 
 def third_party_allowed(env: Mapping[str, str], cwd: str) -> bool:
-    """`AI_BADGER_ALLOW_THIRD_PARTY` is exactly `1` and no config above *cwd* locks the project."""
-    return env.get(ALLOW_ENV) == "1" and not project_locked(cwd)
+    """The session opted in and no config above *cwd* locks the project."""
+    return opted_in(env) and not project_locked(cwd)
 
 
 def egress_allowed(url: str, env: Mapping[str, str], cwd: str) -> bool:

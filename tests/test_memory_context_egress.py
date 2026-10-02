@@ -11,6 +11,7 @@ import importlib.util
 import json
 import os
 import sys
+import threading
 import urllib.error
 
 import pytest
@@ -79,6 +80,15 @@ def _unreadable(project):
     (project / ".ai-badger" / "config.json").chmod(0)
 
 
+def _dangling_symlink(project):
+    (project / ".ai-badger").mkdir(parents=True)
+    (project / ".ai-badger" / "config.json").symlink_to(project / "missing.json")
+
+
+def _over_one_mib(project):
+    write_config(project, {"project": {}, "pad": "x" * (1 << 20)})
+
+
 # (id, builder, locks): only a config that is a JSON object without `dataPolicy` leaves the env
 # in charge; `.ai-badger` as a plain file holds no config at all, so it locks nothing.
 CONFIGS = [
@@ -96,6 +106,8 @@ CONFIGS = [
     ("non-object", _json([]), True),
     ("config-is-a-directory", _config_is_a_directory, True),
     ("unreadable", _unreadable, True),
+    ("dangling-symlink", _dangling_symlink, True),
+    ("over-1-mib", _over_one_mib, True),
 ]
 ALLOW_VALUES = [(None, False), ("0", False), ("true", False), (" 1", False), ("1\n", False),
                 ("1", True)]
@@ -155,6 +167,87 @@ def test_a_symlinked_cwd_is_locked_by_its_resolved_path(tmp_path):
     (open_dir / "link").symlink_to(locked / "inner", target_is_directory=True)
     assert oc.project_locked(str(open_dir)) is False
     assert oc.project_locked(str(open_dir / "link")) is True
+
+
+def not_root():
+    return not (hasattr(os, "geteuid") and os.geteuid() == 0)
+
+
+@pytest.mark.skipif(not not_root(), reason="root searches a mode-000 folder")
+def test_an_unsearchable_dot_dir_holding_a_lock_still_locks(tmp_path):
+    project = write_config(tmp_path / "proj", {"dataPolicy": "local-only"})
+    dot = project / ".ai-badger"
+    dot.chmod(0)
+    try:
+        assert oc.project_locked(str(project)) is True
+    finally:
+        dot.chmod(0o700)
+
+
+@pytest.mark.skipif(not hasattr(os, "mkfifo"), reason="no FIFOs on this platform")
+def test_a_fifo_config_locks_without_blocking(tmp_path):
+    project = tmp_path / "proj"
+    (project / ".ai-badger").mkdir(parents=True)
+    fifo = project / ".ai-badger" / "config.json"
+    os.mkfifo(fifo)
+    result = []
+    worker = threading.Thread(target=lambda: result.append(oc.project_locked(str(project))),
+                              daemon=True)
+    worker.start()
+    worker.join(timeout=3)
+    hung = worker.is_alive()
+    if hung:  # release a reader stuck in open() so the thread can finish
+        os.close(os.open(fifo, os.O_WRONLY | os.O_NONBLOCK))
+        worker.join(timeout=3)
+    assert not hung
+    assert result == [True]
+
+
+def test_an_in_tree_worktree_is_locked_by_the_checkout_above_it(tmp_path):
+    checkout = write_config(tmp_path / "checkout", {"dataPolicy": "local-only"})
+    (checkout / ".git").mkdir()
+    tree = write_config(checkout / ".ai-badger" / "worktrees" / "x", {"project": {}})
+    (tree / ".git").write_text("gitdir: ../../../.git/worktrees/x\n", encoding="utf-8")
+    assert oc.project_locked(str(tree)) is True
+
+
+def test_an_unresolvable_cwd_is_locked():
+    assert oc.project_locked("/tmp/bad\0cwd") is True
+
+
+def test_a_physical_cwd_is_locked_through_a_logical_pwd_naming_it(tmp_path, monkeypatch):
+    corp = write_config(tmp_path / "corp", {"dataPolicy": "local-only"})
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    link = corp / "proj"
+    link.symlink_to(elsewhere, target_is_directory=True)
+    physical = str(elsewhere.resolve())
+    monkeypatch.setenv("PWD", str(link))
+    assert oc.project_locked(physical) is True
+
+
+def test_a_pwd_naming_another_folder_adds_no_lock(tmp_path, monkeypatch):
+    corp = write_config(tmp_path / "corp", {"dataPolicy": "local-only"})
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    monkeypatch.setenv("PWD", str(corp))
+    assert oc.project_locked(str(elsewhere)) is False
+
+
+def config_path(project):
+    return os.path.join(os.path.abspath(project), ".ai-badger", "config.json")
+
+
+@pytest.mark.parametrize("raw,cause", [({"dataPolicy": "local-only"}, "dataPolicy"),
+                                       (b"{not json", "unreadable"), ([], "not-object")])
+def test_lock_reason_names_the_config_and_its_cause(tmp_path, raw, cause):
+    project = write_config(tmp_path / "proj", raw)
+    assert oc.lock_reason(str(project)) == f"{config_path(project)}: {cause}"
+
+
+def test_lock_reason_is_none_for_an_open_project_and_names_an_unresolvable_cwd(tmp_path):
+    assert oc.lock_reason(str(write_config(tmp_path / "proj", {"project": {}}))) is None
+    assert oc.lock_reason("/tmp/bad\0cwd") == "unresolvable cwd"
 
 
 def test_egress_allowed_is_loopback_or_the_opt_in(tmp_path):
@@ -235,6 +328,27 @@ def test_the_opt_in_in_an_unlocked_cwd_reaches_the_opener(monkeypatch, tmp_path)
     assert [request.full_url for request in seen] == [REMOTE]
 
 
+def test_post_json_ignores_an_ambient_opt_in_when_no_env_is_passed(memory_context_env,
+                                                                  monkeypatch, tmp_path):
+    seen = recording_opener(monkeypatch)
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv(ALLOW, "1")
+    reply = oc.post_json(REMOTE, {"model": "m"}, KEY, mc.Budget(2.0))
+    assert reply.error == oc.EGRESS_REFUSED
+    assert seen == []
+    assert memory_context_env.guards.net_attempts == []
+
+
+def test_post_json_without_a_cwd_checks_the_process_cwd(memory_context_env, monkeypatch,
+                                                         tmp_path):
+    seen = recording_opener(monkeypatch)
+    monkeypatch.chdir(write_config(tmp_path / "proj", {"dataPolicy": "local-only"}))
+    reply = oc.post_json(REMOTE, {"model": "m"}, KEY, mc.Budget(2.0), env={ALLOW: "1"})
+    assert reply.error == oc.EGRESS_REFUSED
+    assert seen == []
+    assert memory_context_env.guards.net_attempts == []
+
+
 def test_a_keyless_post_sends_no_authorization_header():
     server = fakes.FakeOpenRouter()
     try:
@@ -242,12 +356,25 @@ def test_a_keyless_post_sends_no_authorization_header():
         assert (reply.status, reply.error) == (200, None)
         assert len(server.requests) == 1
         assert "authorization" not in server.requests[0]["headers"]
-        keyed = oc.post_json(server.url + CHAT_PATH, {"model": "m"}, KEY, mc.Budget(2.0))
-        assert keyed.status == 200
-        assert server.requests[1]["headers"]["authorization"] == f"Bearer {KEY}"
-        for dirty in ("", " " + KEY, KEY + "\nX: 1"):
-            assert oc.post_json(server.url + CHAT_PATH, {}, dirty,
-                                mc.Budget(2.0)).error == oc.TRANSPORT
-        assert len(server.requests) == 2
+    finally:
+        server.stop()
+
+
+def test_a_keyed_post_sends_the_bearer_header():
+    server = fakes.FakeOpenRouter()
+    try:
+        reply = oc.post_json(server.url + CHAT_PATH, {"model": "m"}, KEY, mc.Budget(2.0))
+        assert reply.status == 200
+        assert server.requests[0]["headers"]["authorization"] == f"Bearer {KEY}"
+    finally:
+        server.stop()
+
+
+@pytest.mark.parametrize("dirty", ["", " " + KEY, KEY + "\nX: 1"])
+def test_a_dirty_key_fails_before_any_request(dirty):
+    server = fakes.FakeOpenRouter()
+    try:
+        assert oc.post_json(server.url + CHAT_PATH, {}, dirty, mc.Budget(2.0)).error == oc.TRANSPORT
+        assert server.requests == []
     finally:
         server.stop()
