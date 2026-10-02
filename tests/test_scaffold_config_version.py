@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import json
 
+import pytest
+
 
 def _config() -> dict:
     """A config carrying a deliberately stale frameworkVersion."""
@@ -79,6 +81,25 @@ class TestRescaffoldKeepsTheDataPolicyLock:
                              .read_text(encoding="utf-8"))
         assert written["dataPolicy"] == "local-only"
         assert [note for note in result["notes"] if "dataPolicy" in note]
+
+    @pytest.mark.parametrize("raw", ['{"dataPolicy": "local-only",\n<<<<<<< HEAD\n', "[]"])
+    def test_an_unparsable_prior_config_keeps_egress_locked(self, make_scaffolder, raw):
+        (make_scaffolder.target / ".ai-badger").mkdir(parents=True, exist_ok=True)
+        (make_scaffolder.target / ".ai-badger" / "config.json").write_text(raw, encoding="utf-8")
+
+        result = make_scaffolder(config=_config()).run(generated_at="2026-07-27T00:00:00Z")
+
+        written = json.loads((make_scaffolder.target / ".ai-badger" / "config.json")
+                             .read_text(encoding="utf-8"))
+        assert written["dataPolicy"] == "local-only"
+        assert [note for note in result["notes"] if "dataPolicy" in note]
+
+    def test_an_invalid_prior_value_is_carried_as_the_valid_lock(self, make_scaffolder):
+        _prior_config(make_scaffolder.target, {**_config(), "dataPolicy": "bogus"})
+
+        written = _scaffold_into(make_scaffolder, _config())
+
+        assert written["dataPolicy"] == "local-only"
 
     def test_no_prior_lock_adds_none(self, make_scaffolder):
         _prior_config(make_scaffolder.target, _config())

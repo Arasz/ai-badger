@@ -707,15 +707,23 @@ class Scaffolder:
                               f"the project scaffold is unaffected")
 
     def _keep_data_policy(self, config: Dict[str, Any]) -> None:
-        """Carry the on-disk config's `dataPolicy` lock into *config* when *config* lacks one."""
-        try:
-            prior = json.loads((self.aib / "config.json").read_text(encoding="utf-8"))
-        except (OSError, ValueError):
+        """Carry the on-disk config's `dataPolicy` lock into *config* when *config* lacks one;
+        an existing config that cannot be read as an object locks too, as it does at runtime."""
+        path = self.aib / "config.json"
+        if "dataPolicy" in config or not os.path.lexists(path):
             return
-        if isinstance(prior, dict) and "dataPolicy" in prior and "dataPolicy" not in config:
-            config["dataPolicy"] = prior["dataPolicy"]
-            self.notes.append(f"kept dataPolicy {prior['dataPolicy']!r} from the existing "
-                              f"config (third-party egress stays locked)")
+        try:
+            prior = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            prior = None
+        if not isinstance(prior, dict):
+            why = "because the existing config could not be read as an object"
+        else:
+            why = "from the existing config" if "dataPolicy" in prior else None
+        if why is None:
+            return
+        config["dataPolicy"] = "local-only"
+        self.notes.append(f"kept dataPolicy 'local-only' {why} (third-party egress stays locked)")
 
     def run(self, generated_at: Optional[str] = None) -> Dict[str, Any]:
         """Run every scaffold step in order and return the manifest, plugin commands, and notes."""
