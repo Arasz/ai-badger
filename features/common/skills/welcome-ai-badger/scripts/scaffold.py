@@ -230,6 +230,7 @@ from skill_delivery import SkillDelivery, prune_namespaces, relink_hermes_skills
 from skills_argv import resolve_requested_skills  # noqa: E402
 from superseded_prune import SupersededPrune  # noqa: E402
 from project_id import mint_project_id  # noqa: E402
+from config_writer import write_config  # noqa: E402
 from local_invariants import append_rendered  # noqa: E402
 from model_registry import deliver as deliver_model_registry  # noqa: E402
 from gitignore_block import gitignore_managed_block, merge_gitignore, write_gitignore_block  # noqa
@@ -706,25 +707,6 @@ class Scaffolder:
             self.notes.append(f"{step} failed ({type(exc).__name__}) — skipped; "
                               f"the project scaffold is unaffected")
 
-    def _keep_data_policy(self, config: Dict[str, Any]) -> None:
-        """Carry the on-disk config's `dataPolicy` lock into *config* when *config* lacks one;
-        an existing config that cannot be read as an object locks too, as it does at runtime."""
-        path = self.aib / "config.json"
-        if "dataPolicy" in config or not os.path.lexists(path):
-            return
-        try:
-            prior = json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, ValueError):
-            prior = None
-        if not isinstance(prior, dict):
-            why = "because the existing config could not be read as an object"
-        else:
-            why = "from the existing config" if "dataPolicy" in prior else None
-        if why is None:
-            return
-        config["dataPolicy"] = "local-only"
-        self.notes.append(f"kept dataPolicy 'local-only' {why} (third-party egress stays locked)")
-
     def run(self, generated_at: Optional[str] = None) -> Dict[str, Any]:
         """Run every scaffold step in order and return the manifest, plugin commands, and notes."""
         self.aib.mkdir(parents=True, exist_ok=True)
@@ -757,10 +739,8 @@ class Scaffolder:
         self._record_progress("hooks")
         plugin_cmds = self.install_plugins()
         dep_result = self._check_dependencies()
-        written_config = dict(self.config)
-        written_config["frameworkVersion"] = self.index["frameworkVersion"]
-        self._keep_data_policy(written_config)
-        bl.dump_json(self.aib / "config.json", written_config)
+        written_config = write_config(self.aib, self.config, self.index["frameworkVersion"],
+                                      self.notes)
         self.mcp.generate_mcp_json()
         self._record_progress("config-and-mcp")
         project_servers, user_servers = self.mcp.split_servers_by_scope(
