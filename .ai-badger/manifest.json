@@ -1,7 +1,7 @@
 {
   "$schema": "../schemas/manifest.schema.json",
   "frameworkVersion": "0.185.0",
-  "frameworkCommit": "4e48e34b36d04a9f6c65729ed2057e622b16b290",
+  "frameworkCommit": "195b55db4ab5cb550a374377ff6fc742d65369e4",
   "frameworkDirty": true,
   "frameworkRoot": ".",
   "generatedAt": null,
@@ -1640,7 +1640,7 @@
       "target": ".ai-badger/state.json",
       "frameworkVersion": "0.185.0",
       "hash": "340d9da18a9e2938ff0c058d36c1558428c82c11dd1cc4b35b312d620f923438",
-      "outputHash": "7ece6c2744cb70ad5f27166bec4ae41d142b0772add7360ecb0543e58e5820ea",
+      "outputHash": "d4ccfb9cb482e5836bea37e6d7cacccba50c06510576241e71dde97d4b46dc82",
       "seedOnce": true
     },
     {
