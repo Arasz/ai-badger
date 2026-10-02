@@ -734,7 +734,7 @@ def test_env_names_and_sibling_constants():
     assert set(mc.ENV_NAMES) == {
         "AI_BADGER_PROJECT_ID", "AI_BADGER_MEMORY_CONTEXT", "AI_BADGER_MEMORY_CONTEXT_PIPELINE",
         "AI_BADGER_MEMORY_CONTEXT_PLANNER_MODEL", "AI_BADGER_MEMORY_CONTEXT_TEST_OPENROUTER_BASE",
-        "OPENROUTER_API_KEY"}
+        "OPENROUTER_API_KEY", "AI_BADGER_ALLOW_THIRD_PARTY"}
     assert mc.SIBLINGS == ("openrouter_client.py", "query_pipeline.py")
     assert mc.RESOLVER == "model_groups.py"
     assert Path(mc.__file__).name == "memory_context.py"
@@ -743,6 +743,9 @@ def test_env_names_and_sibling_constants():
 # ------------------------------------------------------------------- env names against real use
 
 ENV_OWNED_BY_THE_FIXTURE = {"PATH", "HOME"}
+# The shell's logical cwd, read by the client's lock walk: it can only add a lock, and only when
+# it resolves to the cwd being checked, so the scrub leaves it alone rather than listing it.
+ENV_READ_AS_A_PATH = {"PWD"}
 
 
 def _env_reads(path, module):
@@ -780,7 +783,7 @@ def test_env_names_are_every_variable_the_modules_read():
     for name, module in modules.items():
         read |= _env_reads(SCRIPTS / name, module)
     assert None not in read, "an env read the scan cannot name"
-    assert read - ENV_OWNED_BY_THE_FIXTURE == set(mc.ENV_NAMES)
+    assert read - ENV_OWNED_BY_THE_FIXTURE - ENV_READ_AS_A_PATH == set(mc.ENV_NAMES)
 
 
 # ------------------------------------------------------------------- failure recording

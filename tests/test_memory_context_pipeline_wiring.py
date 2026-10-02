@@ -23,6 +23,8 @@ from memory_context_openrouter import FakeOpenRouter, behaviour, reply
 from memory_context_support import ROOT, SCRIPTS, memory_context_env  # noqa: F401
 
 PROMPT = "why does the memory context hook stay silent on every prompt"
+ALLOW = "AI_BADGER_ALLOW_THIRD_PARTY"
+PRODUCTION_KEY = "sk-or-v1-x"
 KEY = "sk-test-wiring"
 SIBLING_PREFIX = "ai_badger_memory_context__"
 COPY_PREFIX = "ai_badger_test_wiring_"
@@ -139,6 +141,7 @@ def wiring_env(router, **extra):
     env = dict(os.environ)
     env["OPENROUTER_API_KEY"] = KEY
     env["AI_BADGER_MEMORY_CONTEXT_TEST_OPENROUTER_BASE"] = router.url
+    env.pop(ALLOW, None)
     for name, value in extra.items():
         if value is None:
             env.pop(name, None)
@@ -536,4 +539,108 @@ def test_j6b_real_clock_retry_on_a_fresh_connection(memory_context_env, router, 
     assert len(router.eof_at) == 1
     assert router.eof_at[0] < decisions[1]["at"]
     assert block == block_of(module, [2, 1, 0], [])
+    assert_clean(env)
+
+
+# ------------------------------------------------------------------- third-party egress
+
+
+def production_env(**extra):
+    """A production key and no loopback test base: only the opt-in may route to OpenRouter."""
+    env = {name: value for name, value in os.environ.items()
+           if name not in (ALLOW, "AI_BADGER_MEMORY_CONTEXT_TEST_OPENROUTER_BASE")}
+    env["OPENROUTER_API_KEY"] = PRODUCTION_KEY
+    env.update(extra)
+    return env
+
+
+def lock(path):
+    (path / ".ai-badger").mkdir(parents=True, exist_ok=True)
+    (path / ".ai-badger" / "config.json").write_text('{"dataPolicy": "local-only"}',
+                                                     encoding="utf-8")
+
+
+def test_a_production_key_alone_builds_no_pipeline(memory_context_env):
+    cwd, module = scaffold(memory_context_env)
+    assert module.pipeline_for(production_env(), str(cwd), None) is None
+    assert module.pipeline_for(production_env(**{ALLOW: "true"}), str(cwd), None) is None
+
+
+def test_the_opt_in_from_an_unlocked_project_routes_to_production(memory_context_env):
+    cwd, module = scaffold(memory_context_env)
+    env = production_env(**{ALLOW: "1"})
+    pipeline = module.pipeline_for(env, str(cwd), None)
+    assert pipeline is not None
+    for stage in (pipeline.plan, pipeline.score):
+        assert stage.keywords["base"] == "https://openrouter.ai"
+        assert stage.keywords["key"] == PRODUCTION_KEY
+        assert stage.keywords["post"].keywords == {"env": env, "cwd": str(cwd)}
+
+
+def test_a_locked_project_builds_no_pipeline_even_with_the_opt_in(memory_context_env):
+    cwd, module = scaffold(memory_context_env)
+    lock(cwd)
+    assert module.pipeline_for(production_env(**{ALLOW: "1"}), str(cwd), None) is None
+
+
+def recorder():
+    """An `on_error` that records `where` and the exception being handled, nothing else."""
+    seen = []
+
+    def record(where):
+        seen.append((where, sys.exc_info()[0]))
+    return seen, record
+
+
+def test_an_opted_in_build_refused_by_a_lock_reports_the_config_once(memory_context_env,
+                                                                     monkeypatch):
+    cwd, module = scaffold(memory_context_env)
+    lock(cwd)
+    monkeypatch.setattr(module, "_REPORTED", set())
+    seen, record = recorder()
+    for _ in range(2):
+        run_build(module, memory_context_env, cwd, production_env(**{ALLOW: "1"}),
+                  on_error=record)
+    config = os.path.join(os.path.abspath(cwd), ".ai-badger", "config.json")
+    assert seen == [(f"memory_context.egress-refused {config}: dataPolicy", None)]
+    assert PROMPT not in repr(seen)
+    assert memory_context_env.guards.net_attempts == []
+
+
+@pytest.mark.parametrize("extra", [{}, {ALLOW: "true"}, {ALLOW: "1", "OPENROUTER_API_KEY": ""}],
+                         ids=["not-opted-in", "not-literal-one", "no-key"])
+def test_a_lock_refusal_is_not_reported_without_the_opt_in_and_a_key(memory_context_env,
+                                                                     monkeypatch, extra):
+    cwd, module = scaffold(memory_context_env)
+    lock(cwd)
+    monkeypatch.setattr(module, "_REPORTED", set())
+    seen, record = recorder()
+    assert module.pipeline_for(production_env(**extra), str(cwd), None, on_error=record) is None
+    assert seen == []
+
+
+def test_a_defect_inside_pipeline_for_is_reported(memory_context_env, monkeypatch):
+    cwd, module = scaffold(memory_context_env)
+    monkeypatch.setattr(module, "_REPORTED", set())
+
+    def broken(stem):
+        raise NameError(stem)
+    monkeypatch.setattr(module, "_load_sibling", broken)
+    seen, record = recorder()
+    assert module.pipeline_for(production_env(**{ALLOW: "1"}), str(cwd), None,
+                               on_error=record) is None
+    assert seen == [("memory_context.pipeline_for", NameError)]
+
+
+def test_a_production_key_alone_serves_the_single_local_search(memory_context_env, router,
+                                                               monkeypatch):
+    env = memory_context_env
+    env.fake.mode("perquery")
+    env.fake.hits(hits_table())
+    cwd, module = scaffold(env)
+    spy_calls = spy_run(module, monkeypatch)
+
+    block = run_build(module, env, cwd, production_env())
+    single_search_observations(env, router, block, module, spy_calls)
+    assert env.guards.net_attempts == []
     assert_clean(env)

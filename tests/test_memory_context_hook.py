@@ -479,3 +479,16 @@ def test_w2a_hooks_json_timeout_exceeds_the_pipeline_total_plus_grace():
     threshold = max(module.SINGLE_BUDGET_SECONDS, module.PIPELINE_TOTAL_SECONDS) + \
         module.GRACE_SECONDS
     assert timeout > threshold
+
+
+# ------------------------------------------------------------------- egress refusal notice
+
+
+def test_a_notice_outside_an_exception_names_no_failure(hook, capsys, memory_context_env):
+    where = "memory_context.egress-refused /corp/.ai-badger/config.json: dataPolicy"
+    hook.record_hook_failure(where)
+    err = capsys.readouterr().err
+    text = (memory_context_env.home / ".ai-badger" / "hook-errors.log").read_text(encoding="utf-8")
+    assert err.strip() == f"[ai-badger] {where}"
+    assert text.rstrip().endswith(f" {where}")
+    assert "Unknown" not in text and "hook failed" not in err
