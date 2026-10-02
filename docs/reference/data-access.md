@@ -5,8 +5,9 @@ send project data off the machine. For each one it gives the default and the swi
 
 The rule ai-badger follows is that only the agent host's own model provider receives project
 data. That is Anthropic for Claude Code and GitHub for Copilot. For Hermes and pi it is whatever
-provider the operator configured. Since 0.185.0 nothing else receives prompts, plans, memory or
-code unless someone opts in, and a project can make that refusal permanent.
+provider the operator configured. Since 0.185.0 ai-badger's own scripts and hooks send nothing else
+prompts, plans, memory or code unless someone opts in, and a project can make that refusal
+permanent. pi delegation is the exception (see the table and the last section).
 
 The evidence for each row is in the research record
 [`docs/work/2026-10-02-aib-local-only-data-access-hardening-research.md`](../work/2026-10-02-aib-local-only-data-access-hardening-research.md);
@@ -45,7 +46,7 @@ An `OPENROUTER_API_KEY` in the environment does nothing on its own. Before 0.185
 switched the memory pipeline on.
 
 The check sits in `openrouter_client.post_json`, the one function that opens a socket for these
-features, so a future caller cannot skip it. A loopback destination is always allowed:
+features, so every call through `post_json` is checked. A loopback destination is always allowed:
 `127.0.0.1`, `localhost` or `::1`, matched exactly, with no userinfo.
 
 ## Locking a project: `dataPolicy`
@@ -116,6 +117,10 @@ list gives the evaluation that settles it.
   code-review-graph has not been audited.
 - **External search in agent text.** The instruction "search externally when memory has no hit"
   makes the host agent use its own web search tool.
+- **Loopback forwarders.** Loopback is not the same as on-machine. A local proxy on
+  `127.0.0.1` (LiteLLM, an `ssh -L` tunnel) receives data even in a locked project, by design.
+- **`AI_BADGER_PROJECT_ID`.** The lock is checked from the session's cwd. An exported project
+  id that points at a locked repository while the cwd is elsewhere is not covered.
 - **Process cwd.** The `jev_choice.py` CLI checks the lock at the process's cwd, not at the
   plan file's project. Run it from inside the project.
 - **Refresh lag.** A consumer keeps the old behaviour until `den-refresh` re-scaffolds its
