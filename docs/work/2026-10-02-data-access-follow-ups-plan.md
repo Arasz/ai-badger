@@ -34,6 +34,11 @@ vendored archify skill is Node `.mjs`. pi-badger-integration is TypeScript. Test
 
 - Only the agent host's approved provider receives project data by default. A new surface is
   default-off or local.
+- ai-raccoon is local and approved (owner, 2026-10-03). Its memory server, search and the
+  single-search hook mode run on the machine, and embeddings use its bundled local model
+  (`ai-raccoon model embedding set local`), so it is not a third-party
+  surface. Tasks use it freely, locked projects included, and T8 does not audit it. Only an
+  explicitly configured `memory_sync` cloud target leaves the machine, and that stays opt-in.
 - One egress predicate. Extend `egress_allowed` and `project_locked` in
   `features/common/skills/ai-raccoon-memory/scripts/openrouter_client.py`, and re-copy them to
   `features/common/skills/task-decomposition/scripts/openrouter_client.py`, re-applying only the
@@ -161,6 +166,34 @@ Covers follow-up 8.
 - [ ] A prefix check that is case-sensitive or space-sensitive is pinned by a fixture row with
   leading newlines.
 - [ ] Gates: `pytest tests/test_memory_context_*.py`; pylint; guards.
+
+---
+
+### Task T2b: `aib-injected-turn-predicate-shared` (low loop)
+
+Found in T2's review: two more readers of user prompts still treat harness-injected turns as typed.
+
+**Files:**
+- Modify: `features/common/skills/mcp-index/scripts/context_enrichment_hook.py`. Load
+  `memory_context.py` from the sibling `ai-raccoon-memory` skill (same `skills/<name>/scripts/`
+  layout in the framework and in consumers). Skip an injected turn before any ranking or
+  telemetry, and rank the text after leading `<system-reminder>` blocks. When the sibling is
+  absent, behave as today.
+- Modify: `tooling/fixture_harvest.py`. `is_machine_shaped` also drops what
+  `memory_context.injected_turn` drops. The broad markup regex stays.
+- Test: `tests/test_context_enrichment_hook*.py`, `tests/test_fixture_harvest.py`, both driven by
+  `tests/fixtures/memory_context/injected_turns.json`.
+
+**Interfaces:**
+- **Consumes:** `memory_context.injected_turn(prompt) -> bool` and
+  `memory_context.without_reminders(prompt) -> str`. There is no second marker list.
+
+**Acceptance criteria:**
+- [ ] Every fixture row recommends nothing and writes no query telemetry. RED: today it ranks.
+- [ ] A reminder-prefixed real prompt is ranked on the text after the reminder.
+- [ ] Without the sibling skill the hook still ranks: a fallback, not a crash.
+- [ ] fixture_harvest drops the four plain-text shapes the regex misses. RED: today it keeps them.
+- [ ] Gates: the touched suites; pylint; guards.
 
 ---
 
@@ -331,8 +364,9 @@ Covers follow-up 7. Depends on T1 (mirror the final rule, allowlist included). R
 
 Covers follow-up 9.
 
-**Scope:** an evidence-first audit (`evidence-first-research` skill) of the network behaviour of:
-- ai-raccoon (embedding engines, `memory_sync`, update checks);
+**Scope:** an evidence-first audit (`evidence-first-research` skill) of the network behaviour of
+the following. ai-raccoon is out of scope because it is local and approved (see Global
+constraints).
 - semantica;
 - code-review-graph (embedding model downloads);
 - Playwright MCP (`npx -y @playwright/mcp@latest`, unpinned).
@@ -362,6 +396,7 @@ Method: read each binary's source or docs, and run each under a network-deny san
 |---|---|---|---|---|
 | 1 | T1 egress proxy + allowlist + project binding | high | — | Corporate DLP blocker; defines the rule T3 and T7 consume |
 | 2 | T2 skip injected turns | low | T1 (same file) | Cheap, stops needless per-turn work and surprise egress |
+| 2b | T2b share the injected-turn predicate | low | T2 | Review follow-up; the MCP recommender and fixture harvest reuse it |
 | 3 | T5 feed-badger guard | low | — | The one on-demand path to a **public** repo |
 | 4 | T6 archify + agent text | low | — | Text and vendoring; independent |
 | 5 | T4 provider-neutral registry | high | — | pi-only, larger blast radius (scaffold output) |

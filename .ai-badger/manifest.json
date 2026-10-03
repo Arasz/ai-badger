@@ -1,7 +1,7 @@
 {
   "$schema": "../schemas/manifest.schema.json",
   "frameworkVersion": "0.187.3",
-  "frameworkCommit": "e8715fb4e2fde4977e973e955f564aec5598af9f",
+  "frameworkCommit": "099ffe33f0bfa8d645f48bc1112e58428b6b462d",
   "frameworkDirty": true,
   "frameworkRoot": ".",
   "generatedAt": null,
@@ -980,12 +980,12 @@
       "source": "features/common/skills/mcp-index",
       "target": ".ai-badger/skills/mcp-index",
       "frameworkVersion": "0.187.3",
-      "hash": "7dcc31810a217be46ee57dd02616de43136c6bcf9047f28dc4ff5280ac6ecbdd",
+      "hash": "c055dfb0c0746686619c96be98cadaa8978c138b0fef743b76a5bdf7ac7fa271",
       "dirMeta": {
         "file_count": 10,
         "dir_count": 2
       },
-      "sourceHash": "7dcc31810a217be46ee57dd02616de43136c6bcf9047f28dc4ff5280ac6ecbdd",
+      "sourceHash": "c055dfb0c0746686619c96be98cadaa8978c138b0fef743b76a5bdf7ac7fa271",
       "sourceMeta": {
         "file_count": 10,
         "dir_count": 2
@@ -1640,7 +1640,7 @@
       "target": ".ai-badger/state.json",
       "frameworkVersion": "0.187.3",
       "hash": "340d9da18a9e2938ff0c058d36c1558428c82c11dd1cc4b35b312d620f923438",
-      "outputHash": "5b5bdf674e96c7cf101db3ec6979a66da508e32971e188bdc87945b7bc871741",
+      "outputHash": "8978b7fa0af169d76638cf68cf6b5d043ae221c7606f806150686885d010a17a",
       "seedOnce": true
     },
     {
