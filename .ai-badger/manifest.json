@@ -1,7 +1,7 @@
 {
   "$schema": "../schemas/manifest.schema.json",
   "frameworkVersion": "0.187.1",
-  "frameworkCommit": "cd049a4e1068dc1b83d163b003753f7ef5b51297",
+  "frameworkCommit": "78c8dc8cc7501005b8388b268fb7dcce8e0f63c8",
   "frameworkDirty": true,
   "frameworkRoot": ".",
   "generatedAt": null,
@@ -539,12 +539,12 @@
       "source": "features/common/skills/ai-raccoon-memory",
       "target": ".ai-badger/skills/ai-raccoon-memory",
       "frameworkVersion": "0.187.1",
-      "hash": "28cb143fd58768e8d8e307f861ccda9f0b4f4282527ca2eb93502ec2c269c4cb",
+      "hash": "f71bb2ab60bb7336c2021fe6159d9b4384ed8a7ccec0fb32985538c4179b22a7",
       "dirMeta": {
         "file_count": 10,
         "dir_count": 1
       },
-      "sourceHash": "28cb143fd58768e8d8e307f861ccda9f0b4f4282527ca2eb93502ec2c269c4cb",
+      "sourceHash": "f71bb2ab60bb7336c2021fe6159d9b4384ed8a7ccec0fb32985538c4179b22a7",
       "sourceMeta": {
         "file_count": 10,
         "dir_count": 1
@@ -2906,7 +2906,7 @@
       "target": ".ai-badger/hooks/memory_context.py",
       "frameworkVersion": "0.187.1",
       "hash": "c3af0003f21768f8e415b8e7e8adc908f75ab5ff4b51fd4fc04b980c93528f0f",
-      "outputHash": "7b69b0ae62fb1eefd58bd5962529d308132418ee29f39d9715cc72a178df991f"
+      "outputHash": "4a3de6698ae36786b9246c854b841d1b4c3fd64fbc46855db58411664a553acf"
     },
     {
       "feature": "adjustments",

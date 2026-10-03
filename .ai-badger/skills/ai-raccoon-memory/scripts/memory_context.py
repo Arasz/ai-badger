@@ -117,9 +117,27 @@ def unique_long_words(text: str) -> set:
             if len(token) >= 3 and token not in NOISE_WORDS}
 
 
+REMINDER_OPEN, REMINDER_CLOSE = "<system-reminder>", "</system-reminder>"
+
+
+def without_reminders(prompt: str) -> str:
+    """*prompt* trimmed, minus leading closed `<system-reminder>` blocks; "" when one is unclosed."""
+    text = js_trim(prompt or "")
+    while text.startswith(REMINDER_OPEN):
+        end = text.find(REMINDER_CLOSE)
+        if end == -1:
+            return ""
+        text = js_trim(text[end + len(REMINDER_CLOSE):])
+    return text
+
+
 def injected_turn(prompt: str) -> bool:
-    """True when *prompt*, after leading whitespace, starts with one of `INJECTED_PREFIXES`."""
-    return (prompt or "").lstrip(JS_SPACE).startswith(INJECTED_PREFIXES)
+    """True when *prompt* is harness-written: only reminder blocks, or, after them, text that
+    starts with one of `INJECTED_PREFIXES`."""
+    if not js_trim(prompt or ""):
+        return False
+    text = without_reminders(prompt)
+    return not text or text.startswith(INJECTED_PREFIXES)
 
 
 def should_enrich(prompt: str, min_chars: int = 20, min_words: int = 6) -> Decision:
@@ -130,6 +148,7 @@ def should_enrich(prompt: str, min_chars: int = 20, min_words: int = 6) -> Decis
         return Decision(False, "empty", "", 0)
     if injected_turn(text):
         return Decision(False, "injected-turn", "", 0)
+    text = without_reminders(text)
     if text.lower() in CONTROL_WORDS:
         return Decision(False, "control-word", "", 0)
     if text.startswith("/"):

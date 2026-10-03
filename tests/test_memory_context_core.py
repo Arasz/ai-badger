@@ -129,8 +129,9 @@ def test_c11_injected_turn_is_skipped(prompt):
 
 
 @pytest.mark.parametrize("prompt", [row["prompt"] for row in INJECTED_ROWS], ids=_injected_ids())
-def test_c11_injected_rows_would_enrich_without_the_prefix_rule(monkeypatch, prompt):
+def test_c11_injected_rows_would_enrich_without_the_injected_rules(monkeypatch, prompt):
     monkeypatch.setattr(mc, "INJECTED_PREFIXES", ())
+    monkeypatch.setattr(mc, "REMINDER_OPEN", "\0never")
     assert mc.should_enrich(prompt).enrich is True
 
 
@@ -139,6 +140,39 @@ def test_c11_marker_mid_prompt_still_enriches(prefix):
     prompt = f"why does the memory context hook search turns that start with {prefix} today"
     assert mc.injected_turn(prompt) is False
     assert mc.should_enrich(prompt).reason == "ok"
+
+
+@pytest.mark.parametrize("prefix", mc.INJECTED_PREFIXES)
+def test_c11_a_marker_on_a_later_line_still_enriches(prefix):
+    prompt = f"why does the memory context hook fire here\n{prefix} pasted below the question"
+    assert mc.injected_turn(prompt) is False
+    assert mc.should_enrich(prompt).reason == "ok"
+
+
+@pytest.mark.parametrize("prefix", mc.INJECTED_PREFIXES)
+def test_c11_a_near_miss_prefix_still_enriches(prefix):
+    prompt = prefix[:-1] + "_ explain the memory context hook budget rules and planner timeouts"
+    assert mc.injected_turn(prompt) is False
+    assert mc.should_enrich(prompt).reason == "ok"
+
+
+def test_c11_a_reminder_in_front_of_user_text_gates_the_user_text():
+    user = "explain the memory context hook budget rules and planner timeouts"
+    prompt = f"<system-reminder>\nharness context\n</system-reminder>\n{user}"
+    assert mc.injected_turn(prompt) is False
+    decision = mc.should_enrich(prompt)
+    assert decision.reason == "ok"
+    assert decision.query == user
+
+
+@pytest.mark.parametrize("prompt", [
+    "<system-reminder>\nonly harness context here\n</system-reminder>",
+    "<system-reminder>a</system-reminder>\n<system-reminder>b</system-reminder>",
+    "<system-reminder>\nan unclosed reminder with no user text after it",
+])
+def test_c11_a_reminder_only_turn_is_skipped(prompt):
+    assert mc.injected_turn(prompt) is True
+    assert mc.should_enrich(prompt).reason == "injected-turn"
 
 
 @pytest.mark.parametrize("prefix", mc.INJECTED_PREFIXES)
