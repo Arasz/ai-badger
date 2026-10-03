@@ -4,7 +4,7 @@ Agent-instruction framework distributed as a Claude Code plugin. Python 3.10+ sc
 
 > Domain: Developer tooling: agent instruction catalogs and repo scaffolding.
 > Stacks: python, js, github, claude, hermes, pi, ts, node, changelog
-> Scaffolded by ai-badger 0.187.4. Source of truth for this file: `.ai-badger/CLAUDE.md`.
+> Scaffolded by ai-badger 0.187.5. Source of truth for this file: `.ai-badger/CLAUDE.md`.
 
 ## Commands
 
@@ -109,7 +109,7 @@ execution starts; `steps_ready` returns the dispatchable frontier and its waves.
 `progress_checklist` is the status view, and `plan_get`, `step_get`, `plan_export` read back.
 
 Launched as `uv run --script .ai-badger/skills/task-decomposition/scripts/task_graph_server.py`
-(`uv` on PATH; the PEP 723 env is fetched on first launch). No project `.mcp.json` (Hermes,
+after an `sh -c` cd into the git root (`uv`, `git` on PATH; PEP 723 env fetched on first launch). No project `.mcp.json` (Hermes,
 worktree sessions) → use the CLI twin: `task_graph_cli.py <tool> --json`. Hermes operators:
 add the proposed `mcp_servers:` entry to `~/.hermes/config.yaml`, anchoring the script path to
 the project root — the declaration is project-relative.
