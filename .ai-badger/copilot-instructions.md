@@ -4,7 +4,7 @@ Agent-instruction framework distributed as a Claude Code plugin. Python 3.10+ sc
 
 > Domain: Developer tooling: agent instruction catalogs and repo scaffolding.
 > Stacks: python, js, github, claude, hermes, pi, ts, node, changelog
-> Scaffolded by ai-badger 0.187.6. Source of truth for this file: `.ai-badger/copilot-instructions.md`.
+> Scaffolded by ai-badger 0.187.7. Source of truth for this file: `.ai-badger/copilot-instructions.md`.
 
 ## Commands
 
@@ -108,11 +108,11 @@ execution starts; `steps_ready` returns the dispatchable frontier and its waves.
 `step_start`, `step_complete` (evidence + AC results), `step_fail`, `step_skip`, `ac_check`;
 `progress_checklist` is the status view, and `plan_get`, `step_get`, `plan_export` read back.
 
-Launched as `uv run --script .ai-badger/skills/task-decomposition/scripts/task_graph_server.py`
-after an `sh -c` cd into the git root (`uv`, `git` on PATH; PEP 723 env fetched on first launch). No project `.mcp.json` (Hermes,
-worktree sessions) → use the CLI twin: `task_graph_cli.py <tool> --json`. Hermes operators:
-add the proposed `mcp_servers:` entry to `~/.hermes/config.yaml`, anchoring the script path to
-the project root — the declaration is project-relative.
+Launched by `uv run --no-project python -c …`: a stdlib walk-up from the session directory to the
+nearest `.ai-badger/skills/task-decomposition/scripts/task_graph_server.py`, run with `uv run --script`
+(`uv` on PATH; no shell, no git). No project `.mcp.json` (worktree sessions) → use the CLI twin:
+`task_graph_cli.py <tool> --json`. Hermes operators: add the proposed `mcp_servers:` entry to
+`~/.hermes/config.yaml`; Hermes walks up from its own working directory.
 
 
 

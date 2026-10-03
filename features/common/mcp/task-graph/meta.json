@@ -3,7 +3,7 @@
   "name": "task-graph",
   "description": "The decomposed task plan as a graph: a DAG of steps carrying status, acceptance criteria and evidence, persisted beside the task tracker in the project's tracking.db and served over MCP stdio from a PEP 723 `uv run --script` launch.",
   "prerequisite": {
-    "summary": "uv and git on PATH; the server and its pydantic env are fetched on first launch (PEP 723); the launch changes into the git root first, so any subdirectory works",
+    "summary": "uv on PATH; the server and its pydantic env are fetched on first launch (PEP 723); the launch walks up from the session directory to the project, so any subdirectory works on every OS",
     "check": "uv --version",
     "install": "curl -LsSf https://astral.sh/uv/install.sh | sh",
     "local": {

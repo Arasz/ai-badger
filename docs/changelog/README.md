@@ -19,6 +19,7 @@ When cutting a release:
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
+| 0.187.7 | [task-graph launches on every OS](0.187.7-task-graph-launches-on-every-os.md) |
 | 0.187.6 | [AiRaccoon checklist checks the long-query keyword cap](0.187.6-checklist-long-query-item.md) |
 | 0.187.5 | [task-graph starts from any subdirectory](0.187.5-task-graph-root-finding-launch.md) |
 | 0.187.4 | [task-graph starts in Claude Code again](0.187.4-task-graph-relative-launch.md) |
