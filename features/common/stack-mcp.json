@@ -44,17 +44,7 @@
     {
       "name": "task-graph",
       "command": "uv run --script .ai-badger/skills/task-decomposition/scripts/task_graph_server.py",
-      "declare": true,
-      "agentOverrides": {
-        "claude": {
-          "command": "uv",
-          "args": [
-            "run",
-            "--script",
-            "${CLAUDE_PROJECT_DIR}/.ai-badger/skills/task-decomposition/scripts/task_graph_server.py"
-          ]
-        }
-      }
+      "declare": true
     }
   ]
 }

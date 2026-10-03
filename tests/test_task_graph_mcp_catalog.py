@@ -21,10 +21,12 @@ SERVER = "task-graph"
 SERVER_DIR = f"features/common/mcp/{SERVER}"
 SCAFFOLD = "features/common/skills/welcome-ai-badger/scripts/scaffold.py"
 LAUNCH_SCRIPT = ".ai-badger/skills/task-decomposition/scripts/task_graph_server.py"
-# The exact strings the two destinations must carry (DR3's launch contract).
+# The exact strings the two destinations must carry (DR3's launch contract). Claude's entry is
+# project-relative too: Claude Code sets CLAUDE_PROJECT_DIR for hooks only, so an anchored
+# `.mcp.json` arg reaches uv as the literal `${CLAUDE_PROJECT_DIR}/...` and never starts.
 CLAUDE_ENTRY = {
     "command": "uv",
-    "args": ["run", "--script", "${CLAUDE_PROJECT_DIR}/" + LAUNCH_SCRIPT],
+    "args": ["run", "--script", LAUNCH_SCRIPT],
     "tools": ["*"],
 }
 COPILOT_ENTRY = {
@@ -196,7 +198,6 @@ def test_the_common_stack_declares_task_graph_without_an_availability_gate(root,
         "name": SERVER,
         "command": f"uv run --script {LAUNCH_SCRIPT}",
         "declare": True,
-        "agentOverrides": {"claude": {"command": "uv", "args": CLAUDE_ENTRY["args"]}},
     }
     assert bl.validate(
         declaration, bl.load_json(root / "schemas" / "stack-mcp.schema.json")) == []
@@ -241,12 +242,10 @@ def test_without_uv_the_declaration_is_still_written_and_the_note_is_exact(
 
 def test_the_combined_claude_copilot_scaffold_keeps_both_usable_entries(
         make_scaffolder, uv_on_path):
-    """Copilot CLI reads both files; a Claude-anchored `.mcp.json` must not hide its entry.
+    """Copilot CLI reads both files; `.mcp.json` must not hide its entry.
 
-    The Claude entry anchors the launch script with `${CLAUDE_PROJECT_DIR}/`; the Copilot
-    entry carries the same project-relative path. Both resolve to the same script, so the
-    #193 drop must not fire: the combined scaffold is the common case, and the Copilot agent
-    gets nothing otherwise.
+    Both entries carry the same project-relative launch, so the #193 drop must not fire: the
+    combined scaffold is the common case, and the Copilot agent gets nothing otherwise.
     """
     scaf = _scaffold(make_scaffolder, ["claude", "copilot"])
 
