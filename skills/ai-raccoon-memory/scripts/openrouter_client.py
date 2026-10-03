@@ -2,7 +2,8 @@
 
 No ambient proxy, no redirect, verified TLS, and no host but loopback unless the session opts
 in; a locked project relaxes only for the `https` hosts its `allowHosts` lists. An `https` POST
-tunnels through the `http` proxy the passed env names, never for loopback. The deadline covers
+tunnels through the `http` proxy the passed env names, never for loopback; a proxy failure leaves
+one closed token in `PROXY_FAULTS`, never the proxy value. The deadline covers
 DNS, every connect attempt, the proxy CONNECT, the TLS handshake and the reply; the key comes from
 the environment and appears only in one header, inside the tunnel.
 """
@@ -46,6 +47,13 @@ EGRESS_REFUSED = "egress-refused"
 # string; the lookahead keeps `$` from accepting a trailing newline under jsonschema's `re.search`.
 HOST_PATTERN = (r"^(?!.*\n)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+"
                 r"[A-Za-z](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.?$")
+# A proxy host name: the same LDH labels, but a single label (`proxy`) is allowed.
+PROXY_HOST_PATTERN = (r"(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)*"
+                      r"[A-Za-z](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?")
+MALFORMED = "malformed"
+UNSUPPORTED = "unsupported"
+TLS_VERIFY = "tls-verify"
+TUNNEL_STATUS = re.compile(r"Tunnel connection failed: ([0-9]{3})(?![0-9])")
 POLICY = "dataPolicy"
 LIST_IGNORED = ": list ignored)"
 UNRESOLVABLE = "unresolvable cwd"
@@ -300,8 +308,24 @@ def egress_allowed(url: str, env: Mapping[str, str], cwd: str) -> bool:
     return denying_lock(url, cwd) is None
 
 
+PROXY_FAULTS: set = set()
+
+
+def take_proxy_faults() -> set:
+    """Return and clear the proxy fault tokens recorded since the last call: `malformed`,
+    `unsupported`, `connect-<status>` or `tls-verify`."""
+    taken = set(PROXY_FAULTS)
+    PROXY_FAULTS.difference_update(taken)
+    return taken
+
+
 class _BadProxy(ValueError):
-    """The https proxy variable is not `http://host:port[/]`; its value is never echoed."""
+    """The https proxy variable is refused; `cause` is `malformed` or `unsupported` (credentials
+    or a scheme other than http), and the value is never echoed."""
+
+    def __init__(self, cause: str):
+        super().__init__(f"{cause} proxy")
+        self.cause = cause
 
 
 def _present(lower: Optional[str], upper: Optional[str]) -> str:
@@ -309,24 +333,46 @@ def _present(lower: Optional[str], upper: Optional[str]) -> str:
     return (lower if lower is not None else upper) or ""
 
 
-def _proxy_address(value: str) -> str:
-    """`host:port` of an `http://host:port[/]` proxy URL; raises `_BadProxy` for anything else."""
+def _proxy_host(host: Optional[str]) -> Optional[str]:
+    """*host* as it goes in `host:port` (IPv6 bracketed), or `None` unless it is an IP address
+    or LDH host name."""
+    if not host or "%" in host:
+        return None
     try:
-        parts = urllib.parse.urlsplit(value)
+        address = ipaddress.ip_address(host)
+    except ValueError:
+        return host if re.fullmatch(PROXY_HOST_PATTERN, host) else None
+    return f"[{host}]" if address.version == 6 else host
+
+
+def _proxy_address(value: str) -> str:
+    """`host:port` of an `http://host:port[/]` or bare `host:port` proxy value; raises
+    `_BadProxy` for anything else."""
+    if _screened(value) or "?" in value or "#" in value:
+        raise _BadProxy(MALFORMED)
+    try:
+        parts = urllib.parse.urlsplit(value if "://" in value else "http://" + value)
+        host = _proxy_host(parts.hostname)
+    except ValueError:
+        raise _BadProxy(MALFORMED) from None
+    if not parts.scheme:
+        raise _BadProxy(MALFORMED)
+    if "@" in parts.netloc or parts.scheme != "http":
+        raise _BadProxy(UNSUPPORTED)
+    try:
         port = parts.port
     except ValueError:
-        raise _BadProxy("malformed proxy") from None
-    shaped = (parts.scheme == "http" and "@" not in parts.netloc and bool(parts.hostname)
-              and parts.path in ("", "/"))
-    if not shaped or not port or _screened(value) or "?" in value or "#" in value:
-        raise _BadProxy("malformed proxy")
-    return parts.netloc
+        raise _BadProxy(MALFORMED) from None
+    if host is None or not port or parts.path not in ("", "/"):
+        raise _BadProxy(MALFORMED)
+    return f"{host}:{port}"
 
 
 def proxy_for(url: str, env: Mapping[str, str]) -> Optional[str]:
     """`host:port` of the `http` proxy an `https` *url* goes through, from *env* alone
     (`https_proxy` over `HTTPS_PROXY`, minus `no_proxy` over `NO_PROXY`); `None` for loopback,
-    plain http, a blank value or a bypassed host. Raises `ValueError` for a malformed proxy."""
+    plain http, a blank value or a bypassed host. Raises `ValueError` (with a `cause`) for a
+    refused proxy, even for a bypassed host."""
     if is_loopback(url) or urllib.parse.urlsplit(url).scheme != "https":
         return None
     value = _present(env.get(HTTPS_PROXY_LOWER), env.get(HTTPS_PROXY_UPPER))
@@ -571,6 +617,16 @@ def _exchange(opener: urllib.request.OpenerDirector, request: urllib.request.Req
     return Reply(status, headers, body)
 
 
+def _proxy_fault(err: BaseException) -> Optional[str]:
+    """The closed token for a proxied request's failure, or `None`; only the status digits of a
+    refused CONNECT are read, never its reason phrase."""
+    reason = getattr(err, "reason", err)
+    if isinstance(reason, ssl.SSLCertVerificationError):
+        return TLS_VERIFY
+    match = TUNNEL_STATUS.match(str(reason)) if isinstance(reason, OSError) else None
+    return f"connect-{match.group(1)}" if match else None
+
+
 def _is_timeout(err: BaseException) -> bool:
     reason = getattr(err, "reason", None)
     return isinstance(err, (TimeoutError, socket.timeout)) or isinstance(
@@ -586,7 +642,8 @@ def post_json(url: str, body: Any, key: Optional[str], budget: Any, *,
         return _failure(EGRESS_REFUSED)
     try:
         proxy = proxy_for(url, env if env is not None else {})
-    except ValueError:
+    except _BadProxy as err:
+        PROXY_FAULTS.add(err.cause)
         return _failure(TRANSPORT)
     if budget.remaining() <= 0:
         return _failure(TIMEOUT)
@@ -608,6 +665,9 @@ def post_json(url: str, body: Any, key: Optional[str], budget: Any, *,
     except Exception as err:  # pylint: disable=broad-except
         if call.fired or budget.remaining() <= 0 or _is_timeout(err):
             return _failure(TIMEOUT)
+        fault = _proxy_fault(err) if proxy is not None else None
+        if fault is not None:
+            PROXY_FAULTS.add(fault)
         return _failure(TRANSPORT)
     finally:
         call.close()

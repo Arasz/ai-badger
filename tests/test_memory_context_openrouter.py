@@ -17,7 +17,7 @@ import pytest
 
 import memory_context_openrouter as fakes
 from memory_context_openrouter import CHAT_PATH
-from memory_context_support import (SCRIPTS, live_openrouter_threads, load_module,
+from memory_context_support import (SCRIPTS, GuardRefusal, live_openrouter_threads, load_module,
                                     memory_context_env)  # noqa: F401
 
 mc = load_module()
@@ -51,6 +51,12 @@ def no_leak_no_threads(capsys, caplog):
         for marker in LEAK_MARKERS:
             assert marker not in text
     assert live_openrouter_threads() == []
+
+
+@pytest.fixture(autouse=True)
+def no_stale_proxy_faults():
+    """Every row starts with the client's proxy-fault record empty."""
+    oc.take_proxy_faults()
 
 
 @pytest.fixture(name="fake")
@@ -106,16 +112,35 @@ def named(guards, host):
     return [attempt for attempt in guards.net_attempts if host in repr(attempt)]
 
 
-def dialled_direct(guards, host):
-    """True when the only refusals were the guard stopping a direct lookup of *host*."""
+@pytest.fixture(name="thread_errors")
+def thread_exceptions(monkeypatch):
+    """Exceptions that escaped a thread during the row, instead of pytest's warning."""
+    errors = []
+    monkeypatch.setattr(threading, "excepthook", lambda args: errors.append(args.exc_value))
+    return errors
+
+
+def assert_dialled_direct(guards, host, thread_errors):
+    """The only refusals were the guard stopping one direct lookup of *host*, raised on the
+    resolver thread."""
     refusals = guards.take_refusals()
-    return bool(refusals) and all(host in refusal for refusal in refusals)
+    assert refusals and all(host in refusal for refusal in refusals)
+    assert [type(error) for error in thread_errors] == [GuardRefusal]
+    assert host in str(thread_errors[0])
 
 
 @pytest.fixture(name="proxy")
 def capture_proxy(tls_fake):
     """A relaying CaptureProxy whose only upstream is the TLS fake."""
     server = fakes.CaptureProxy(tls_fake.port)
+    yield server
+    server.stop()
+
+
+@pytest.fixture(name="bare_proxy")
+def bare_capture_proxy():
+    """A CaptureProxy with no upstream: any CONNECT it records is a dial that should not be."""
+    server = fakes.CaptureProxy()
     yield server
     server.stop()
 
@@ -150,14 +175,15 @@ def test_o1_loopback_is_never_proxied(fake, proxy, tls_fake, tmp_path):
     assert proxy.connects == []
 
 
-def test_o1_an_os_environ_proxy_is_ignored(memory_context_env, proxy, tmp_path, monkeypatch):
+def test_o1_an_os_environ_proxy_is_ignored(memory_context_env, proxy, tmp_path, monkeypatch,
+                                          thread_errors):
     for name in ("http_proxy", "https_proxy", "all_proxy", "HTTP_PROXY", "HTTPS_PROXY",
                  "ALL_PROXY"):
         monkeypatch.setenv(name, proxy.url)
     reply = post(TARGET, **opted_in(tmp_path))
     assert reply.error == oc.TRANSPORT
     assert proxy.connects == []
-    assert dialled_direct(memory_context_env.guards, fakes.DECIDER_HOST)
+    assert_dialled_direct(memory_context_env.guards, fakes.DECIDER_HOST, thread_errors)
 
 
 def test_o1_an_os_environ_no_proxy_is_ignored(proxy, tmp_path, monkeypatch):
@@ -218,45 +244,91 @@ def test_o1_the_lowercase_proxy_wins_end_to_end(proxy, second_proxy, tmp_path):
     assert (len(proxy.connects), len(second_proxy.connects)) == (1, 0)
 
 
-def test_o1_a_blank_lowercase_proxy_masks_the_uppercase_one(memory_context_env, proxy, tmp_path):
+def test_o1_a_blank_lowercase_proxy_masks_the_uppercase_one(memory_context_env, proxy, tmp_path,
+                                                            thread_errors):
     reply = post(TARGET, **opted_in(tmp_path, https_proxy="", HTTPS_PROXY=proxy.url))
     assert reply.error == oc.TRANSPORT
     assert proxy.connects == []
-    assert dialled_direct(memory_context_env.guards, fakes.DECIDER_HOST)
+    assert_dialled_direct(memory_context_env.guards, fakes.DECIDER_HOST, thread_errors)
 
 
-def test_o1_a_target_in_no_proxy_dials_direct(memory_context_env, proxy, tmp_path):
+def test_o1_a_target_in_no_proxy_dials_direct(memory_context_env, proxy, tmp_path, thread_errors):
     reply = post(TARGET, **opted_in(tmp_path, HTTPS_PROXY=proxy.url,
                                     NO_PROXY=fakes.DECIDER_HOST))
     assert reply.error == oc.TRANSPORT
     assert proxy.connects == []
-    assert dialled_direct(memory_context_env.guards, fakes.DECIDER_HOST)
+    assert_dialled_direct(memory_context_env.guards, fakes.DECIDER_HOST, thread_errors)
 
 
-def _malformed(port):
-    return [
-        f"https://127.0.0.1:{port}", f"socks5://127.0.0.1:{port}", f"http://u:p@127.0.0.1:{port}",
-        f"http://@127.0.0.1:{port}", "http://127.0.0.1", "http://127.0.0.1:",
-        f"http://127.0.0.1:{port}/x", f"http://127.0.0.1:{port}?q=1", f"http://127.0.0.1:{port}#f",
-        f"127.0.0.1:{port}", "h:1", "http://127.0.0.1:0", "http://127.0.0.1:99999",
-        f"http://127.0.0.1:{port}\n", "http://:1",
-    ]
+def test_o1_a_host_port_no_proxy_entry_never_matches():
+    variables = {"HTTPS_PROXY": P, "NO_PROXY": f"{fakes.DECIDER_HOST}:8443"}
+    assert oc.proxy_for(f"https://{fakes.DECIDER_HOST}:8443/x", variables) == "127.0.0.1:1"
 
 
-@pytest.mark.parametrize("index", range(len(_malformed(1))))
-def test_o1_a_malformed_proxy_is_transport_before_any_dial(memory_context_env, proxy, tmp_path,
-                                                           index):
-    port = proxy.url.rsplit(":", 1)[1]
-    value = _malformed(port)[index]
-    with pytest.raises(ValueError) as raised:
-        oc.proxy_for(TARGET, {"HTTPS_PROXY": value})
-    assert value.strip() not in str(raised.value) and port not in str(raised.value)
-    reply = post(TARGET, **opted_in(tmp_path, HTTPS_PROXY=value))
-    assert reply.error == oc.TRANSPORT
+def test_o1_a_non_default_port_rides_the_connect_line_and_host(proxy, tls_fake, tmp_path):
+    reply = post(f"https://{fakes.DECIDER_HOST}:8443/x",
+                 **opted_in(tmp_path, HTTPS_PROXY=proxy.url,
+                            NO_PROXY=f"{fakes.DECIDER_HOST}:8443"))
+    assert (reply.status, reply.error) == (200, None)
+    connect = f"CONNECT {fakes.DECIDER_HOST}:8443 "
+    assert [c["line"][:len(connect)] for c in proxy.connects] == [connect]
+    assert tls_fake.requests[0]["headers"]["host"] == f"{fakes.DECIDER_HOST}:8443"
+    assert tls_fake.sni == [fakes.DECIDER_HOST]
+
+
+@pytest.mark.parametrize("value,expected", [
+    ("127.0.0.1:8080", "127.0.0.1:8080"),
+    ("h:1", "h:1"),
+    ("proxy.corp.example:3128", "proxy.corp.example:3128"),
+    ("HTTP://Proxy.Corp.Example:3128/", "proxy.corp.example:3128"),
+    ("[::1]:3128", "[::1]:3128"),
+    ("http://[::1]:3128", "[::1]:3128"),
+])
+def test_o1_a_scheme_less_or_http_proxy_is_a_normalised_address(value, expected):
+    assert oc.proxy_for(TARGET, {"HTTPS_PROXY": value}) == expected
+
+
+def test_o1_a_scheme_less_proxy_tunnels_like_curl(proxy, tls_fake, tmp_path):
+    reply = post(TARGET, **opted_in(tmp_path, HTTPS_PROXY=proxy.url.removeprefix("http://")))
+    assert (reply.status, reply.error) == (200, None)
+    assert [c["line"][:len(CONNECT_PREFIX)] for c in proxy.connects] == [CONNECT_PREFIX]
+    assert len(tls_fake.requests) == 1
+
+
+def _refused(port):
+    """`(value, cause)` for every proxy value refused before any dial."""
+    unsupported = [f"https://127.0.0.1:{port}", f"socks5://127.0.0.1:{port}",
+                   f"http://u:p@127.0.0.1:{port}", f"http://@127.0.0.1:{port}",
+                   f"u:p@127.0.0.1:{port}"]
+    malformed = ["http://127.0.0.1", "http://127.0.0.1:", f"http://127.0.0.1:{port}/x",
+                 f"http://127.0.0.1:{port}?q=1", f"http://127.0.0.1:{port}#f",
+                 "http://127.0.0.1:0", "http://127.0.0.1:99999", f"http://127.0.0.1:{port}\n",
+                 "http://:1", "127.0.0.1", "h;x:1", "http://h;x:1", "pr%6Fxy:1",
+                 "http://pr%6Fxy:1"]
+    return ([(value, "unsupported") for value in unsupported]
+            + [(value, "malformed") for value in malformed])
+
+
+@pytest.mark.parametrize("index", range(len(_refused(1))))
+def test_o1_a_refused_proxy_is_transport_before_any_dial(memory_context_env, bare_proxy, tmp_path,
+                                                         request, index):
+    port = str(bare_proxy.port)
+    value, cause = _refused(port)[index]
+    for variables in ({"HTTPS_PROXY": value},
+                      {"HTTPS_PROXY": value, "NO_PROXY": fakes.DECIDER_HOST}):
+        with pytest.raises(ValueError) as raised:
+            oc.proxy_for(TARGET, variables)
+        assert raised.value.cause == cause
+        assert value.strip() not in str(raised.value) and port not in str(raised.value)
+        reply = post(TARGET, **opted_in(tmp_path, **variables))
+        assert reply.error == oc.TRANSPORT
+        assert oc.take_proxy_faults() == {cause}
     assert memory_context_env.guards.net_attempts == []
-    assert proxy.connects == []
+    assert bare_proxy.connects == []
+    proxy = request.getfixturevalue("proxy")
     control = post(TARGET, **opted_in(tmp_path, HTTPS_PROXY=proxy.url))
     assert (control.status, control.error) == (200, None)
+    assert oc.take_proxy_faults() == set()
 
 
 def test_o1_a_hanging_proxy_is_bounded_by_the_share(tmp_path):
@@ -271,14 +343,44 @@ def test_o1_a_hanging_proxy_is_bounded_by_the_share(tmp_path):
     assert live_openrouter_threads() == []
 
 
-def test_o1_a_refusing_proxy_is_transport(tmp_path):
-    refuse = fakes.CaptureProxy(mode="refuse")
+@pytest.mark.parametrize("status", [403, 407])
+def test_o1_a_refusing_proxy_is_transport_with_its_status_token(tmp_path, status):
+    refuse = fakes.CaptureProxy(mode="refuse", refuse_status=status)
     try:
         reply = post(TARGET, **opted_in(tmp_path, HTTPS_PROXY=refuse.url))
     finally:
         refuse.stop()
     assert reply.error == oc.TRANSPORT
     assert len(refuse.connects) == 1 and refuse.violations == []
+    assert oc.take_proxy_faults() == {f"connect-{status}"}
+    assert oc.take_proxy_faults() == set()
+
+
+@pytest.fixture(name="ip_only_certificate", scope="session")
+def ip_only_certificate_files(tmp_path_factory):
+    made = fakes.make_certificate(tmp_path_factory.mktemp("tls-ip"), names="IP:127.0.0.1")
+    if made is None:
+        pytest.skip("openssl is not installed; the throwaway certificate cannot be made")
+    return made
+
+
+def test_o1_the_target_name_is_verified_inside_the_tunnel(ip_only_certificate, tmp_path,
+                                                          monkeypatch):
+    cert, key = ip_only_certificate
+    monkeypatch.setenv("SSL_CERT_FILE", str(cert))
+    ip_only = fakes.FakeOpenRouter(tls=fakes.server_context(cert, key))
+    relay = fakes.CaptureProxy(ip_only.port)
+    try:
+        trusted = post(ip_only.url + CHAT_PATH)
+        reply = post(TARGET, **opted_in(tmp_path, HTTPS_PROXY=relay.url))
+    finally:
+        relay.stop()
+        ip_only.stop()
+    assert (trusted.status, trusted.error) == (200, None)
+    assert reply.error == oc.TRANSPORT
+    assert [c["line"][:len(CONNECT_PREFIX)] for c in relay.connects] == [CONNECT_PREFIX]
+    assert [r["path"] for r in ip_only.requests] == [CHAT_PATH]
+    assert oc.take_proxy_faults() == {"tls-verify"}
 
 
 def test_o1_an_allowlisted_host_in_a_locked_project_goes_through_the_proxy(proxy, tls_fake,

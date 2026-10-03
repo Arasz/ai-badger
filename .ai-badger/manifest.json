@@ -1,7 +1,7 @@
 {
   "$schema": "../schemas/manifest.schema.json",
   "frameworkVersion": "0.187.0",
-  "frameworkCommit": "881d1940a832a89b111285d390e4123f852f3cf3",
+  "frameworkCommit": "b9662fc2b9ad942161e5519f48eaad0e8ec62879",
   "frameworkDirty": true,
   "frameworkRoot": ".",
   "generatedAt": null,
@@ -539,12 +539,12 @@
       "source": "features/common/skills/ai-raccoon-memory",
       "target": ".ai-badger/skills/ai-raccoon-memory",
       "frameworkVersion": "0.187.0",
-      "hash": "98f49f840578fdae904a0aae1cc20e65106bf8b88942500f53f9d95b9d8789b0",
+      "hash": "70fc8f1bc4b120e67df3d5e91bd1d92bee12fff45d32c5da0c5155e6395baf6f",
       "dirMeta": {
         "file_count": 10,
         "dir_count": 1
       },
-      "sourceHash": "98f49f840578fdae904a0aae1cc20e65106bf8b88942500f53f9d95b9d8789b0",
+      "sourceHash": "70fc8f1bc4b120e67df3d5e91bd1d92bee12fff45d32c5da0c5155e6395baf6f",
       "sourceMeta": {
         "file_count": 10,
         "dir_count": 1
@@ -1470,12 +1470,12 @@
       "source": "features/common/skills/task-decomposition",
       "target": ".ai-badger/skills/task-decomposition",
       "frameworkVersion": "0.187.0",
-      "hash": "4aa80e95c4cd44ae8e334af868f49e77206713c7c5e80b96184f8723bef57f50",
+      "hash": "55760fdc955864ebfb3b881666d66e831a9a62645cd14be6c5715d00e0a304ec",
       "dirMeta": {
         "file_count": 12,
         "dir_count": 2
       },
-      "sourceHash": "4aa80e95c4cd44ae8e334af868f49e77206713c7c5e80b96184f8723bef57f50",
+      "sourceHash": "55760fdc955864ebfb3b881666d66e831a9a62645cd14be6c5715d00e0a304ec",
       "sourceMeta": {
         "file_count": 12,
         "dir_count": 2
@@ -2906,7 +2906,7 @@
       "target": ".ai-badger/hooks/memory_context.py",
       "frameworkVersion": "0.187.0",
       "hash": "c3af0003f21768f8e415b8e7e8adc908f75ab5ff4b51fd4fc04b980c93528f0f",
-      "outputHash": "ad0bbf081d8caec3a8bbeb55ad5160e5c9cf9062bd652b3d5575f5466e5f4097"
+      "outputHash": "3ca1b01a912110a163e570b3d7ac44436d9a29278ece2f3378e63b5dcdeae64c"
     },
     {
       "feature": "adjustments",
@@ -2916,7 +2916,7 @@
       "target": ".ai-badger/hooks/openrouter_client.py",
       "frameworkVersion": "0.187.0",
       "hash": "c3af0003f21768f8e415b8e7e8adc908f75ab5ff4b51fd4fc04b980c93528f0f",
-      "outputHash": "aad0264fe0ccd6c5259ba75182f91a3395f72057338bf6146513c8f25e783a78"
+      "outputHash": "c8aad92005e3abcadda46ee5c9bb0085a9afffcaa315e1dd84f099bbeac0b269"
     },
     {
       "feature": "adjustments",

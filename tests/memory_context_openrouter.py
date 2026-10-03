@@ -284,7 +284,8 @@ class _ProxyHandler(BaseHTTPRequestHandler):
                                "headers": {k.lower(): v for k, v in self.headers.items()}})
         self.close_connection = True
         if owner.mode == "refuse":
-            self.wfile.write(b"HTTP/1.1 403 Forbidden\r\nContent-Length: 0\r\n\r\n")
+            self.wfile.write(b"HTTP/1.1 %d Refused by the fake proxy\r\nContent-Length: 0\r\n\r\n"
+                             % owner.refuse_status)
             return
         if owner.mode == "hang":
             owner.stopping.wait(owner.ceiling)
@@ -351,14 +352,15 @@ class CaptureProxy:
     """An HTTP CONNECT proxy on 127.0.0.1 that records each CONNECT's request line and headers.
 
     `relay` answers 200 and relays raw bytes to `127.0.0.1:<upstream_port>`, dialled at call time
-    (never the CONNECT target); `refuse` answers 403; `hang` holds the connection until it stops
+    (never the CONNECT target); `refuse` answers `refuse_status` (403); `hang` holds the connection until it stops
     or `ceiling` passes. Anything that is not a CONNECT, and any failed dial, is a violation.
     """
 
     def __init__(self, upstream_port: int = 0, mode: str = "relay",
-                 ceiling: float = PROXY_CEILING_SECONDS):
+                 ceiling: float = PROXY_CEILING_SECONDS, refuse_status: int = 403):
         self.upstream_port = upstream_port
         self.mode = mode
+        self.refuse_status = refuse_status
         self.ceiling = ceiling
         self.connects: List[dict] = []
         self.violations: List[str] = []
@@ -369,30 +371,39 @@ class CaptureProxy:
         self.thread.start()
 
     @property
+    def port(self) -> int:
+        """The bound port."""
+        return self.server.server_address[1]
+
+    @property
     def url(self) -> str:
         """`http://127.0.0.1:<port>`."""
-        return f"http://{LOOPBACK}:{self.server.server_address[1]}"
+        return f"http://{LOOPBACK}:{self.port}"
 
     def stop(self) -> None:
-        """End every blocking behaviour, stop serving and join the handler threads."""
+        """End every blocking behaviour, stop serving, join the handler threads and fail when
+        one is still running."""
         self.stopping.set()
         self.server.shutdown()
         self.server.server_close()
         self.thread.join(self.ceiling)
         for thread in self.server.handlers:
             thread.join(self.ceiling)
+        alive = [thread.name for thread in [self.thread, *self.server.handlers] if thread.is_alive()]
+        assert not alive, f"capture proxy threads still running: {alive}"
 
 
-def make_certificate(directory: Path) -> Optional[Tuple[Path, Path]]:
-    """A throwaway self-signed EC certificate for IP 127.0.0.1 and `decider.test`; `None`
-    without `openssl`."""
+def make_certificate(directory: Path, names: str = f"IP:127.0.0.1,DNS:{DECIDER_HOST}"
+                     ) -> Optional[Tuple[Path, Path]]:
+    """A throwaway self-signed EC certificate whose subjectAltName is *names* (IP 127.0.0.1 and
+    `decider.test` by default); `None` without `openssl`."""
     if OPENSSL is None:
         return None
     cert, key = directory / "cert.pem", directory / "key.pem"
     subprocess.run(
         [OPENSSL, "req", "-x509", "-newkey", "ec", "-pkeyopt", "ec_paramgen_curve:prime256v1",
          "-nodes", "-keyout", str(key), "-out", str(cert), "-days", "1", "-subj", "/CN=127.0.0.1",
-         "-addext", f"subjectAltName=IP:127.0.0.1,DNS:{DECIDER_HOST}",
+         "-addext", f"subjectAltName={names}",
          "-addext", "keyUsage=critical,digitalSignature,keyCertSign",
          "-addext", "extendedKeyUsage=serverAuth"],
         check=True, capture_output=True, timeout=FAKE_CEILING_SECONDS)

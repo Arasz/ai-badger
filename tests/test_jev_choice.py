@@ -18,7 +18,7 @@ from typing import NamedTuple, Optional
 
 import pytest
 
-from memory_context_openrouter import FakeOpenRouter, reply
+from memory_context_openrouter import CaptureProxy, FakeOpenRouter, reply
 
 MASTER = "AI_BADGER_JEV"
 TIER = "AI_BADGER_JEV_TIER"
@@ -483,6 +483,43 @@ def test_an_off_run_names_its_actual_cause(mod, tmp_path, env, refusal, named):
     assert (payload["status"], payload["refusal"]) == ("off", refusal)
     assert named in payload["reason"]
     assert SECRET not in json.dumps(payload)
+
+
+@pytest.mark.parametrize("value,refusal", [
+    ("h;x:3128", "proxy-malformed"),
+    ("http://127.0.0.1:3128/path", "proxy-malformed"),
+    ("http://user:pass@127.0.0.1:3128", "proxy-unsupported"),
+    ("https://127.0.0.1:3128", "proxy-unsupported"),
+])
+def test_a_refused_proxy_is_an_off_refusal_and_nothing_is_posted(mod, tmp_path, value, refusal):
+    post = Post(TRANSPORT)
+    for route in ({"OPENROUTER_API_KEY": SECRET}, {ENDPOINT: CORP}):
+        payload = mod.run(CLI_PLAN, want_tier=True, want_waves=True, cwd=str(tmp_path), post=post,
+                          env={MASTER: "1", TIER: "1", WAVES: "1", ALLOW: "1",
+                               "HTTPS_PROXY": value, "NO_PROXY": "decider.corp.example",
+                               **route})
+        assert (payload["status"], payload["refusal"]) == ("off", refusal)
+        assert "3128" not in payload["reason"] and "pass" not in payload["reason"]
+    assert post.calls == []
+
+
+def test_a_refused_proxy_leaves_a_loopback_decider_alone(mod, tmp_path):
+    env = {ENDPOINT: LOCAL_DECIDER, "HTTPS_PROXY": "h;x:3128"}
+    assert mod.endpoint_refusal(env, str(tmp_path)) is None
+
+
+def test_a_proxy_refusing_connect_surfaces_its_status_token(mod, tmp_path):
+    refuse = CaptureProxy(mode="refuse", refuse_status=407)
+    try:
+        payload = mod.run(CLI_PLAN, want_tier=True, want_waves=True, cwd=str(tmp_path),
+                          env={MASTER: "1", TIER: "1", WAVES: "1", ALLOW: "1", ENDPOINT: CORP,
+                               "HTTPS_PROXY": refuse.url})
+    finally:
+        refuse.stop()
+    assert refuse.connects
+    assert payload["status"] == "ok"
+    assert payload["proxy_faults"] == ["connect-407"]
+    assert refuse.url not in json.dumps(payload) and "Refused" not in json.dumps(payload)
 
 
 def test_the_default_transport_carries_env_and_cwd_to_the_client(mod, tmp_path, monkeypatch):
