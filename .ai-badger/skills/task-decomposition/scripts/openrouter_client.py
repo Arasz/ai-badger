@@ -1,9 +1,10 @@
 """The memory-context pipeline's one network surface: JSON POSTs to OpenRouter under one deadline.
 
-No proxy, no redirect, verified TLS, and no host but loopback unless the session opts in; a
-locked project relaxes only for the `https` hosts its `allowHosts` lists. The deadline covers DNS,
-every connect attempt, the TLS handshake and the reply; the key comes from the environment and
-appears only in one header.
+No ambient proxy, no redirect, verified TLS, and no host but loopback unless the session opts
+in; a locked project relaxes only for the `https` hosts its `allowHosts` lists. An `https` POST
+tunnels through the `http` proxy the passed env names, never for loopback. The deadline covers
+DNS, every connect attempt, the proxy CONNECT, the TLS handshake and the reply; the key comes from
+the environment and appears only in one header, inside the tunnel.
 """
 from __future__ import annotations
 
@@ -27,6 +28,10 @@ PRODUCTION_BASE = "https://openrouter.ai"
 TEST_BASE_ENV = "AI_BADGER_JEV_TEST_OPENROUTER_BASE"
 TEST_KEY_PREFIX = "sk-test-"
 ALLOW_ENV = "AI_BADGER_ALLOW_THIRD_PARTY"
+HTTPS_PROXY_LOWER = "https_proxy"
+HTTPS_PROXY_UPPER = "HTTPS_PROXY"
+NO_PROXY_LOWER = "no_proxy"
+NO_PROXY_UPPER = "NO_PROXY"
 LOCAL_ONLY = "local-only"
 LOOPBACK = "127.0.0.1"
 LOOPBACK_HOSTS = ("127.0.0.1", "localhost", "::1")
@@ -295,6 +300,47 @@ def egress_allowed(url: str, env: Mapping[str, str], cwd: str) -> bool:
     return denying_lock(url, cwd) is None
 
 
+class _BadProxy(ValueError):
+    """The https proxy variable is not `http://host:port[/]`; its value is never echoed."""
+
+
+def _present(lower: Optional[str], upper: Optional[str]) -> str:
+    """The lowercase value when present (even blank), else the uppercase one, else `""`."""
+    return (lower if lower is not None else upper) or ""
+
+
+def _proxy_address(value: str) -> str:
+    """`host:port` of an `http://host:port[/]` proxy URL; raises `_BadProxy` for anything else."""
+    try:
+        parts = urllib.parse.urlsplit(value)
+        port = parts.port
+    except ValueError:
+        raise _BadProxy("malformed proxy") from None
+    shaped = (parts.scheme == "http" and "@" not in parts.netloc and bool(parts.hostname)
+              and parts.path in ("", "/"))
+    if not shaped or not port or _screened(value) or "?" in value or "#" in value:
+        raise _BadProxy("malformed proxy")
+    return parts.netloc
+
+
+def proxy_for(url: str, env: Mapping[str, str]) -> Optional[str]:
+    """`host:port` of the `http` proxy an `https` *url* goes through, from *env* alone
+    (`https_proxy` over `HTTPS_PROXY`, minus `no_proxy` over `NO_PROXY`); `None` for loopback,
+    plain http, a blank value or a bypassed host. Raises `ValueError` for a malformed proxy."""
+    if is_loopback(url) or urllib.parse.urlsplit(url).scheme != "https":
+        return None
+    value = _present(env.get(HTTPS_PROXY_LOWER), env.get(HTTPS_PROXY_UPPER))
+    if not value.strip():
+        return None
+    address = _proxy_address(value)
+    bypass = _present(env.get(NO_PROXY_LOWER), env.get(NO_PROXY_UPPER))
+    host = dialled_host(url)
+    if host is None or (bypass.strip() and urllib.request.proxy_bypass_environment(
+            host, {"no": bypass})):
+        return None
+    return address
+
+
 class _Expired(TimeoutError):
     """The call's share ran out before a phase could start."""
 
@@ -441,7 +487,12 @@ class _DeadlineHTTPSConnection(http.client.HTTPSConnection):
         sock = self.call.open_socket(self.host, self.port)
         try:
             sock.settimeout(self.call.left())
-            self.sock = self.tls.wrap_socket(sock, server_hostname=self.host)
+            if self._tunnel_host:
+                self.sock = sock
+                self._tunnel()
+                sock.settimeout(self.call.left())
+            self.sock = self.tls.wrap_socket(sock,
+                                             server_hostname=self._tunnel_host or self.host)
         except Exception:
             sock.close()
             raise
@@ -533,6 +584,10 @@ def post_json(url: str, body: Any, key: Optional[str], budget: Any, *,
     *cwd* that is unlocked or whose every lock lists its host in `allowHosts`."""
     if not egress_allowed(url, env if env is not None else {}, cwd if cwd is not None else "."):
         return _failure(EGRESS_REFUSED)
+    try:
+        proxy = proxy_for(url, env if env is not None else {})
+    except ValueError:
+        return _failure(TRANSPORT)
     if budget.remaining() <= 0:
         return _failure(TIMEOUT)
     if key is not None and _clean_key(key) != key:
@@ -544,6 +599,9 @@ def post_json(url: str, body: Any, key: Optional[str], budget: Any, *,
         request.add_header("Content-Type", "application/json")
         if key is not None:
             request.add_unredirected_header("Authorization", f"Bearer {key}")
+        if proxy is not None:
+            request.add_unredirected_header("Host", request.host)
+            request.set_proxy(proxy, "https")
         opener = make_opener(call)
         call.arm()
         reply = _exchange(opener, request, call)

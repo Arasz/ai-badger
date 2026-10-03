@@ -816,15 +816,19 @@ CLI_ANSWERS = {
 
 
 def jev_env_names():
-    """Every variable the CLI reads: the module's `*_ENV` constants, the client's opt-in and
-    test base, and the OpenRouter key, derived from the module rather than listed by hand."""
+    """Every variable the CLI reads: the module's `*_ENV` constants, the client's opt-in, test
+    base and proxy variables, and the OpenRouter key, derived from the modules rather than listed
+    by hand."""
     import importlib.util  # pylint: disable=import-outside-toplevel
     spec = importlib.util.spec_from_file_location("ai_badger_test_jev_cli_names", JEV_CLI)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     names = {value for name, value in vars(module).items()
              if name.endswith("_ENV") and isinstance(value, str)}
-    return names | {module.client.ALLOW_ENV, module.client.TEST_BASE_ENV, "OPENROUTER_API_KEY"}
+    client = module.client
+    proxies = {value for name, value in vars(client).items()
+               if name.endswith(("_PROXY_LOWER", "_PROXY_UPPER")) and isinstance(value, str)}
+    return names | proxies | {client.ALLOW_ENV, client.TEST_BASE_ENV, "OPENROUTER_API_KEY"}
 
 
 JEV_ENV_NAMES = jev_env_names()
@@ -836,6 +840,7 @@ def test_cli_env_clears_every_jev_knob(mod, monkeypatch):
     assert constants <= JEV_ENV_NAMES
     assert {MASTER, TIER, WAVES, MODEL, ENDPOINT, ENDPOINT_KEY, TIMEOUT, TEST_BASE, ALLOW,
             "OPENROUTER_API_KEY"} <= JEV_ENV_NAMES
+    assert {"https_proxy", "HTTPS_PROXY", "no_proxy", "NO_PROXY"} <= JEV_ENV_NAMES
     for name in JEV_ENV_NAMES:
         monkeypatch.setenv(name, "set-by-the-developer")
     assert JEV_ENV_NAMES.isdisjoint(cli_env())

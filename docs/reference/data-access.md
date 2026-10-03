@@ -124,6 +124,24 @@ When you opted in, the refusal is logged once as `memory_context.project-id-mism
 where `<why>` is `differs`, `no-file`, `unreadable` or `store-unavailable`; the ids and the
 prompt are never logged.
 
+## Corporate proxy: `HTTPS_PROXY`
+
+A non-loopback `https` request goes through the proxy named in the environment, as a `CONNECT`
+tunnel: the proxy sees only `CONNECT host:443` and encrypted bytes, and the API key and payload
+travel inside the tunnel (a TLS-inspecting proxy, by design, sees both).
+
+- `https_proxy` wins over `HTTPS_PROXY` whenever it is present, even if blank; a blank value
+  means no proxy. `no_proxy` / `NO_PROXY` follow the same rule and use the standard suffix
+  matching (`corp.example` exempts `a.corp.example`, not `evil-corp.example`).
+- The value must be `http://host:port` (an optional trailing `/`). A value with credentials,
+  another scheme, a path, no port, or whitespace is refused: the request fails as `transport` and
+  nothing is dialled, never a silent direct connection. A malformed value is refused even for a
+  host `NO_PROXY` would exempt.
+- `NO_PROXY` entries match host names only; a `host:port` entry never matches.
+- Loopback destinations are never proxied.
+- A TLS-inspecting proxy's CA must be trusted by Python's default context, which reads
+  `SSL_CERT_FILE` / `SSL_CERT_DIR` (INFERRED; not measured against a real corporate proxy).
+
 ## Jev endpoints
 
 `jev_choice.py` picks its endpoint in three ways:
@@ -165,8 +183,10 @@ list gives the evaluation that settles it.
 
 ## Not governed by `AI_BADGER_ALLOW_THIRD_PARTY`
 
-- **Proxy bypass.** Once opted in, the OpenRouter client still ignores `HTTPS_PROXY`, so its
-  calls bypass a corporate proxy or DLP inspection. Honouring it is the next planned change.
+- **Proxy enforcement.** ai-badger routes through `HTTPS_PROXY` when it is set, but never forces
+  it: an unset or blank variable, or a `NO_PROXY` entry (including `*`), dials directly. Only the
+  network's own egress firewall can make the DLP proxy mandatory. `HTTP_PROXY`, `ALL_PROXY`,
+  system and PAC proxies, and proxy authentication are not used.
 - **pi delegation.** The model registry accepts only `openrouter/*` ids, and pi's own memory and
   RAG extensions run outside ai-badger's hooks.
 - **ai-raccoon embeddings.** The embedding engine stays local only when ai-raccoon is configured
