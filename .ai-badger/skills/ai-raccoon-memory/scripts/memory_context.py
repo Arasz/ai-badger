@@ -28,6 +28,10 @@ ENV_NAMES = (
     "AI_BADGER_MEMORY_CONTEXT_TEST_OPENROUTER_BASE",
     "OPENROUTER_API_KEY",
     "AI_BADGER_ALLOW_THIRD_PARTY",
+    "https_proxy",
+    "HTTPS_PROXY",
+    "no_proxy",
+    "NO_PROXY",
 )
 KILL_SWITCH = "AI_BADGER_MEMORY_CONTEXT"
 PIPELINE_SWITCH = "AI_BADGER_MEMORY_CONTEXT_PIPELINE"
@@ -633,9 +637,10 @@ def pipeline_for(env: Mapping[str, str], cwd: str, limits: Any, *,
                  on_error: Optional[Callable[[str], None]] = None) -> Optional[Pipeline]:
     """The pipeline when the switch is not `"0"`, the key is set, every sibling loads, a set
     `AI_BADGER_PROJECT_ID` names the project *cwd* walks to, and the client's egress rule admits the
-    base; *limits* is `(total, planner, search, score)`. An opted-in refusal is handed to
-    *on_error* once: a refusal names the config that denies the base (`bad-base` when no lock
-    does), and a project-id mismatch names why but neither id."""
+    base and its proxy; *limits* is `(total, planner, search, score)`. An opted-in refusal is
+    handed to *on_error* once: a refusal names the config that denies the base (`bad-base` when no
+    lock does), a project-id mismatch names why but neither id, and a refused proxy names only its
+    cause."""
     if env.get(PIPELINE_SWITCH) == "0":
         return None
     try:
@@ -662,6 +667,10 @@ def pipeline_for(env: Mapping[str, str], cwd: str, limits: Any, *,
                 reason = lock.reason() if lock is not None else "bad-base"
                 _report("memory_context.egress-refused " + reason, on_error)
             return None
+        cause = _proxy_refusal(client, base, env)
+        if cause is not None:
+            _report(f"memory_context.proxy-refused: {cause}", on_error)
+            return None
         model = planner_model(env, cwd, stages)
         limits = stages.Limits(*(limits or stage_limits(PIPELINE_TOTAL_SECONDS)))
         post = functools.partial(client.post_json, env=env, cwd=cwd)
@@ -673,6 +682,25 @@ def pipeline_for(env: Mapping[str, str], cwd: str, limits: Any, *,
     except Exception:  # pylint: disable=broad-exception-caught
         _report("memory_context.pipeline_for", on_error)
         return None
+
+
+def _proxy_refusal(client: Any, base: str, env: Mapping[str, str]) -> Optional[str]:
+    """`malformed` or `unsupported` when the client refuses the proxy *env* names for *base*."""
+    try:
+        client.proxy_for(base, env)
+    except ValueError as err:
+        return getattr(err, "cause", client.MALFORMED)
+    return None
+
+
+def _report_proxy_faults(env: Mapping[str, str],
+                         on_error: Optional[Callable[[str], None]]) -> None:
+    """Drain the client's proxy fault tokens; when opted in, hand each to *on_error* once."""
+    client = _load_sibling("openrouter_client")
+    faults = client.take_proxy_faults() if client is not None else set()
+    if faults and client.opted_in(env):
+        for token in sorted(faults):
+            _report(f"memory_context.proxy-refused: {token}", on_error)
 
 
 # Failures a working install meets (no proxy, a dead pipe, a timeout) stay silent; any other
@@ -728,6 +756,7 @@ def build(prompt: str, cwd: str, session_id: Optional[str], *,
         try:
             if pipeline:
                 mem, code = pipeline.run(decision.query, session, run_budget)
+                _report_proxy_faults(env, on_error)
             else:
                 found = session.search(decision.query, run_budget)
                 mem, code = found if found else ([], [])

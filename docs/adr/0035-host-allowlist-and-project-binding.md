@@ -102,6 +102,16 @@ A mismatch, or a missing walked id, means no pipeline. The single local search s
 the session opted in, the refusal is reported once, with no ids or prompt text. No id-to-root
 registry is added.
 
+### D8: `HTTPS_PROXY` is honoured through a `CONNECT` tunnel (0.187.0)
+
+A non-loopback `https` POST uses the `http://host:port` proxy from the passed env:
+`https_proxy`, else `HTTPS_PROXY` (a present lowercase value wins even when blank; blank means
+none), minus `no_proxy`/`NO_PROXY` through `proxy_bypass_environment`. `Request.set_proxy` is
+applied per request and `_DeadlineHTTPSConnection.connect` runs `_tunnel()` before TLS, verifying
+the target's name; the deadline covers the `CONNECT`, and only the proxy's name is resolved. A
+malformed proxy value is a `transport` failure with no dial. Loopback is never proxied, and the
+proxy is routing, not a policy control: ai-badger never forces it.
+
 ## Consequences
 
 **Positive**
@@ -122,8 +132,7 @@ registry is added.
 
 **Neutral**
 
-`HTTPS_PROXY` is still ignored. Honouring it is connectivity, not policy: without it, egress fails
-closed as `transport`. It is its own follow-up change.
+`HTTPS_PROXY` was split into its own change and shipped in 0.187.0 (D8).
 
 ## Alternatives considered
 

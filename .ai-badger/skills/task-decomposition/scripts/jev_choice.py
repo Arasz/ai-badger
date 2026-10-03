@@ -364,9 +364,15 @@ def _resolve(env: Mapping[str, str], cwd: Optional[str]
             return _refused("no-key", f"no OpenRouter key: set OPENROUTER_API_KEY, or "
                                       f"{ENDPOINT_ENV} to a loopback decider")
         target = (ENDPOINT_DEFAULT, key)
-    if client.egress_allowed(target[0], env, cwd or "."):
-        return target, None
-    return None, _egress_refusal(target[0], env, cwd or ".")
+    if not client.egress_allowed(target[0], env, cwd or "."):
+        return None, _egress_refusal(target[0], env, cwd or ".")
+    try:
+        client.proxy_for(target[0], env)
+    except ValueError as err:
+        cause = getattr(err, "cause", client.MALFORMED)
+        return _refused(f"proxy-{cause}", f"https_proxy/HTTPS_PROXY is {cause}: use "
+                                          f"http://host:port or host:port, without credentials")
+    return target, None
 
 
 def _egress_refusal(url: str, env: Mapping[str, str], cwd: str) -> Refusal:
@@ -779,8 +785,9 @@ def _resolve_context(document: Mapping,
 
 def run(document: Any, *, want_tier: bool, want_waves: bool, env: Mapping[str, str],
         post: Optional[Callable] = None, cwd: Optional[str] = None) -> Dict[str, Any]:
-    """The advisory envelope: `ok` with both proposal maps, `off` with a `refusal` code and its
-    `reason` when nothing is enabled or no decisions endpoint is permitted.
+    """The advisory envelope: `ok` with both proposal maps (plus `proxy_faults` tokens when the
+    proxy failed a call), `off` with a `refusal` code and its `reason` when nothing is enabled or
+    no decisions endpoint (or its proxy) is permitted.
 
     One `Budget` covers the whole invocation, so tier and wave calls share a single deadline
     and a slow plan cannot multiply the window per chunk.
@@ -801,16 +808,21 @@ def run(document: Any, *, want_tier: bool, want_waves: bool, env: Mapping[str, s
         return {"status": "off", "refusal": refusal[0], "reason": refusal[1],
                 "tier_proposals": {}, "wave_hints": {}}
     budget = Budget(timeout_seconds(env) * ATTEMPTS)
+    client.take_proxy_faults()
     proposals = (tier_proposals(steps, env=env, post=post, budget=budget, cwd=cwd)
                  if tier_on else {})
     hints = (wave_hints(ready, done=done, edges=edges, env=env, post=post, budget=budget,
                         cwd=cwd)
              if waves_on else {})
-    return {"status": "ok",
-            "tier_proposals": {name: {"level": proposal.level,
-                                      "confidence": proposal.confidence}
-                               for name, proposal in proposals.items()},
-            "wave_hints": dict(hints)}
+    payload = {"status": "ok",
+               "tier_proposals": {name: {"level": proposal.level,
+                                         "confidence": proposal.confidence}
+                                  for name, proposal in proposals.items()},
+               "wave_hints": dict(hints)}
+    faults = client.take_proxy_faults()
+    if faults:
+        payload["proxy_faults"] = sorted(faults)
+    return payload
 
 
 def _read_document(source: str) -> Any:

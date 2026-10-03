@@ -638,6 +638,61 @@ def test_an_opted_in_refusal_with_no_lock_reports_a_bad_base_once(memory_context
     assert "decider" not in repr(seen)
 
 
+@pytest.mark.parametrize("value,cause", [
+    ("http://127.0.0.1:3128/path", "malformed"),
+    ("h;x:3128", "malformed"),
+    ("http://user:pass@127.0.0.1:3128", "unsupported"),
+    ("https://127.0.0.1:3128", "unsupported"),
+])
+def test_an_opted_in_refused_proxy_is_reported_once_and_serves_the_local_search(
+        memory_context_env, router, monkeypatch, value, cause):
+    env = memory_context_env
+    env.fake.mode("perquery")
+    env.fake.hits(hits_table())
+    cwd, module = scaffold(env)
+    spy_calls = spy_run(module, monkeypatch)
+    monkeypatch.setattr(module, "_REPORTED", set())
+    seen, record = recorder()
+    for _ in range(3):
+        block = run_build(module, env, cwd, production_env(**{ALLOW: "1", "HTTPS_PROXY": value}),
+                          on_error=record)
+        single_search_observations(env, router, block, module, spy_calls)
+    assert seen == [(f"memory_context.proxy-refused: {cause}", None)]
+    assert "3128" not in repr(seen) and "pass" not in repr(seen)
+    assert env.guards.net_attempts == []
+
+
+def test_a_refused_proxy_is_not_reported_without_the_opt_in(memory_context_env, monkeypatch):
+    cwd, module = scaffold(memory_context_env)
+    monkeypatch.setattr(module, "_REPORTED", set())
+    seen, record = recorder()
+    assert module.pipeline_for(production_env(HTTPS_PROXY="h;x:1"), str(cwd), None,
+                               on_error=record) is None
+    assert seen == []
+
+
+def test_a_proxy_refusing_connect_is_reported_once_as_its_status(memory_context_env, monkeypatch):
+    env = memory_context_env
+    env.fake.mode("perquery")
+    env.fake.hits(hits_table())
+    cwd, module = scaffold(env)
+    monkeypatch.setattr(module, "_REPORTED", set())
+    seen, record = recorder()
+    refuse = fake_router.CaptureProxy(mode="refuse", refuse_status=407)
+    try:
+        for _ in range(2):
+            run_build(module, env, cwd, production_env(**{ALLOW: "1", "HTTPS_PROXY": refuse.url}),
+                      on_error=record)
+    finally:
+        refuse.stop()
+    assert refuse.connects and all(c["line"].startswith("CONNECT openrouter.ai:443 ")
+                                   for c in refuse.connects)
+    assert seen == [("memory_context.proxy-refused: connect-407", None)]
+    assert "Refused" not in repr(seen)
+    assert [attempt for attempt in env.guards.net_attempts
+            if "openrouter" in repr(attempt)] == []
+
+
 @pytest.mark.parametrize("extra", [{}, {ALLOW: "true"}, {ALLOW: "1", "OPENROUTER_API_KEY": ""}],
                          ids=["not-opted-in", "not-literal-one", "no-key"])
 def test_a_lock_refusal_is_not_reported_without_the_opt_in_and_a_key(memory_context_env,

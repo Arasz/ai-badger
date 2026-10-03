@@ -124,6 +124,37 @@ When you opted in, the refusal is logged once as `memory_context.project-id-mism
 where `<why>` is `differs`, `no-file`, `unreadable` or `store-unavailable`; the ids and the
 prompt are never logged.
 
+## Corporate proxy: `HTTPS_PROXY`
+
+A non-loopback `https` request goes through the proxy named in the environment, as a `CONNECT`
+tunnel. The proxy sees the target's name and port (in the `CONNECT` line, a `Host` header on
+Python 3.12+, and the TLS server name) and encrypted bytes; the API key and the payload travel
+inside the tunnel. A TLS-inspecting proxy, by design, sees both.
+
+- `https_proxy` wins over `HTTPS_PROXY` whenever it is present, even if blank. A blank value
+  (empty or whitespace only) means no proxy. `no_proxy` / `NO_PROXY` follow the same rule and use
+  the standard suffix matching: `corp.example` exempts `a.corp.example`, not `evil-corp.example`.
+  Only a `NO_PROXY` of exactly `*` exempts everything.
+- The value is `http://host:port` (an optional trailing `/`) or a bare `host:port`, read as http
+  the way curl reads it. Credentials, another scheme (including `https://`), a path, no port, or
+  whitespace inside the value are refused: the request fails as `transport` and nothing is
+  dialled, never a silent direct connection. A refused value is refused even for a host
+  `NO_PROXY` would exempt.
+- `NO_PROXY` entries match host names only; a `host:port`, trailing-dot or bracketed IPv6 entry
+  never matches.
+- Loopback destinations are never proxied.
+- The target's TLS certificate is verified through the tunnel. A TLS-inspecting proxy's CA must
+  be trusted by Python's default context, which reads `SSL_CERT_FILE` / `SSL_CERT_DIR` (INFERRED;
+  not measured against a real corporate proxy).
+- When you opted in, a proxy problem is logged once per process to
+  `~/.ai-badger/hook-errors.log` with a fixed token and never the proxy value:
+  `memory_context.proxy-refused: malformed`, `: unsupported` (credentials or a non-http scheme),
+  `: connect-<status>` (the proxy answered the `CONNECT` with, say, `407`: configure proxy
+  authentication outside ai-badger or exempt the host), or `: tls-verify` (the inspecting proxy's
+  CA is not trusted). The Jev advisory reports `proxy-malformed` / `proxy-unsupported` as an
+  `off` refusal and does not retry; a runtime proxy fault (`connect-<status>`, `tls-verify`)
+  appears in its `ok` output under `proxy_faults`.
+
 ## Jev endpoints
 
 `jev_choice.py` picks its endpoint in three ways:
@@ -165,8 +196,10 @@ list gives the evaluation that settles it.
 
 ## Not governed by `AI_BADGER_ALLOW_THIRD_PARTY`
 
-- **Proxy bypass.** Once opted in, the OpenRouter client still ignores `HTTPS_PROXY`, so its
-  calls bypass a corporate proxy or DLP inspection. Honouring it is the next planned change.
+- **Proxy enforcement.** ai-badger routes through `HTTPS_PROXY` when it is set, but never forces
+  it: an unset or blank variable, or a matching `NO_PROXY` entry (or `NO_PROXY=*`), dials directly. Only the
+  network's own egress firewall can make the DLP proxy mandatory. `HTTP_PROXY`, `ALL_PROXY`,
+  system and PAC proxies, and proxy authentication are not used.
 - **pi delegation.** The model registry accepts only `openrouter/*` ids, and pi's own memory and
   RAG extensions run outside ai-badger's hooks.
 - **ai-raccoon embeddings.** The embedding engine stays local only when ai-raccoon is configured

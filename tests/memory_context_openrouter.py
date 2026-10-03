@@ -1,12 +1,15 @@
-"""Fake OpenRouter servers for the openrouter_client tests: plain HTTP, TLS, and a TLS-handshake drip.
+"""Fake OpenRouter servers for the openrouter_client tests: plain HTTP, TLS, a TLS-handshake drip,
+and an HTTP CONNECT proxy.
 
 `FakeOpenRouter` scripts replies per route and records every request; a second instance serves as
-the capture server that must never be reached. Every blocking behaviour ends by
-`FAKE_CEILING_SECONDS` or when the server stops, so no mutant can hang the suite.
+the capture server that must never be reached. `CaptureProxy` records every CONNECT and relays it
+to one fixed loopback port. Every blocking behaviour ends by `FAKE_CEILING_SECONDS` (the proxy by
+`PROXY_CEILING_SECONDS`) or when the server stops, so no mutant can hang the suite.
 """
 from __future__ import annotations
 
 import json
+import select
 import shutil
 import socket
 import ssl
@@ -23,6 +26,10 @@ from memory_context_support import FAKE_CEILING_SECONDS, LOOPBACK
 CHAT_PATH = "/api/v1/chat/completions"
 DECISIONS_PATH = "/api/alpha/decisions"
 DRIP_SECONDS = 0.05
+PROXY_CEILING_SECONDS = 3.0
+PROXY_THREAD = "fake-capture-proxy"
+READ_SIZE = 64 * 1024
+DECIDER_HOST = "decider.test"
 OPENSSL = shutil.which("openssl")
 
 
@@ -147,7 +154,12 @@ class _Server(ThreadingHTTPServer):
     def __init__(self, owner: "FakeOpenRouter", tls: Optional[ssl.SSLContext]):
         self.owner = owner
         self.tls = tls
+        if tls is not None:
+            tls.sni_callback = self._record_sni
         super().__init__((LOOPBACK, 0), _Handler)
+
+    def _record_sni(self, _sock, server_name, _context) -> None:
+        self.owner.sni.append(server_name)
 
     def get_request(self):
         sock, address = super().get_request()
@@ -161,11 +173,13 @@ class _Server(ThreadingHTTPServer):
 
 
 class FakeOpenRouter:
-    """A scripted OpenRouter on 127.0.0.1; `tls` wraps it with a server context."""
+    """A scripted OpenRouter on 127.0.0.1; `tls` wraps it with a server context and records the
+    server name each TLS client sent (`None` when it sent none)."""
 
     def __init__(self, tls: Optional[ssl.SSLContext] = None, ceiling: float = FAKE_CEILING_SECONDS):
         self.ceiling = ceiling
         self.requests: List[dict] = []
+        self.sni: List[Optional[str]] = []
         self.connections = 0
         self.stopping = threading.Event()
         self.scripts: Dict[str, List[Step]] = {}
@@ -247,15 +261,149 @@ class DripTcp:
         self.listener.close()
 
 
-def make_certificate(directory: Path) -> Optional[Tuple[Path, Path]]:
-    """A throwaway self-signed EC certificate for IP 127.0.0.1; `None` without `openssl`."""
+class _ProxyHandler(BaseHTTPRequestHandler):
+    # pylint: disable=attribute-defined-outside-init
+    server: "_ProxyServer"
+    protocol_version = "HTTP/1.1"
+
+    def log_message(self, *args) -> None:  # pylint: disable=arguments-differ
+        return
+
+    def parse_request(self) -> bool:
+        parsed = super().parse_request()
+        if parsed and self.command != "CONNECT":
+            self.server.owner.violations.append(f"non-CONNECT request: {self.requestline}")
+            self.close_connection = True
+            return False
+        return parsed
+
+    def do_CONNECT(self) -> None:  # pylint: disable=invalid-name
+        """Record the CONNECT, then relay, refuse or hang as the owner's mode says."""
+        owner = self.server.owner
+        owner.connects.append({"line": self.requestline,
+                               "headers": {k.lower(): v for k, v in self.headers.items()}})
+        self.close_connection = True
+        if owner.mode == "refuse":
+            self.wfile.write(b"HTTP/1.1 %d Refused by the fake proxy\r\nContent-Length: 0\r\n\r\n"
+                             % owner.refuse_status)
+            return
+        if owner.mode == "hang":
+            owner.stopping.wait(owner.ceiling)
+            return
+        upstream = None
+        try:
+            upstream = socket.create_connection((LOOPBACK, owner.upstream_port),
+                                                timeout=owner.ceiling)
+            self.wfile.write(b"HTTP/1.1 200 Connection established\r\n\r\n")
+            self._relay(upstream)
+        except BaseException as err:  # pylint: disable=broad-except
+            owner.violations.append(f"relay: {type(err).__name__}")
+        finally:
+            if upstream is not None:
+                upstream.close()
+            _close_quietly(self.connection)
+
+    def _relay(self, upstream: socket.socket) -> None:
+        owner = self.server.owner
+        pair = {self.connection: upstream, upstream: self.connection}
+        end = time.monotonic() + owner.ceiling
+        while not owner.stopping.is_set() and time.monotonic() < end:
+            ready, _, _ = select.select(list(pair), [], [], DRIP_SECONDS)
+            for sock in ready:
+                try:
+                    data = sock.recv(READ_SIZE)
+                    if data:
+                        pair[sock].sendall(data)
+                except OSError:
+                    data = b""
+                if not data:
+                    return
+
+
+def _close_quietly(sock: socket.socket) -> None:
+    try:
+        sock.shutdown(socket.SHUT_RDWR)
+    except OSError:
+        pass
+    sock.close()
+
+
+class _ProxyServer(ThreadingHTTPServer):
+    daemon_threads = True
+    block_on_close = False
+
+    def __init__(self, owner: "CaptureProxy"):
+        self.owner = owner
+        self.handlers: List[threading.Thread] = []
+        super().__init__((LOOPBACK, 0), _ProxyHandler)
+
+    def process_request(self, request, client_address) -> None:
+        thread = threading.Thread(target=self.process_request_thread,
+                                  args=(request, client_address),
+                                  name=f"{PROXY_THREAD}-handler", daemon=True)
+        self.handlers.append(thread)
+        thread.start()
+
+    def handle_error(self, request, client_address) -> None:
+        self.owner.violations.append("handler error")
+
+
+class CaptureProxy:
+    """An HTTP CONNECT proxy on 127.0.0.1 that records each CONNECT's request line and headers.
+
+    `relay` answers 200 and relays raw bytes to `127.0.0.1:<upstream_port>`, dialled at call time
+    (never the CONNECT target); `refuse` answers `refuse_status` (403); `hang` holds the connection until it stops
+    or `ceiling` passes. Anything that is not a CONNECT, and any failed dial, is a violation.
+    """
+
+    def __init__(self, upstream_port: int = 0, mode: str = "relay",
+                 ceiling: float = PROXY_CEILING_SECONDS, refuse_status: int = 403):
+        self.upstream_port = upstream_port
+        self.mode = mode
+        self.refuse_status = refuse_status
+        self.ceiling = ceiling
+        self.connects: List[dict] = []
+        self.violations: List[str] = []
+        self.stopping = threading.Event()
+        self.server = _ProxyServer(self)
+        self.thread = threading.Thread(target=self.server.serve_forever, name=PROXY_THREAD,
+                                       kwargs={"poll_interval": 0.05}, daemon=True)
+        self.thread.start()
+
+    @property
+    def port(self) -> int:
+        """The bound port."""
+        return self.server.server_address[1]
+
+    @property
+    def url(self) -> str:
+        """`http://127.0.0.1:<port>`."""
+        return f"http://{LOOPBACK}:{self.port}"
+
+    def stop(self) -> None:
+        """End every blocking behaviour, stop serving, join the handler threads and fail when
+        one is still running."""
+        self.stopping.set()
+        self.server.shutdown()
+        self.server.server_close()
+        self.thread.join(self.ceiling)
+        for thread in self.server.handlers:
+            thread.join(self.ceiling)
+        alive = [thread.name for thread in [self.thread, *self.server.handlers] if thread.is_alive()]
+        assert not alive, f"capture proxy threads still running: {alive}"
+
+
+def make_certificate(directory: Path, names: str = f"IP:127.0.0.1,DNS:{DECIDER_HOST}"
+                     ) -> Optional[Tuple[Path, Path]]:
+    """A throwaway self-signed EC certificate whose subjectAltName is *names* (IP 127.0.0.1 and
+    `decider.test` by default); `None` without `openssl`."""
     if OPENSSL is None:
         return None
     cert, key = directory / "cert.pem", directory / "key.pem"
     subprocess.run(
         [OPENSSL, "req", "-x509", "-newkey", "ec", "-pkeyopt", "ec_paramgen_curve:prime256v1",
          "-nodes", "-keyout", str(key), "-out", str(cert), "-days", "1", "-subj", "/CN=127.0.0.1",
-         "-addext", "subjectAltName=IP:127.0.0.1",
+         "-addext", f"subjectAltName={names}",
          "-addext", "keyUsage=critical,digitalSignature,keyCertSign",
          "-addext", "extendedKeyUsage=serverAuth"],
         check=True, capture_output=True, timeout=FAKE_CEILING_SECONDS)
