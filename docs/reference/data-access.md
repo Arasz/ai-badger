@@ -32,7 +32,8 @@ the design is in [ADR-0034](../adr/0034-third-party-egress-is-opt-in-and-lockabl
 Everything else is local:
 - the message bus, task tracking and the task-graph server (SQLite, stdio);
 - the BM25 MCP recommender;
-- ai-raccoon: the memory server, search and embeddings run on the machine. The owner approved it
+- ai-raccoon: the memory server and search run on the machine, and embeddings use its bundled
+  local model (`ai-raccoon model embedding set local`). The owner approved it
   for client data on 2026-10-03. Only a configured `memory_sync` target (the row above) leaves;
 - the drift notice and the debug and audit logs;
 - archify preview, which serves on loopback.

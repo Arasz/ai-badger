@@ -34,8 +34,9 @@ vendored archify skill is Node `.mjs`. pi-badger-integration is TypeScript. Test
 
 - Only the agent host's approved provider receives project data by default. A new surface is
   default-off or local.
-- ai-raccoon is local and approved (owner, 2026-10-03). Its memory server, search, the
-  single-search hook mode and its embeddings run on the machine, so it is not a third-party
+- ai-raccoon is local and approved (owner, 2026-10-03). Its memory server, search and the
+  single-search hook mode run on the machine, and embeddings use its bundled local model
+  (`ai-raccoon model embedding set local`), so it is not a third-party
   surface. Tasks use it freely, locked projects included, and T8 does not audit it. Only an
   explicitly configured `memory_sync` cloud target leaves the machine, and that stays opt-in.
 - One egress predicate. Extend `egress_allowed` and `project_locked` in

@@ -505,3 +505,19 @@ class TestInjectedTurns:
 
         context = json.loads(capsys.readouterr().out)["hookSpecificOutput"]["additionalContext"]
         assert "build_solution" in context
+
+    def test_an_older_memory_skill_without_the_predicate_is_treated_as_absent(
+        self, hook, tmp_path, monkeypatch, capsys, real_context_enrichment
+    ):
+        stale = tmp_path / "old" / "memory_context.py"
+        stale.parent.mkdir()
+        _test_write(stale, "SNIPPET_CHARS = 300\n", encoding="utf-8")
+        monkeypatch.setattr(hook, "MEMORY_CONTEXT_PATH", stale)
+        project = tmp_path / "proj"
+        _write_index(project, _sample_index())
+
+        rc = _run_main(hook, monkeypatch, {"prompt": "build the solution", "cwd": str(project)})
+
+        assert rc == 0
+        context = json.loads(capsys.readouterr().out)["hookSpecificOutput"]["additionalContext"]
+        assert "build_solution" in context

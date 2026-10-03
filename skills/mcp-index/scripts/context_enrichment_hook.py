@@ -76,13 +76,17 @@ def _load_context_enrichment() -> Optional[Any]:
 
 
 def _load_memory_context() -> Optional[Any]:
-    """The sibling memory_context module, or None when that skill is not scaffolded."""
+    """The sibling memory_context module, or None when that skill is absent or predates the
+    injected-turn predicate."""
     try:
         spec = importlib.util.spec_from_file_location(MEMORY_CONTEXT_MODULE_NAME,
                                                       MEMORY_CONTEXT_PATH)
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
     except Exception:  # pylint: disable=broad-exception-caught
+        return None
+    if not all(callable(getattr(module, name, None))
+               for name in ("injected_turn", "without_reminders")):
         return None
     return module
 
