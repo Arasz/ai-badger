@@ -307,3 +307,17 @@ what this record relies on for Claude.
   (F5, F6). No launch form fixes that. It needs a host change or an explicit user-scope entry.
 - The cold first-launch cost (uv resolving two environments) was seen only as an
   unwarmed 90 to 420 ms spread and was not separated from machine load.
+
+## Addendum — 2026-10-03
+
+- The `windows-latest` CI job ran the probe: run 37136004503 failed on the `sh` launch and
+  run 37136797938 passed on the walk-up launch. That upgrades F14 and F15, and EOF teardown
+  (F16), to MEASURED on Windows.
+- Review found two gaps in the walk-up launch, both fixed and pinned by tests. A
+  `.python-version` above the session directory could pick the launcher's own interpreter
+  (MEASURED: `uv` refused a `3.0` pin), so the launch now passes `--python 3`. The launcher also
+  did not forward SIGTERM, so terminating it left the server running while stdin stayed open
+  (MEASURED on macOS); it now starts the server with `Popen` and terminates it on SIGTERM.
+- Still unverified: killing only the top process on Windows while stdin is open. Python's
+  `signal` module documents SIGTERM as valid for `signal.signal` on Windows, so the handler
+  installs there (READ), but no Windows run delivered it.

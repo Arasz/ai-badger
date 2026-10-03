@@ -26,14 +26,14 @@ LAUNCH_SCRIPT = ".ai-badger/skills/task-decomposition/scripts/task_graph_server.
 # spawn MCP servers in the session's cwd, and Claude Code leaves ${CLAUDE_PROJECT_DIR} unexpanded
 # in `.mcp.json`, so the launch finds the project itself, with no shell and no git.
 WALK_UP_CODE = (
-    "import os,sys,subprocess;from pathlib import Path;"
+    "import os,sys,signal,subprocess;from pathlib import Path;"
     f"r='{LAUNCH_SCRIPT}';"
     "c=Path.cwd();"
     "f=next((d/r for d in (c,*c.parents) if (d/r).is_file()),None);"
     "f or sys.exit('task-graph: '+r+' not found at or above '+str(c));"
-    "sys.exit(subprocess.call([os.environ.get('UV','uv'),'run','--script',str(f)]))"
+    "p=subprocess.Popen([os.environ.get('UV','uv'),'run','--script',str(f)]);signal.signal(signal.SIGTERM,lambda *a:p.terminate());sys.exit(p.wait())"
 )
-WALK_UP_ARGS = ["run", "--no-project", "python", "-c", WALK_UP_CODE]
+WALK_UP_ARGS = ["run", "--no-project", "--python", "3", "python", "-c", WALK_UP_CODE]
 WALK_UP_LAUNCH = {"command": "uv", "args": WALK_UP_ARGS}
 CLAUDE_ENTRY = COPILOT_ENTRY = {**WALK_UP_LAUNCH, "tools": ["*"]}
 # The prerequisite text test_mcp_prerequisites.py requires every declared server to carry.
@@ -207,8 +207,8 @@ def test_the_common_stack_declares_task_graph_without_an_availability_gate(root,
         declaration, bl.load_json(root / "schemas" / "stack-mcp.schema.json")) == []
 
 
-def test_the_launch_code_survives_windows_command_line_quoting():
-    """Windows re-quotes argv into one command line; these characters are what it mangles."""
+def test_the_launch_code_holds_no_cmd_or_quote_metacharacters():
+    """Guards cmd.exe/MSVCRT quoting of the code argument; the host spawn path itself is not exercised."""
     assert not set('"\\%^&|<>!') & set(WALK_UP_ARGS[-1])
 
 
