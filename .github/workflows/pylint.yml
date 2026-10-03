@@ -46,6 +46,10 @@ jobs:
       run: |
         echo "command -v python3: $(command -v python3)"
         python3 --version
+    - name: Set up uv (task-graph launch test)
+      uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+      with:
+        enable-cache: false
     - name: verify.sh pytest
       run: bash .lefthook/pre-push/verify.sh pytest
 
