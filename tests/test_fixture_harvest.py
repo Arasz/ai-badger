@@ -10,7 +10,7 @@ import hashlib
 import json
 
 import pytest
-from conftest import _test_write
+from conftest import ROOT, _test_write
 
 
 @pytest.fixture
@@ -216,3 +216,21 @@ def test_a_query_at_the_new_cap_is_read_as_clipped(harvester):
     result = harvester.harvest([_record(query="z" * 2000)], "2026-07-31")
     assert result.clipped == 1
     assert result.candidates == []
+
+
+INJECTED_ROWS = json.loads((ROOT / "tests/fixtures/memory_context/injected_turns.json")
+                           .read_text(encoding="utf-8"))["rows"]
+
+
+@pytest.mark.parametrize("row", INJECTED_ROWS, ids=[r["name"] for r in INJECTED_ROWS])
+def test_every_injected_turn_shape_is_machine_shaped(harvester, row):
+    result = harvester.harvest([_record(query=row["prompt"])], "2026-10-03")
+    assert result.machine == 1
+    assert result.candidates == []
+
+
+def test_a_typed_prompt_mentioning_a_marker_mid_text_is_still_harvested(harvester):
+    result = harvester.harvest(
+        [_record(query="why does the [Subagent hand-back] preamble get skipped")], "2026-10-03")
+    assert result.machine == 0
+    assert len(result.candidates) == 1
