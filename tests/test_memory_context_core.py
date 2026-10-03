@@ -106,6 +106,47 @@ def test_c6_min_words_boundary():
     assert mc.should_enrich(six, min_words=7).reason == "too-thin"
 
 
+INJECTED_ROWS = json.loads((FIXTURES / "injected_turns.json").read_text(encoding="utf-8"))["rows"]
+
+
+def _injected_ids():
+    return [row["name"] for row in INJECTED_ROWS]
+
+
+def test_c11_every_injected_prefix_has_a_fixture_row():
+    starts = [row["prompt"].lstrip() for row in INJECTED_ROWS]
+    assert {p for p in mc.INJECTED_PREFIXES if not any(s.startswith(p) for s in starts)} == set()
+    assert any(row["prompt"][:1] == "\n" for row in INJECTED_ROWS)
+
+
+@pytest.mark.parametrize("prompt", [row["prompt"] for row in INJECTED_ROWS], ids=_injected_ids())
+def test_c11_injected_turn_is_skipped(prompt):
+    assert mc.injected_turn(prompt) is True
+    decision = mc.should_enrich(prompt)
+    assert decision.enrich is False
+    assert decision.reason == "injected-turn"
+    assert decision.query == ""
+
+
+@pytest.mark.parametrize("prompt", [row["prompt"] for row in INJECTED_ROWS], ids=_injected_ids())
+def test_c11_injected_rows_would_enrich_without_the_prefix_rule(monkeypatch, prompt):
+    monkeypatch.setattr(mc, "INJECTED_PREFIXES", ())
+    assert mc.should_enrich(prompt).enrich is True
+
+
+@pytest.mark.parametrize("prefix", mc.INJECTED_PREFIXES)
+def test_c11_marker_mid_prompt_still_enriches(prefix):
+    prompt = f"why does the memory context hook search turns that start with {prefix} today"
+    assert mc.injected_turn(prompt) is False
+    assert mc.should_enrich(prompt).reason == "ok"
+
+
+@pytest.mark.parametrize("prefix", mc.INJECTED_PREFIXES)
+def test_c11_prefix_match_is_case_sensitive(prefix):
+    flipped = prefix.swapcase() + " the memory context hook budget rules and planner timeouts"
+    assert mc.injected_turn(flipped) is False
+
+
 def test_c7_marker_stays_in_query():
     prompt = "f: please explain the budget child deadline rules again"
     decision = mc.should_enrich(prompt)

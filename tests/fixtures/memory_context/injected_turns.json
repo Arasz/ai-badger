@@ -1,0 +1,45 @@
+{
+  "source": "Harness-injected turns seen by UserPromptSubmit in a live Claude Code session, redacted: ids, names and paths replaced.",
+  "rows": [
+    {
+      "name": "task-notification",
+      "prompt": "<task-notification>\n<task-id>task-redacted-01</task-id>\n<status>completed</status>\n<summary>Background command \"Run memory context test suite\" completed (exit code 0)</summary>\n</task-notification>"
+    },
+    {
+      "name": "task-notification-newline-led",
+      "prompt": "\n\n<task-notification>\n<task-id>task-redacted-02</task-id>\n<status>failed</status>\n<summary>Agent \"Implement injected turn skip\" failed with an error while running tests</summary>\n</task-notification>"
+    },
+    {
+      "name": "agent-message",
+      "prompt": "<agent-message from=\"lane-redacted\">\nImplementation lane finished: files changed, parity decision recorded, mutation table attached, gate tails pasted below for review.\n</agent-message>"
+    },
+    {
+      "name": "cross-session-message",
+      "prompt": "<cross-session-message from=\"session-redacted\" project=\"example-project\">\nStarted work on the retrieval matcher branch; touching tooling scripts and the eval fixtures, please avoid them.\n</cross-session-message>"
+    },
+    {
+      "name": "cross-session-idle-notice",
+      "prompt": "[Cross-session idle notice] Another session in this project has been idle for twenty minutes; its claimed files are listed below for review."
+    },
+    {
+      "name": "system-notification",
+      "prompt": "[SYSTEM NOTIFICATION] Background shell finished running the full test suite; output was written to the scratchpad log for inspection."
+    },
+    {
+      "name": "another-session-preamble",
+      "prompt": "Another Claude session sent a message:\nPull request opened for the egress proxy change; review requested on the transport tests and the changelog entry."
+    },
+    {
+      "name": "subagent-hand-back",
+      "prompt": "[Subagent hand-back]\nReview lane complete: two findings on the budget module, one blocking regression in the planner timeout path, details follow."
+    },
+    {
+      "name": "system-reminder",
+      "prompt": "<system-reminder>\nThe task tools have not been used recently; consider updating the checklist to track progress on remaining work items.\n</system-reminder>"
+    },
+    {
+      "name": "system-reminder-space-led",
+      "prompt": "  \t<system-reminder>\nAuto mode is active; prefer shell commands for simple reads and keep moving through the remaining implementation steps.\n</system-reminder>"
+    }
+  ]
+}

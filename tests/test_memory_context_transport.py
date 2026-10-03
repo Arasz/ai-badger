@@ -696,6 +696,21 @@ def test_b5_gate_skip_spawns_nothing(memory_context_env, prompt):
     assert env.guards.spawns == [] and env.guards.net_attempts == []
 
 
+INJECTED_ROWS = json.loads((support.FIXTURES / "injected_turns.json").read_text(
+    encoding="utf-8"))["rows"]
+
+
+@pytest.mark.parametrize("prompt", [row["prompt"] for row in INJECTED_ROWS],
+                         ids=[row["name"] for row in INJECTED_ROWS])
+def test_b5_injected_turn_spawns_nothing(memory_context_env, prompt):
+    env = memory_context_env
+    assert build(env, prompt=prompt) is None
+    assert env.guards.spawns == [] and env.guards.net_attempts == []
+    assert env.fake.runs() == []
+    assert build(env) is not None
+    assert len(env.guards.spawns) == 1
+
+
 @pytest.mark.parametrize("session_id", ["", "   ", None])
 def test_b6_blank_session_spawns_nothing(memory_context_env, session_id):
     env = memory_context_env
