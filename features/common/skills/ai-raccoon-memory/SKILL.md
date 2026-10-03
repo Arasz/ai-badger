@@ -93,7 +93,11 @@ on pi. It is POSIX only: on Windows it stays silent and spawns nothing.
 **When it fires.** Every prompt that passes pi's `shouldEnrich` gate (long enough, enough
 distinct words, not a slash command or a control word like `continue`), in a project where
 `.ai-badger/project-id` resolves and the `ai-raccoon` executable is found (`PATH` first, then
-`~/.dotnet/tools/ai-raccoon`). Each run spawns the bare `ai-raccoon` binary as a proxy, once,
+`~/.dotnet/tools/ai-raccoon`). A turn the harness wrote rather than a person (one that starts
+with a marker in `INJECTED_PREFIXES`, such as `<task-notification>`, or holds only
+`<system-reminder>` blocks) is skipped before any search or spawn. Leading reminder blocks in
+front of your own text are stripped and the rest is gated as usual; a question whose first line
+is a pasted notification is skipped for that turn. Each run spawns the bare `ai-raccoon` binary as a proxy, once,
 and sends every search over that one session. The hook never reads the ai-raccoon token; the
 proxy does the identity proof. If no serve is running, the proxy may start one, and that serve
 outlives the hook under its own idle watchdog. When hits survive pruning, the hook injects a

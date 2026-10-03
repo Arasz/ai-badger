@@ -65,6 +65,18 @@ CLIENT_INFO = {"name": "ai-badger-memory-context", "version": "1"}
 
 CONTROL_WORDS = frozenset({"stop", "continue", "exit", "quit", "clear", "help", "ping"})
 
+# Turns a harness writes, not a person: a prompt starting with one is never searched.
+INJECTED_PREFIXES = (
+    "<task-notification>",
+    "<agent-message from=",
+    "<cross-session-message from=",
+    "[Cross-session idle notice]",
+    "[SYSTEM NOTIFICATION",
+    "Another Claude session sent a message:",
+    "[Subagent hand-back]",
+    "<system-reminder>",
+)
+
 NOISE_WORDS = frozenset({
     "the", "and", "for", "are", "but", "not", "you", "all", "any", "can",
     "had", "has", "her", "was", "one", "our", "out", "off", "him", "his",
@@ -105,11 +117,38 @@ def unique_long_words(text: str) -> set:
             if len(token) >= 3 and token not in NOISE_WORDS}
 
 
+REMINDER_OPEN, REMINDER_CLOSE = "<system-reminder>", "</system-reminder>"
+
+
+def without_reminders(prompt: str) -> str:
+    """*prompt* trimmed, minus leading closed `<system-reminder>` blocks; "" when one is unclosed."""
+    text = js_trim(prompt or "")
+    while text.startswith(REMINDER_OPEN):
+        end = text.find(REMINDER_CLOSE)
+        if end == -1:
+            return ""
+        text = js_trim(text[end + len(REMINDER_CLOSE):])
+    return text
+
+
+def injected_turn(prompt: str) -> bool:
+    """True when *prompt* is harness-written: only reminder blocks, or, after them, text that
+    starts with one of `INJECTED_PREFIXES`."""
+    if not js_trim(prompt or ""):
+        return False
+    text = without_reminders(prompt)
+    return not text or text.startswith(INJECTED_PREFIXES)
+
+
 def should_enrich(prompt: str, min_chars: int = 20, min_words: int = 6) -> Decision:
-    """pi's `shouldEnrich` without the `/skill:` rules: every leading `/` is a command."""
+    """pi's `shouldEnrich` without the `/skill:` rules (every leading `/` is a command), plus an
+    `injected-turn` skip for harness-written turns, which pi never receives."""
     text = js_trim(prompt or "")
     if not text:
         return Decision(False, "empty", "", 0)
+    if injected_turn(text):
+        return Decision(False, "injected-turn", "", 0)
+    text = without_reminders(text)
     if text.lower() in CONTROL_WORDS:
         return Decision(False, "control-word", "", 0)
     if text.startswith("/"):
