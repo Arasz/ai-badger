@@ -158,12 +158,14 @@ extension (`builtin:mcp`, measured on pi 0.99.1) reading the project-scoped `.pi
 and the scaffold now writes that file itself for a pi-configured project (union merge; see the
 0.184.0 changelog). Consequently `pi` is no longer a reader of `.mcp.json`
 (`MCP_JSON.readers` is `("claude", "copilot")`) and the `EXPANDS_HOME_ONLY` carve-out is
-deleted: with Claude and pi configured, `.mcp.json` carries Claude's
-`${CLAUDE_PROJECT_DIR}` anchor again, as before 0.180.0.
+deleted: with Claude and pi configured, `.mcp.json` carries Claude's own launch again, as
+before 0.180.0. As of 0.187.4 that launch is the project-relative one: Claude Code sets
+`CLAUDE_PROJECT_DIR` for hooks only, so the `${CLAUDE_PROJECT_DIR}` anchor reached uv literally
+and the server never started in an interactive session.
 
 The fork itself still ships as migration-only machinery (its full H3 retirement is separate),
-so an old pi+fork consumer keeps reading the now-anchored `.mcp.json` and its converter drops
-the anchored entries (`skipped:unexpanded-var`). `.pi/mcp.json` is on pi's trust-requiring
+so an old pi+fork consumer keeps reading `.mcp.json`; from 0.184.0 through 0.187.3 its converter
+dropped the anchored entries (`skipped:unexpanded-var`). `.pi/mcp.json` is on pi's trust-requiring
 project resource list (`dist/core/trust-manager.js`,
 `TRUST_REQUIRING_PROJECT_CONFIG_RESOURCES`) — the Context's pi-0.84.4 list above did not
 include it — so an untrusted project run headless (`defaultProjectTrust` `ask`/`never`) skips
