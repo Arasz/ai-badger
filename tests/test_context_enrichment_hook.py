@@ -16,7 +16,7 @@ import sys
 
 import badger_store
 import pytest
-from conftest import _test_write
+from conftest import ROOT, _test_write
 
 HOOK_PATH = "features/common/skills/mcp-index/scripts/context_enrichment_hook.py"
 COMPONENT = "ai_badger_hooks/mcp_retrieval"
@@ -449,3 +449,59 @@ class TestSemanticaNudge:
         skip_records = [r for r in records if r.get(dl.KEY_EVENT) == "skip"
                         and r.get("reason") == "no_prompt"]
         assert not skip_records, f"unexpected skip records: {skip_records}"
+
+
+INJECTED_ROWS = json.loads((ROOT / "tests/fixtures/memory_context/injected_turns.json")
+                           .read_text(encoding="utf-8"))["rows"]
+
+
+class TestInjectedTurns:
+    """Harness-written turns are not prompts: the recommender reuses memory_context's predicate."""
+
+    @pytest.mark.parametrize("row", INJECTED_ROWS, ids=[r["name"] for r in INJECTED_ROWS])
+    def test_an_injected_turn_recommends_nothing_and_records_no_query(
+        self, hook, tmp_path, monkeypatch, capsys, real_context_enrichment, row
+    ):
+        dl = hook.debug_log
+        _enable(dl, tmp_path, monkeypatch)
+        project = tmp_path / "proj"
+        _write_index(project, _sample_index())
+
+        rc = _run_main(hook, monkeypatch,
+                       {"prompt": row["prompt"], "cwd": str(project)})
+
+        assert rc == 0
+        assert capsys.readouterr().out == ""
+        records = _retrieval_records(dl)
+        assert [r for r in records if dl.KEY_QUERY in r] == []
+        assert [r.get("reason") for r in records] == ["injected_turn"]
+
+    def test_a_reminder_prefixed_prompt_is_ranked_on_the_text_after_the_reminder(
+        self, hook, tmp_path, monkeypatch, capsys, real_context_enrichment
+    ):
+        dl = hook.debug_log
+        _enable(dl, tmp_path, monkeypatch)
+        project = tmp_path / "proj"
+        _write_index(project, _sample_index())
+        prompt = ("<system-reminder>\nrun a sql query against the database\n</system-reminder>\n"
+                  "build the solution")
+
+        _run_main(hook, monkeypatch, {"prompt": prompt, "cwd": str(project)})
+
+        context = json.loads(capsys.readouterr().out)["hookSpecificOutput"]["additionalContext"]
+        assert "build_solution" in context
+        assert "execute_sql_query" not in context
+        assert _retrieval_records(dl)[-1][dl.KEY_QUERY] == "build the solution"
+
+    def test_without_the_memory_skill_an_injected_turn_is_ranked_as_before(
+        self, hook, tmp_path, monkeypatch, capsys, real_context_enrichment
+    ):
+        monkeypatch.setattr(hook, "MEMORY_CONTEXT_PATH", tmp_path / "absent" / "memory_context.py")
+        project = tmp_path / "proj"
+        _write_index(project, _sample_index())
+
+        _run_main(hook, monkeypatch,
+                  {"prompt": "[Subagent hand-back]\nbuild the solution", "cwd": str(project)})
+
+        context = json.loads(capsys.readouterr().out)["hookSpecificOutput"]["additionalContext"]
+        assert "build_solution" in context

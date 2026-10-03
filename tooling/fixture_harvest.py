@@ -25,7 +25,9 @@ Usage: fixture_harvest.py [--log <audit.jsonl>] [--out <candidates.jsonl>]
 from __future__ import annotations
 
 import argparse
+import functools
 import hashlib
+import importlib.util
 import json
 import os
 import re
@@ -66,6 +68,11 @@ PROJECT_DIGEST_CHARS = 12
 # that happens to contain markup is lost, which costs one candidate.
 _MACHINE_RE = re.compile(r"<[/A-Za-z][^>\s]*>")
 
+# The memory hook's injected-turn predicate, so the markup-free shapes (`[Subagent hand-back]`, …)
+# come from the one list the hooks skip on.
+MEMORY_CONTEXT_PATH = (Path(__file__).resolve().parents[1]
+                       / "features/common/skills/ai-raccoon-memory/scripts/memory_context.py")
+
 
 def default_log_path() -> Path:
     """`$AI_BADGER_DEBUG_DIR/audit.jsonl`, else `~/.ai-badger/debug/audit.jsonl`."""
@@ -93,9 +100,18 @@ def load_records(path) -> List[Dict[str, Any]]:
     return records
 
 
+@functools.lru_cache(maxsize=None)
+def _memory_context():
+    spec = importlib.util.spec_from_file_location("fixture_harvest_memory_context",
+                                                  MEMORY_CONTEXT_PATH)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
 def is_machine_shaped(query: str) -> bool:
     """True when the text looks like a harness-generated turn rather than something typed."""
-    return bool(_MACHINE_RE.search(query))
+    return bool(_MACHINE_RE.search(query)) or _memory_context().injected_turn(query)
 
 
 def project_digest(project: Optional[str]) -> Optional[str]:

@@ -32,6 +32,8 @@ the design is in [ADR-0034](../adr/0034-third-party-egress-is-opt-in-and-lockabl
 Everything else is local:
 - the message bus, task tracking and the task-graph server (SQLite, stdio);
 - the BM25 MCP recommender;
+- ai-raccoon: the memory server, search and embeddings run on the machine. The owner approved it
+  for client data on 2026-10-03. Only a configured `memory_sync` target (the row above) leaves;
 - the drift notice and the debug and audit logs;
 - archify preview, which serves on loopback.
 
@@ -202,10 +204,8 @@ list gives the evaluation that settles it.
   system and PAC proxies, and proxy authentication are not used.
 - **pi delegation.** The model registry accepts only `openrouter/*` ids, and pi's own memory and
   RAG extensions run outside ai-badger's hooks.
-- **ai-raccoon embeddings.** The embedding engine stays local only when ai-raccoon is configured
-  with a local engine (`ai-raccoon model embedding set local`).
-- **Third-party MCP binaries.** The internal network behaviour of ai-raccoon, semantica and
-  code-review-graph has not been audited.
+- **Third-party MCP binaries.** The internal network behaviour of semantica and
+  code-review-graph has not been audited. ai-raccoon is local and approved (see above).
 - **External search in agent text.** The instruction "search externally when memory has no hit"
   makes the host agent use its own web search tool.
 - **Loopback forwarders.** Loopback is not the same as on-machine. A local proxy on
