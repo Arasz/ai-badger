@@ -19,6 +19,7 @@ When cutting a release:
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
+| 0.187.2 | [the rendered HERMES.md fits the agent-doc budget again](0.187.2-hermes-doc-fits-budget.md) |
 | 0.187.1 | [the memory hook no longer treats harness-injected turns as prompts](0.187.1-memory-hook-skips-injected-turns.md) |
 | 0.187.0 | [opted-in egress goes through the corporate `HTTPS_PROXY`](0.187.0-egress-https-proxy-tunnel.md) |
 | 0.186.0 | [a locked project can allow named hosts; plaintext and mismatched project ids are refused](0.186.0-egress-allowlist-project-binding.md) |
