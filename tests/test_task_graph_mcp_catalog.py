@@ -12,9 +12,7 @@ and assert both halves — uv resolvable, and uv missing.
 from __future__ import annotations
 
 import json
-import os
 import shutil
-import subprocess
 import sys
 
 import pytest
@@ -23,20 +21,26 @@ SERVER = "task-graph"
 SERVER_DIR = f"features/common/mcp/{SERVER}"
 SCAFFOLD = "features/common/skills/welcome-ai-badger/scripts/scaffold.py"
 LAUNCH_SCRIPT = ".ai-badger/skills/task-decomposition/scripts/task_graph_server.py"
-# The launch every file reader gets (DR3's launch contract). Hosts spawn MCP servers in the
-# session's cwd and Claude Code leaves ${CLAUDE_PROJECT_DIR} unexpanded in `.mcp.json`, so the
-# launch finds the repo root itself, falling back to the cwd outside git.
-ROOT_FINDING_LAUNCH = {
-    "command": "sh",
-    "args": ["-c", 'cd "$(git rev-parse --show-toplevel 2>/dev/null || pwd)" && '
-                   f"exec uv run --script {LAUNCH_SCRIPT}"],
-}
-CLAUDE_ENTRY = {**ROOT_FINDING_LAUNCH, "tools": ["*"]}
-COPILOT_ENTRY = {**ROOT_FINDING_LAUNCH, "tools": ["*"]}
+# The launch every file reader gets: `uv run --no-project python -c CODE`, where CODE walks up
+# from the session's cwd to the nearest project script and runs it with `uv run --script`. Hosts
+# spawn MCP servers in the session's cwd, and Claude Code leaves ${CLAUDE_PROJECT_DIR} unexpanded
+# in `.mcp.json`, so the launch finds the project itself, with no shell and no git.
+WALK_UP_CODE = (
+    "import os,sys,subprocess;from pathlib import Path;"
+    f"r='{LAUNCH_SCRIPT}';"
+    "c=Path.cwd();"
+    "f=next((d/r for d in (c,*c.parents) if (d/r).is_file()),None);"
+    "f or sys.exit('task-graph: '+r+' not found at or above '+str(c));"
+    "sys.exit(subprocess.call([os.environ.get('UV','uv'),'run','--script',str(f)]))"
+)
+WALK_UP_ARGS = ["run", "--no-project", "python", "-c", WALK_UP_CODE]
+WALK_UP_LAUNCH = {"command": "uv", "args": WALK_UP_ARGS}
+CLAUDE_ENTRY = COPILOT_ENTRY = {**WALK_UP_LAUNCH, "tools": ["*"]}
 # The prerequisite text test_mcp_prerequisites.py requires every declared server to carry.
 PREREQUISITE_SUMMARY = (
-    "uv and git on PATH; the server and its pydantic env are fetched on first launch (PEP 723); "
-    "the launch changes into the git root first, so any subdirectory works"
+    "uv on PATH; the server and its pydantic env are fetched on first launch (PEP 723); "
+    "the launch walks up from the session directory to the project, so any subdirectory works "
+    "on every OS"
 )
 UV_INSTALL = "curl -LsSf https://astral.sh/uv/install.sh | sh"
 # Byte-for-byte what note_declared_prerequisites() renders for the meta.json this packet ships.
@@ -117,7 +121,7 @@ def _control_path_probe(load_script, monkeypatch, available):
 
 @pytest.fixture
 def uv_on_path(load_script, monkeypatch):
-    _control_path_probe(load_script, monkeypatch, {"sh", "uv", "git"})
+    _control_path_probe(load_script, monkeypatch, {"uv"})
 
 
 @pytest.fixture
@@ -195,12 +199,26 @@ def test_the_common_stack_declares_task_graph_without_an_availability_gate(root,
 
     assert entry == {
         "name": SERVER,
-        "command": f"uv run --script {LAUNCH_SCRIPT}",
+        "command": "uv",
+        "args": WALK_UP_ARGS,
         "declare": True,
-        "agentOverrides": {agent: ROOT_FINDING_LAUNCH for agent in ("claude", "copilot", "pi")},
     }
     assert bl.validate(
         declaration, bl.load_json(root / "schemas" / "stack-mcp.schema.json")) == []
+
+
+def test_the_launch_code_survives_windows_command_line_quoting():
+    """Windows re-quotes argv into one command line; these characters are what it mangles."""
+    assert not set('"\\%^&|<>!') & set(WALK_UP_ARGS[-1])
+
+
+def test_hermes_is_proposed_the_same_launch(make_scaffolder, uv_on_path):
+    """Hermes gets no override: it walks up from its own working directory like the rest."""
+    scaf = _scaffold(make_scaffolder, ["claude"])
+
+    entry = scaf.mcp.declarations_for_agent("hermes")[SERVER]
+
+    assert {key: entry[key] for key in ("command", "args")} == WALK_UP_LAUNCH
 
 
 def test_the_index_lists_the_server(root, load_script):
@@ -235,7 +253,7 @@ def test_without_uv_the_declaration_is_still_written_and_the_note_is_exact(
 
     assert _servers(make_scaffolder, ".mcp.json")[SERVER] == CLAUDE_ENTRY
     # The probe really was controlled: without this the note could pass on a machine that has uv.
-    assert any("'sh' was not found" in note for note in scaf.ctx.notes)
+    assert any("'uv' was not found" in note for note in scaf.ctx.notes)
     prerequisite_notes = [n for n in scaf.ctx.notes if n.startswith(f"prerequisite — {SERVER} ")]
     assert prerequisite_notes == [EXPECTED_NOTE]
 
@@ -244,8 +262,8 @@ def test_the_combined_claude_copilot_scaffold_keeps_both_usable_entries(
         make_scaffolder, uv_on_path):
     """Copilot CLI reads both files; `.mcp.json` must not hide its entry.
 
-    Both entries carry the same root-finding launch, so the #193 drop must not fire: the
-    combined scaffold is the common case, and the Copilot agent gets nothing otherwise.
+    Both entries carry the same launch, so the one-declaration drop does not fire while uv
+    resolves on PATH; it fires only when uv lives in a user tool dir (see the next test).
     """
     scaf = _scaffold(make_scaffolder, ["claude", "copilot"])
 
@@ -258,52 +276,25 @@ def test_the_pi_declaration_carries_the_same_launch(make_scaffolder, uv_on_path)
     _scaffold(make_scaffolder, ["pi"])
 
     entry = _servers(make_scaffolder, ".pi/mcp.json")[SERVER]
-    assert {key: entry[key] for key in ("command", "args")} == ROOT_FINDING_LAUNCH
+    assert {key: entry[key] for key in ("command", "args")} == WALK_UP_LAUNCH
 
 
-# ── the generated launch, executed ───────────────────────────────────────────
+def test_a_uv_in_the_user_tool_dir_is_declared_once_in_mcp_json(
+        tmp_path, load_script, monkeypatch, make_scaffolder):
+    """uv under `~/.local/bin` is home-relative, which only `.mcp.json` expands: one declaration."""
+    load_script(SCAFFOLD)
+    mcp_tools = sys.modules["mcp_tools"]
+    monkeypatch.delenv("AI_BADGER_MCP_AVAILABILITY", raising=False)
+    tool_dir = tmp_path / "fake-home" / ".local" / "bin"
+    tool_dir.mkdir(parents=True)
+    uv = tool_dir / "uv"
+    uv.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+    uv.chmod(0o755)
+    monkeypatch.setattr(mcp_tools, "USER_TOOL_DIRS", ((tool_dir, "${HOME}/.local/bin"),))
+    monkeypatch.setattr(mcp_tools, "shutil", _ProbedShutil(set()))
 
-def _run_launch(entry, cwd, tmp_path):
-    """Run *entry*'s launch in *cwd* with a stub uv that records where and how it was run."""
-    stub_dir = tmp_path / "stub-bin"
-    stub_dir.mkdir(exist_ok=True)
-    record = tmp_path / "uv-call.txt"
-    stub = stub_dir / "uv"
-    stub.write_text(f'#!/bin/sh\npwd -P > "{record}"\nprintf "%s\\n" "$@" >> "{record}"\n',
-                    encoding="utf-8")
-    stub.chmod(0o755)
-    env = {"PATH": f"{stub_dir}{os.pathsep}{os.environ['PATH']}", "HOME": str(tmp_path)}
-    run = subprocess.run([entry["command"], *entry["args"]], cwd=cwd, env=env, check=True,
-                         capture_output=True, text=True)
-    where, *argv = record.read_text(encoding="utf-8").splitlines()
-    return where, argv, run.stderr
+    scaf = _scaffold(make_scaffolder, ["claude", "copilot"])
 
-
-@pytest.mark.skipif(os.name == "nt", reason="the launch is a POSIX sh script")
-def test_the_launch_runs_from_the_repo_root_when_started_in_a_subdirectory(
-        make_scaffolder, uv_on_path, tmp_path):
-    """The defect this launch exists for: a session started below the root spawns it there."""
-    _scaffold(make_scaffolder, ["claude"])
-    entry = _servers(make_scaffolder, ".mcp.json")[SERVER]
-    repo = tmp_path / "repo"
-    (repo / "src" / "deep").mkdir(parents=True)
-    subprocess.run(["git", "init", "-q", str(repo)], check=True)
-
-    where, argv, _ = _run_launch(entry, repo / "src" / "deep", tmp_path)
-
-    assert where == str(repo.resolve())
-    assert argv == ["run", "--script", LAUNCH_SCRIPT]
-
-
-@pytest.mark.skipif(os.name == "nt", reason="the launch is a POSIX sh script")
-def test_the_launch_falls_back_to_the_cwd_outside_git(make_scaffolder, uv_on_path, tmp_path):
-    """Outside git the launch stays in the cwd, and git's refusal never reaches the host's log."""
-    _scaffold(make_scaffolder, ["claude"])
-    entry = _servers(make_scaffolder, ".mcp.json")[SERVER]
-    plain = tmp_path / "plain"
-    plain.mkdir()
-
-    where, _, stderr = _run_launch(entry, plain, tmp_path)
-
-    assert where == str(plain.resolve())
-    assert stderr == ""
+    assert _servers(make_scaffolder, ".mcp.json")[SERVER]["command"] == "${HOME}/.local/bin/uv"
+    assert SERVER not in _servers(make_scaffolder, ".github/mcp.json")
+    assert any("declared only in" in note and SERVER in note for note in scaf.ctx.notes)

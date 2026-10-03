@@ -168,6 +168,7 @@ whether ai-badger may launch it (ADR-0014).
        {
          "name": "my-server",              // must name a features/*/mcp/<name>/ directory
          "command": "python3 -m my_server serve",
+         // "args": ["--flag", "a value"],  // optional; passed unsplit, then "command" is the executable alone
          "declare": true,                   // false (the default) = describe only
          "scope": "project",                // or "user"
          "env": { },

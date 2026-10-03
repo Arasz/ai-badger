@@ -188,6 +188,21 @@ class TestStackMcpSchema:
 
         assert bl.validate({"servers": [{"name": "x", "declare": True}]}, schema) != []
 
+    def test_a_server_level_args_array_validates(self, root, load_script):
+        """`args` carries an argv that must reach the launch unsplit."""
+        bl, schema = self._schema(root, load_script)
+        server = {"name": "task-graph", "command": "uv", "declare": True,
+                  "args": ["run", "--no-project", "python", "-c", "pass"]}
+
+        assert bl.validate({"servers": [server]}, schema) == []
+
+    def test_a_server_level_args_item_that_is_not_a_string_is_refused(self, root, load_script):
+        bl, schema = self._schema(root, load_script)
+        server = {"name": "task-graph", "command": "uv", "declare": True,
+                  "args": ["run", 5]}
+
+        assert bl.validate({"servers": [server]}, schema) != []
+
     def test_an_unknown_field_is_refused(self, root, load_script):
         bl, schema = self._schema(root, load_script)
 
