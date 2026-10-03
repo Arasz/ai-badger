@@ -19,6 +19,7 @@ When cutting a release:
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
+| 0.187.5 | [task-graph starts from any subdirectory](0.187.5-task-graph-root-finding-launch.md) |
 | 0.187.4 | [task-graph starts in Claude Code again](0.187.4-task-graph-relative-launch.md) |
 | 0.187.3 | [the rendered HERMES.md fits the agent-doc budget again](0.187.3-hermes-doc-fits-budget.md) |
 | 0.187.2 | [the MCP recommender and the fixture harvest skip harness-injected turns too](0.187.2-injected-turn-predicate-shared.md) |

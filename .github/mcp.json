@@ -45,11 +45,10 @@
       ]
     },
     "task-graph": {
-      "command": "uv",
+      "command": "sh",
       "args": [
-        "run",
-        "--script",
-        ".ai-badger/skills/task-decomposition/scripts/task_graph_server.py"
+        "-c",
+        "cd \"$(git rev-parse --show-toplevel 2>/dev/null || pwd)\" && exec uv run --script .ai-badger/skills/task-decomposition/scripts/task_graph_server.py"
       ],
       "tools": [
         "*"
