@@ -48,9 +48,31 @@ def repo_with_worktree(tmp_path):
     _git("worktree", "remove", "--force", str(worktree_path), cwd=main_repo)
 
 
-def test_project_id_from_worktree_resolves_to_main_checkout(gate, repo_with_worktree):
+def test_project_id_from_worktree_resolves_to_main_checkout(gate, repo_with_worktree,
+                                                            monkeypatch):
+    """No id file in the tree: the legacy fallback still collapses to the main checkout.
+
+    Mutation: take Path(cwd).name (the worktree directory names a bank nobody writes).
+    """
     main_repo, worktree_path = repo_with_worktree
+    monkeypatch.delenv("AI_BADGER_PROJECT_ID", raising=False)
     assert gate.project_id(str(worktree_path)) == main_repo.name
+
+
+def test_project_id_from_worktree_prefers_a_committed_id_file(gate, repo_with_worktree):
+    """When the tree carries an id file, the file IS the identity — even in a worktree.
+
+    Mutation: collapse to the main checkout before reading the file (the worktree's own
+    committed id is ignored).
+    """
+    _main_repo, worktree_path = repo_with_worktree
+    (worktree_path / ".ai-badger").mkdir(parents=True, exist_ok=True)
+    _test_write(worktree_path / ".ai-badger" / "project-id", "worktree-owned-id\n",
+                encoding="utf-8")
+    _git("add", "-A", cwd=worktree_path)
+    _git("commit", "-q", "-m", "worktree id", cwd=worktree_path)
+
+    assert gate.project_id(str(worktree_path)) == "worktree-owned-id"
 
 
 def test_deny_reason_names_main_checkout_from_worktree_cwd(gate, repo_with_worktree):
@@ -63,7 +85,7 @@ def test_deny_reason_names_main_checkout_from_worktree_cwd(gate, repo_with_workt
 
 def test_env_override_wins_from_worktree(gate, monkeypatch, repo_with_worktree):
     _, worktree_path = repo_with_worktree
-    monkeypatch.setenv("AI_RACCOON_PROJECT_ID", "custom-bank")
+    monkeypatch.setenv("AI_BADGER_PROJECT_ID", "custom-bank")
     assert gate.project_id(str(worktree_path)) == "custom-bank"
 
 

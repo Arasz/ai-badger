@@ -1,7 +1,7 @@
 {
   "$schema": "../schemas/manifest.schema.json",
   "frameworkVersion": "0.188.0",
-  "frameworkCommit": "da160dc26dcd5712a8ef6202c54e44a2cfbec651",
+  "frameworkCommit": "460419924d89c858a8a74caf4f8f9e7d1ae03797",
   "frameworkDirty": true,
   "frameworkRoot": ".",
   "generatedAt": null,
@@ -539,12 +539,12 @@
       "source": "features/common/skills/ai-raccoon-memory",
       "target": ".ai-badger/skills/ai-raccoon-memory",
       "frameworkVersion": "0.188.0",
-      "hash": "f71bb2ab60bb7336c2021fe6159d9b4384ed8a7ccec0fb32985538c4179b22a7",
+      "hash": "6ef273a0eab1ccc54ff146ac2219707865fd82bb029c6a06027104635acc56be",
       "dirMeta": {
         "file_count": 10,
         "dir_count": 1
       },
-      "sourceHash": "f71bb2ab60bb7336c2021fe6159d9b4384ed8a7ccec0fb32985538c4179b22a7",
+      "sourceHash": "6ef273a0eab1ccc54ff146ac2219707865fd82bb029c6a06027104635acc56be",
       "sourceMeta": {
         "file_count": 10,
         "dir_count": 1
@@ -2866,7 +2866,7 @@
       "target": ".ai-badger/hooks/memory_first_gate.py",
       "frameworkVersion": "0.188.0",
       "hash": "c3af0003f21768f8e415b8e7e8adc908f75ab5ff4b51fd4fc04b980c93528f0f",
-      "outputHash": "02b2d9dc0393f73e435aceb4d122cb1755805acc5581db1ae0766af5997622a7"
+      "outputHash": "e412fa303dd8c21f7a5e79e6b67a466eecd41fd1efac27bf5cb0cd57587c241a"
     },
     {
       "feature": "adjustments",

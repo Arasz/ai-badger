@@ -39,11 +39,11 @@ def _out(capsys):
 
 
 # ------------------------------------------------------------------ gate mode
-def test_claude_grep_without_marker_is_denied(hook, monkeypatch, capsys):
+def test_claude_grep_without_marker_is_denied(hook, monkeypatch, capsys, tmp_path):
     payload = {
         "hook_event_name": "PreToolUse",
         "session_id": "t1",
-        "cwd": "/Users/arasz/RiderProjects/ai-raccoon",
+        "cwd": str(tmp_path / "checkout"),
         "tool_name": "Grep",
         "tool_input": {"pattern": "MemorySearch"},
     }
@@ -77,11 +77,11 @@ def test_claude_non_search_tool_passes(hook, monkeypatch, capsys):
     assert capsys.readouterr().out == ""
 
 
-def test_copilot_camelcase_payload_is_denied(hook, monkeypatch, capsys):
+def test_copilot_camelcase_payload_is_denied(hook, monkeypatch, capsys, tmp_path):
     rc = _run(hook, monkeypatch, {
         "hookEventName": "preToolUse",
         "sessionId": "c1",
-        "cwd": "/Users/arasz/RiderProjects/ai-raccoon",
+        "cwd": str(tmp_path / "checkout"),
         "toolName": "grep",
         "toolArgs": {"pattern": "x"}})
 
