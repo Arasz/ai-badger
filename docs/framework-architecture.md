@@ -310,7 +310,8 @@ target-repo/
   .ai-badger/
     manifest.json            # provenance
     config.json               # project profile
-    project-id                # uuid4 minted at scaffold; the bus and the store resolve a project by it
+    project-id                # identity: uuid4 minted at scaffold, or the id ai-raccoon already
+                              # knows by name; registered once, never rewritten (ADR-0036)
     CLAUDE.md                # framework-managed source of the claude instructions
     HERMES.md                # ditto, when hermes is a configured agent
     copilot-instructions.md  # framework-managed copilot source (if copilot present)

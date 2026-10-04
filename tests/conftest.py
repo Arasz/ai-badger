@@ -183,6 +183,10 @@ def _home_off_limits(tmp_path_factory):
     with pytest.MonkeyPatch.context() as patch:
         for var in ("HOME", "USERPROFILE"):
             patch.setenv(var, str(scratch))
+        # The project-id flow must never reach a real ai-raccoon from the suite: an
+        # installing scaffold or den-refresh running with the real PATH would register a
+        # random tmp uuid in the developer's bank. A test that drives the fake delenvs it.
+        patch.setenv("AI_BADGER_RACCOON_REGISTER", "0")
         # $HERMES_HOME outranks $HOME wherever the Hermes user scope is resolved, so a
         # developer who has it set would send the suite's writes to their real Hermes home.
         patch.delenv("HERMES_HOME", raising=False)

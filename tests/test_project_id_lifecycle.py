@@ -1,10 +1,12 @@
-"""P8 integration — the `.ai-badger/project-id` lifecycle, end to end (ADR-0025).
+"""P8 integration — the `.ai-badger/project-id` lifecycle, end to end (ADR-0025, ADR-0036).
 
 Cross-package contract in one store-free module: the scaffolder MINTS a uuid4 id at
-scaffold time, the resolver WALKS to it from a nested cwd, a re-scaffold PRESERVES it,
-den-refresh's backfill REPLACES only a missing/blank id, and the explicit env override
-wins over anything on disk. Nothing here reads a registry bank — identity is the file
-or nothing (the no-compat ruling; the raccoon fixtures of the pre-ADR suites are gone).
+scaffold time (an installing scaffold may instead reuse or register one), the resolver
+WALKS to it from a nested cwd, a re-scaffold PRESERVES it, den-refresh's backfill
+REPLACES only a missing/blank id, and the explicit env override wins over anything on
+disk. Nothing here reads a registry bank: the session conftest pins
+AI_BADGER_RACCOON_REGISTER=0, so every refresh in this file takes the 'off' branch and
+mints locally; the ai-raccoon branches live in tests/test_project_id_registration.py.
 """
 from __future__ import annotations
 
@@ -80,31 +82,31 @@ def test_rescaffold_preserves_the_minted_id(scaffold_module, root, tmp_path, mon
         encoding="utf-8").strip() == minted
 
 
-def test_den_refresh_backfills_only_a_missing_or_blank_id(load_script, tmp_path,
-                                                          monkeypatch):
-    """The id-less fleet (pre-ADR scaffolds) heals via den-refresh: ensure_project_id
-    mints when absent or blank and PRESERVES a written id — the backfill is idempotent
-    for healthy repos."""
+def test_den_refresh_backfills_only_a_missing_or_blank_id(scaffold_module, load_script,
+                                                          root, tmp_path, monkeypatch):
+    """The id-less fleet (pre-ADR scaffolds) heals via den-refresh: step 1c mints when the
+    file is absent or blank and PRESERVES a written id — the backfill is idempotent for
+    healthy repos."""
     refresh = _refresh_module(load_script)
     monkeypatch.delenv(PROJECT_ID_ENV, raising=False)
+    target = tmp_path / "proj"
+    target.mkdir()
+    _scaffold_into(scaffold_module, root, tmp_path, target, monkeypatch)
+    id_file = target / ".ai-badger" / "project-id"
 
-    absent = tmp_path / "absent-repo"
-    (absent / ".ai-badger").mkdir(parents=True)
-    backfilled = refresh.ensure_project_id(absent)
+    id_file.unlink()
+    assert refresh.main(["--target", str(target), "--root", str(root)]) == 0
+    backfilled = id_file.read_text(encoding="utf-8").strip()
     uuid.UUID(backfilled)
-    assert (absent / ".ai-badger" / "project-id").read_text(
-        encoding="utf-8").strip() == backfilled
 
-    blank = tmp_path / "blank-repo"
-    (blank / ".ai-badger").mkdir(parents=True)
-    (blank / ".ai-badger" / "project-id").write_text("  \n", encoding="utf-8")
-    healed = refresh.ensure_project_id(blank)
-    uuid.UUID(healed)  # the blank is replaced, not returned
+    id_file.write_text("  \n", encoding="utf-8")
+    assert refresh.main(["--target", str(target), "--root", str(root)]) == 0
+    healed = id_file.read_text(encoding="utf-8").strip()
+    uuid.UUID(healed)
 
-    healthy = tmp_path / "healthy-repo"
-    (healthy / ".ai-badger").mkdir(parents=True)
-    (healthy / ".ai-badger" / "project-id").write_text("existing-id\n", encoding="utf-8")
-    assert refresh.ensure_project_id(healthy) == "existing-id"
+    id_file.write_text("existing-id\n", encoding="utf-8")
+    assert refresh.main(["--target", str(target), "--root", str(root)]) == 0
+    assert id_file.read_text(encoding="utf-8").strip() == "existing-id"
 
 
 def test_explicit_env_override_wins_over_the_planted_id(tmp_path, monkeypatch):

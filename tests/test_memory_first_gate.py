@@ -15,7 +15,7 @@ from typing import Any, Dict, Optional
 import badger_store
 import pytest
 
-ENV = "AI_RACCOON_PROJECT_ID"
+ENV = "AI_BADGER_PROJECT_ID"
 
 
 @pytest.fixture
@@ -109,8 +109,49 @@ def test_marker_path_sanitizes_session_id(gate, tmp_path, monkeypatch):
 
 
 # ------------------------------------------------------------------ project id
-def test_project_id_is_repo_basename(gate):
-    assert gate.project_id("/Users/arasz/RiderProjects/ai-raccoon") == "ai-raccoon"
+def test_project_id_reads_the_walked_id_file(gate, tmp_path, monkeypatch):
+    """The denial names the id the memory hook uses: the nearest .ai-badger/project-id,
+    found from a directory BELOW the project root.
+
+    Mutation: revert to the basename chain (the id file is on disk and would be ignored).
+    """
+    guid = "11111111-1111-1111-1111-111111111111"
+    project = tmp_path / "walked-project"
+    (project / ".ai-badger").mkdir(parents=True)
+    (project / ".ai-badger" / "project-id").write_text(guid + "\n", encoding="utf-8")
+    nested = project / "deep" / "nested"
+    nested.mkdir(parents=True)
+    monkeypatch.delenv(ENV, raising=False)
+
+    assert gate.project_id(str(nested)) == guid
+    reason = gate.build_decision("claude", "Grep", {}, "s1",
+                                 cwd=str(nested))["hookSpecificOutput"]["permissionDecisionReason"]
+    assert f"projectId={guid}" in reason
+
+
+def test_project_id_returns_a_legacy_non_guid_id_verbatim(gate, tmp_path, monkeypatch):
+    """den-refresh can reuse a bank project named by a legacy raw-text id.
+
+    Mutation: validate the walked id as a uuid (a legacy hit becomes the fallback name).
+    """
+    project = tmp_path / "legacy-project"
+    (project / ".ai-badger").mkdir(parents=True)
+    (project / ".ai-badger" / "project-id").write_text("jsaa\n", encoding="utf-8")
+    monkeypatch.delenv(ENV, raising=False)
+
+    assert gate.project_id(str(project)) == "jsaa"
+
+
+def test_project_id_no_id_file_falls_back_to_basename(gate, tmp_path, monkeypatch):
+    """A project predating the id file keeps the old surface: the directory's basename.
+
+    Mutation: return 'unknown' (or '') when the walk finds nothing.
+    """
+    plain = tmp_path / "no-id-file"
+    plain.mkdir()
+    monkeypatch.delenv(ENV, raising=False)
+
+    assert gate.project_id(str(plain)) == "no-id-file"
 
 
 def test_project_id_falls_back_to_unknown(gate):
@@ -119,9 +160,37 @@ def test_project_id_falls_back_to_unknown(gate):
 
 
 def test_project_id_env_override(gate, monkeypatch):
+    """AI_BADGER_PROJECT_ID is the one override; the store's resolver reads it first."""
     monkeypatch.setenv(ENV, "custom-bank")
     assert gate.project_id("/some/repo") == "custom-bank"
     monkeypatch.delenv(ENV)
+
+
+def test_project_id_ignores_the_retired_raccoon_override(gate, tmp_path, monkeypatch):
+    """AI_RACCOON_PROJECT_ID is retired: the gate and the memory hook share one override.
+
+    Mutation: keep reading it (the retired variable silently wins over the walk).
+    """
+    plain = tmp_path / "retired-override"
+    plain.mkdir()
+    monkeypatch.delenv(ENV, raising=False)
+    monkeypatch.setenv("AI_RACCOON_PROJECT_ID", "custom-bank")
+
+    assert gate.project_id(str(plain)) == "retired-override"
+
+
+def test_project_id_without_the_store_falls_back_to_basename(gate, tmp_path, monkeypatch):
+    """A deployment without the vendored store keeps the legacy basename surface.
+
+    Mutation: call badger_store.resolve_project_id unguarded (AttributeError on None),
+    or return the file id when the store is absent.
+    """
+    monkeypatch.setattr(gate, "badger_store", None)
+    monkeypatch.delenv(ENV, raising=False)
+    plain = tmp_path / "no-store"
+    plain.mkdir()
+
+    assert gate.project_id(str(plain)) == "no-store"
 
 
 # ------------------------------------------------------------------ deny builders

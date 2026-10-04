@@ -284,6 +284,18 @@ def test_the_child_environment_drops_the_git_variables_a_hook_exports(cj, tmp_pa
     assert env["PATH"] == "/bin"
 
 
+def test_child_env_switches_off_raccoon_registration(cj, tmp_path):
+    """The journey's installing scaffold runs with the real PATH and a scratch HOME, so it
+    must never register a tmp uuid in the developer's ai-raccoon bank; the switch is the one
+    guard, and a journey that drops it from child_env would register on every CI run.
+
+    Mutation: remove AI_BADGER_RACCOON_REGISTER from SCAFFOLD_ENV.
+    """
+    env = cj.child_env(tmp_path / "scratch-home")
+
+    assert env["AI_BADGER_RACCOON_REGISTER"] == "0"
+
+
 def test_the_journey_refuses_a_scratch_home_that_contains_the_real_one(cj, tmp_path, monkeypatch):
     """A parent of `$HOME` is the one place a cleanup could take the real home down with it."""
     monkeypatch.setenv("HOME", str(tmp_path / "parent" / "real"))
