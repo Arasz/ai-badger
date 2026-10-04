@@ -1,7 +1,7 @@
 {
   "$schema": "../schemas/manifest.schema.json",
   "frameworkVersion": "0.188.0",
-  "frameworkCommit": "aa39264c953e76b2a52ed37ca6629ce1a4ec138e",
+  "frameworkCommit": "56c8d6b8ff3e6c88177c5e6791d6b7918ddc99f4",
   "frameworkDirty": true,
   "frameworkRoot": ".",
   "generatedAt": null,
@@ -539,12 +539,12 @@
       "source": "features/common/skills/ai-raccoon-memory",
       "target": ".ai-badger/skills/ai-raccoon-memory",
       "frameworkVersion": "0.188.0",
-      "hash": "6ef273a0eab1ccc54ff146ac2219707865fd82bb029c6a06027104635acc56be",
+      "hash": "fd8ba0e5790fa40f2ebfe14c569a2f76f524c3e0e1bfcb0177fa812a6658bd3e",
       "dirMeta": {
         "file_count": 10,
         "dir_count": 1
       },
-      "sourceHash": "6ef273a0eab1ccc54ff146ac2219707865fd82bb029c6a06027104635acc56be",
+      "sourceHash": "fd8ba0e5790fa40f2ebfe14c569a2f76f524c3e0e1bfcb0177fa812a6658bd3e",
       "sourceMeta": {
         "file_count": 10,
         "dir_count": 1
@@ -770,12 +770,12 @@
       "source": "features/common/skills/den-refresh",
       "target": ".ai-badger/skills/den-refresh",
       "frameworkVersion": "0.188.0",
-      "hash": "0aa339ee353421b4e8674521f799bf828a336b4b8833895e68da16e669cad7b8",
+      "hash": "cd6e31ed545f50ba7a55387921bd70145f45f769d2218c328620907fffbde160",
       "dirMeta": {
         "file_count": 4,
         "dir_count": 2
       },
-      "sourceHash": "0aa339ee353421b4e8674521f799bf828a336b4b8833895e68da16e669cad7b8",
+      "sourceHash": "cd6e31ed545f50ba7a55387921bd70145f45f769d2218c328620907fffbde160",
       "sourceMeta": {
         "file_count": 4,
         "dir_count": 2

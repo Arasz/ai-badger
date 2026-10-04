@@ -2,7 +2,9 @@
 
 Date: 2026-09-01 · Status: accepted · Decides the D2 ruling of the
 `aib-bus-followups-independence` owner gate (7/7, recorded in
-`docs/work/2026-09-01-bus-qa-followups-owner-gate-reconciliation.md`).
+`docs/work/2026-09-01-bus-qa-followups-owner-gate-reconciliation.md`). · Amended
+2026-10-04 by [ADR-0036](0036-reuse-or-register-the-project-id-with-ai-raccoon.md): the
+minted id is reused or registered with ai-raccoon at scaffold and den-refresh time.
 
 ## Context
 
