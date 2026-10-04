@@ -7,14 +7,6 @@
       ],
       "exposure": "direct"
     },
-    "hermes": {
-      "command": "hermes",
-      "args": [
-        "mcp",
-        "serve"
-      ],
-      "exposure": "direct"
-    },
     "ai-raccoon": {
       "command": "ai-raccoon",
       "exposure": "direct"
@@ -44,6 +36,14 @@
         "python",
         "-c",
         "import os,sys,signal,subprocess;from pathlib import Path;r='.ai-badger/skills/task-decomposition/scripts/task_graph_server.py';c=Path.cwd();f=next((d/r for d in (c,*c.parents) if (d/r).is_file()),None);f or sys.exit('task-graph: '+r+' not found at or above '+str(c));p=subprocess.Popen([os.environ.get('UV','uv'),'run','--script',str(f)]);signal.signal(signal.SIGTERM,lambda *a:p.terminate());sys.exit(p.wait())"
+      ],
+      "exposure": "direct"
+    },
+    "hermes": {
+      "command": "hermes",
+      "args": [
+        "mcp",
+        "serve"
       ],
       "exposure": "direct"
     }
