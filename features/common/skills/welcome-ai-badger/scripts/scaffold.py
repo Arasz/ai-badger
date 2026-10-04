@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Materialize a target repo's .ai-badger/ scaffold from a validated config.json.
 
-MECHANICAL ONLY — no LLM, no network (except optional plugin installs, which are
-skippable). The agent authors config.json; this script does everything else deterministically
+MECHANICAL ONLY — no LLM, no network (except the optional ai-raccoon project-id
+lookup/registration when installing, and optional plugin installs, both skippable). The
+agent authors config.json; this script does everything else deterministically
 and idempotently (safe to re-run; it rewrites managed files and refreshes the manifest).
 
 Usage:
@@ -229,7 +230,7 @@ from statusline_wiring import StatusLineWiring  # noqa: E402
 from skill_delivery import SkillDelivery, prune_namespaces, relink_hermes_skills  # noqa: E402
 from skills_argv import resolve_requested_skills  # noqa: E402
 from superseded_prune import SupersededPrune  # noqa: E402
-from project_id import mint_project_id  # noqa: E402
+from project_id import ensure_project_id, project_name  # noqa: E402
 from config_writer import write_config  # noqa: E402
 from local_invariants import append_rendered  # noqa: E402
 from model_registry import deliver as deliver_model_registry  # noqa: E402
@@ -710,7 +711,9 @@ class Scaffolder:
     def run(self, generated_at: Optional[str] = None) -> Dict[str, Any]:
         """Run every scaffold step in order and return the manifest, plugin commands, and notes."""
         self.aib.mkdir(parents=True, exist_ok=True)
-        mint_project_id(self.aib)
+        _project_id, project_id_notes = ensure_project_id(
+            self.aib, project_name(self.target), raccoon=self.install)
+        self.notes.extend(project_id_notes)
         self._completed_steps = []
         self._record_progress("start")
         self.superseded.prune(self._prior_manifest().get("entries", []))

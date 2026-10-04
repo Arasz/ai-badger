@@ -32,6 +32,15 @@ def project_id_script(load_script):
     return load_script("features/common/skills/welcome-ai-badger/scripts/project_id.py")
 
 
+@pytest.fixture(autouse=True)
+def _release_raccoon_switch(monkeypatch):
+    """These tests drive the fake; the session conftest pins the switch off by design.
+
+    The two switch tests set it back after this fixture runs, so both readings are covered.
+    """
+    monkeypatch.delenv("AI_BADGER_RACCOON_REGISTER", raising=False)
+
+
 @pytest.fixture
 def memory_context_script(load_script):
     return load_script("features/common/skills/ai-raccoon-memory/scripts/memory_context.py")

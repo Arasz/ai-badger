@@ -51,7 +51,9 @@ PROJECT = "widget-shop"
 # The scaffold's MCP availability gate probes the host PATH, so an unforced run declares
 # different servers on a laptop with `hermes` installed than in CI. Forced, for the same reason
 # scaffold_freshness_guard forces it: the verdict must describe the tree, not the host.
-SCAFFOLD_ENV = {"AI_BADGER_MCP_AVAILABILITY": "all"}
+# The journey's installing scaffold runs with the real PATH and a scratch HOME, so it must
+# not reach a real ai-raccoon: project-id registration is switched off there as in the suite.
+SCAFFOLD_ENV = {"AI_BADGER_MCP_AVAILABILITY": "all", "AI_BADGER_RACCOON_REGISTER": "0"}
 
 # Directories an installing scaffold may create but never fill directly: they hold the trees
 # below and nothing else. Exact matches — `~/.hermes/skills/<other-project>` is another repo's.

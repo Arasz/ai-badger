@@ -124,7 +124,7 @@ def raccoon_cli_fake(tmp_path, monkeypatch) -> FakeRaccoon:
 
     log = tmp_path / "raccoon-cli.log"
     home = tmp_path / "home"
-    home.mkdir()
+    home.mkdir(exist_ok=True)
     monkeypatch.setenv("HOME", str(home))
     monkeypatch.setenv("FAKE_RACCOON_CLI_LOG", str(log))
     monkeypatch.delenv("FAKE_RACCOON_CLI_SCRIPT", raising=False)

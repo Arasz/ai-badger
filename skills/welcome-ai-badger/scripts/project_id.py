@@ -5,10 +5,10 @@ there is a project" without any external registry. One uuid4 per directory — a
 worktree is its own project. Existing ids are never regenerated.
 
 The same module carries the small ai-raccoon CLI client (ai-raccoon 1.57.0's
-`project id get/register` verbs): a missing or blank id file reuses the id the local
-bank already knows by name, and a minted uuid4 is registered so the memory hook and
-the gate can read and write the bank. Nothing here is wired yet; the scaffold and
-den-refresh call it in the flow step.
+`project id get/register` verbs) and the one flow both mint sites share: a missing or
+blank id file reuses the id the local bank already knows by name, and a minted uuid4 is
+registered so the memory hook and the gate can read and write the bank. Scaffold and
+den-refresh both call ensure_project_id.
 """
 from __future__ import annotations
 
@@ -20,7 +20,7 @@ import subprocess
 import tempfile
 import uuid
 from pathlib import Path
-from typing import Dict, List, NamedTuple, Optional
+from typing import Dict, List, NamedTuple, Optional, Tuple
 
 # AI_BADGER_RACCOON_REGISTER=0 disables every ai-raccoon call (only the literal '0').
 REGISTER_SWITCH = "AI_BADGER_RACCOON_REGISTER"
@@ -61,11 +61,127 @@ class LookupResult(NamedTuple):
     note: Optional[str]
 
 
-def mint_project_id(aib: Path) -> None:
-    """Write <aib>/project-id (uuid4 + newline) when absent; existing ids are preserved."""
+# badger_lib.GIT_LOCATION_ENV, repeated because this bootstrap script ships into projects
+# that have no framework checkout to import it from. tests/test_git_invocation.py discovers
+# and pins every standalone copy of the stripper.
+GIT_LOCATION_ENV = ("GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR", "GIT_INDEX_FILE",
+                    "GIT_OBJECT_DIRECTORY", "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+                    "GIT_PREFIX", "GIT_NAMESPACE", "GIT_CEILING_DIRECTORIES")
+
+# Keeps a hung git from delaying the scaffold it is only answering a name for.
+_GIT_TIMEOUT_SECONDS = 2
+
+
+def git_env(env: Optional[Dict[str, str]] = None) -> Dict[str, str]:
+    """`env` (default `os.environ`) minus every variable that pins git to another repository."""
+    out = dict(os.environ if env is None else env)
+    for name in GIT_LOCATION_ENV:
+        out.pop(name, None)
+    return out
+
+
+def _git_common_dir(target: Path, env: Optional[Dict[str, str]] = None) -> Optional[str]:
+    """`git rev-parse --git-common-dir` for `target`; None on any failure."""
+    try:
+        done = subprocess.run(
+            ["git", "rev-parse", "--path-format=absolute", "--git-common-dir"],
+            cwd=str(target), capture_output=True, text=True,
+            timeout=_GIT_TIMEOUT_SECONDS, check=False, env=git_env(env),
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if done.returncode != 0:
+        return None
+    common = done.stdout.strip()
+    return common or None
+
+
+def project_name(target: Path, env: Optional[Dict[str, str]] = None) -> str:
+    """The name ai-raccoon knows this project by.
+
+    `git rev-parse --git-common-dir` collapses a linked worktree to its main checkout's
+    basename, so den-refresh inside `.ai-badger/worktrees/<task>` asks for the repo's name,
+    never the worktree's. Outside git, the on-disk basename answers — recovered from
+    `os.listdir` when only the spelling's case differs — else the resolved path's name.
+    """
+    common = _git_common_dir(target, env)
+    if common:
+        return Path(common).parent.name
+    try:
+        entries = os.listdir(target.parent)
+    except OSError:
+        entries = []
+    wanted = target.name.casefold()
+    for entry in entries:
+        if entry.casefold() == wanted:
+            return entry
+    return target.resolve().name
+
+
+def _write_id(aib: Path, project_id: str) -> Optional[str]:
+    """Write `<aib>/project-id` (id + newline); a note instead of a crash on OSError."""
+    try:
+        aib.mkdir(parents=True, exist_ok=True)
+        (aib / "project-id").write_text(f"{project_id}\n", encoding="utf-8")
+    except OSError as exc:
+        return f"could not write {aib / 'project-id'}: {exc}"
+    return None
+
+
+def _is_guid(value: str) -> bool:
+    try:
+        uuid.UUID(value)
+    except (AttributeError, TypeError, ValueError):
+        return False
+    return True
+
+
+def ensure_project_id(aib: Path, name: str, *, raccoon: bool,
+                      env: Optional[Dict[str, str]] = None
+                      ) -> Tuple[Optional[str], List[str]]:
+    """The one project-id flow: read, reuse-or-mint, optionally register.
+
+    A present non-blank file is the identity and is never rewritten; when `raccoon` is
+    true and it holds a guid it costs exactly one `register` (register folds aliases, so
+    no `check` is needed). A missing or blank file: with `raccoon` false, mint a uuid4
+    silently; otherwise ask `get --name`, reuse a hit, and on not-found mint and register.
+    Every other outcome mints and keeps the warning. Returns (id or None, notes).
+    """
+    values = dict(os.environ) if env is None else dict(env)
     path = aib / "project-id"
-    if not path.exists():
-        path.write_text(f"{uuid.uuid4()}\n", encoding="utf-8")
+    try:
+        current = path.read_text(encoding="utf-8").strip()
+    except FileNotFoundError:
+        current = ""
+    except OSError as exc:
+        return None, [f"could not read {path}: {exc}"]
+    if current:
+        notes = []
+        if raccoon and _is_guid(current):
+            note = register_project_id(current, name, env=values)
+            if note:
+                notes.append(note)
+        return current, notes
+    if not raccoon:
+        minted = str(uuid.uuid4())
+        note = _write_id(aib, minted)
+        return minted, [note] if note else []
+    result = lookup_project_id(name, env=values)
+    if result.kind == "hit" and result.id:
+        note = _write_id(aib, result.id)
+        return result.id, [note] if note else []
+    minted = str(uuid.uuid4())
+    notes = [note for note in (result.note,) if note]
+    written = _write_id(aib, minted)
+    if written:
+        notes.append(written)
+    if result.kind == "not-found":
+        # The register step is one call site so a future `check` verb or its removal is a
+        # one-line change here.
+        note = register_project_id(minted, name, env=values)
+        if note:
+            notes.append(note)
+    return minted, notes
 
 
 def registration_enabled(env: Optional[Dict[str, str]] = None) -> bool:
