@@ -24,11 +24,11 @@ CODE_ROOTS = ("engine", "tooling", "gates", "features", ".lefthook")
 # not a checkout yet.
 EXEMPT = {
     ("engine/badger_lib.py", "_clone_pinned"),
-    # TODO(lane W1): deferred for scoping, NOT because they are safe. The `(root / ".git")`
-    # guard only excludes non-repositories; an exported GIT_DIR still redirects their
+    # TODO(lane W1): deferred for scoping, NOT because it is safe. The `(root / ".git")`
+    # guard only excludes non-repositories; an exported GIT_DIR still redirects its
     # `git -C <dir> rev-parse HEAD` to another repository's HEAD, measured. Another lane owns
-    # these two files this wave.
-    ("features/common/skills/welcome-ai-badger/scripts/scaffold.py", "git_provenance"),
+    # this file this wave. (git_provenance left this list in 0.188.0: it moved to
+    # record_provenance.py and now passes env=git_env().)
     ("features/common/skills/welcome-ai-badger/scripts/detect.py", "detect_source_control"),
 }
 
