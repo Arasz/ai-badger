@@ -153,8 +153,8 @@ your key; the override pins it.
 
 The memory-first gate (the PreToolUse deny that precedes a text search) names the same id the
 hook reads: the nearest `.ai-badger/project-id`, with `AI_BADGER_PROJECT_ID` first. The old
-`AI_RACCOON_PROJECT_ID` override is retired, so the denial and the search it demands cannot
-point at two different projects.
+raccoon-side override is retired (see ADR-0036 in the ai-badger repository), so the denial and
+the search it demands cannot point at two different projects.
 
 **Search log.** Each enriched prompt, and each planned query, is a real `memory_search` and
 lands in ai-raccoon's search log like any other search.

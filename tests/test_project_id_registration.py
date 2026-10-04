@@ -366,7 +366,7 @@ def test_project_name_falls_back_to_the_resolved_basename(project_id_script, tmp
 
 
 # ------------------------------------------------------------- scaffold wiring
-def test_scaffold_stdout_never_carries_cli_output(scaffold_module, root,
+def test_scaffold_stdout_never_carries_cli_output(scaffold_module, root, project_id_script,
                                                  tmp_path, raccoon_cli_fake,
                                                  monkeypatch, capfd):
     """An installing scaffold registers under the project name; CLI output stays captured.
@@ -379,7 +379,7 @@ def test_scaffold_stdout_never_carries_cli_output(scaffold_module, root,
     target = tmp_path / "wire-proj"
     target.mkdir()
     raccoon_cli_fake.script(
-        get={"exit": 18},
+        get={"exit": project_id_script.EXIT_PROJECT_UNKNOWN},
         register={"exit": 0, "stdout": "registered 11111111-1111-1111-1111-111111111111\n",
                   "stderr": "fake-raccoon: warning\n"})
 

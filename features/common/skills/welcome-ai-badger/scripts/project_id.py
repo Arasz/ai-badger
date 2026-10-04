@@ -34,7 +34,6 @@ EXIT_NOT_GUID = 10            # Usage: argv does not fit the grammar
 EXIT_UNPARSEABLE = 11         # argv unrecognised: a binary older than 1.57.0, or changed verb
 EXIT_PROJECT_UNKNOWN = 18     # get: no such name; register: the id is retired
 EXIT_PROJECT_AMBIGUOUS = 19   # get: several projects share the name
-CLIENT_BAND = range(10, 20)   # usage errors, excluding the two project codes above
 KEY_BAND = range(20, 30)      # Key: ai-raccoon cannot open its bank
 SERVER_BAND = range(30, 70)   # Bank/Port/Server/Reach: unreachable, start failed, too old
 REACH_BAND = range(60, 70)    # Reach: the server is not running and would not start
