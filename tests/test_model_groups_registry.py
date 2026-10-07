@@ -34,6 +34,7 @@ from __future__ import annotations
 
 import json
 import warnings
+from pathlib import Path
 
 import pytest
 from conftest import _test_write
@@ -46,20 +47,20 @@ SEED = "features/common/data/model-groups.json"
 SOURCE = "task-brief 2026-09-05"
 
 
-@pytest.fixture()
-def mg(load_script):
+@pytest.fixture(name="mg")
+def model_groups_fixture(load_script):
     """The registry leaf, loaded by path like every other standalone script."""
     return load_script(LEAF)
 
 
-def _m(id, price_in, price_out, preferred=False, **kw):
+def _m(ident, price_in, price_out, preferred=False, **kw):
     """One registry member. Prices are ordering keys for the permutation tests, never
     pass conditions — except the verbatim seed pin in L0-11. (source: task-brief 2026-09-05)"""
     member = {
-        "id": id,
+        "id": ident,
         "preferred": preferred,
         "pricing": {"inputPerM": price_in, "outputPerM": price_out, "currency": "USD"},
-        "evidence": f"layer-0 fixture pin for {id} (source: {SOURCE})",
+        "evidence": f"layer-0 fixture pin for {ident} (source: {SOURCE})",
     }
     member.update(kw)
     return member
@@ -112,17 +113,32 @@ def test_registry_missing_a_group_fails_naming_it(mg, tmp_path):
 
 # ------------------------------------------------------------------ L0-2 qualified ids only
 @pytest.mark.parametrize("bare", ["opus", "sonnet", "haiku"])
-def test_every_id_is_openrouter_qualified(mg, tmp_path, bare):
+def test_bare_alias_is_rejected(mg, tmp_path, bare):
     doc = _doc(low=[_m(bare, 1, 2, True)])
     with pytest.raises(mg.RegistryInvalid) as exc_info:
         _load(mg, tmp_path, doc)
     assert bare in str(exc_info.value)
 
 
-def test_single_segment_openrouter_id_is_rejected(mg, tmp_path):
-    doc = _doc(low=[_m("openrouter/onlyone", 1, 2, True)])
-    with pytest.raises(mg.RegistryInvalid):
-        _load(mg, tmp_path, doc)
+CONFORMANCE = json.loads((Path(__file__).parent / "fixtures" / "model-id-conformance.json")
+                         .read_text(encoding="utf-8"))
+
+
+@pytest.mark.parametrize("case", CONFORMANCE, ids=lambda case: repr(case["id"]))
+def test_model_id_conformance_at_registry_and_emit(mg, tmp_path, case):
+    """Oracle: provider/segment grammar in the provider research spec, not the regex."""
+    ident = case["id"]
+    doc = _doc(low=[_m(ident, 1, 2, True)])
+    if case["valid"]:
+        groups = _load(mg, tmp_path, doc)
+        assert mg.preferred("low", groups) == ident
+        assert mg.resolve("low", None, groups) == ident
+    else:
+        with pytest.raises(mg.RegistryInvalid, match="id"):
+            _load(mg, tmp_path, doc)
+        # Caller-supplied groups still pass through the emission guard.
+        with pytest.raises(mg.RegistryInvalid, match="refusing to emit id"):
+            mg.preferred("low", doc["groups"])
 
 
 # ------------------------------------------------------------------ L0-3 low prefers glm-5.3-flash
@@ -697,3 +713,15 @@ def test_no_bare_id_in_the_scaffolded_registry(make_scaffolder, mg):
     assert ids
     pattern = re.compile(r"^openrouter/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
     assert all(pattern.match(i) for i in ids), ids
+
+
+@pytest.mark.parametrize("case", CONFORMANCE, ids=lambda case: repr(case["id"]))
+def test_model_id_schema_conformance(case):
+    """Exercise the shipped schema with the same independent grammar oracle."""
+    import jsonschema
+
+    schema = json.loads((Path(__file__).parents[1] / "schemas" / "model-groups.schema.json")
+                        .read_text(encoding="utf-8"))
+    document = _doc(low=[_m(case["id"], 1, 2, True)])
+    errors = list(jsonschema.Draft202012Validator(schema).iter_errors(document))
+    assert bool(errors) is not case["valid"], [error.message for error in errors]

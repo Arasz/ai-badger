@@ -19,6 +19,7 @@ When cutting a release:
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
+| 0.189.0 | [pi native provider/model IDs](0.189.0-pi-native-provider-model-ids.md) |
 | 0.188.0 | [ai-badger reuses or registers its project id with ai-raccoon](0.188.0-project-id-registered-with-ai-raccoon.md) |
 | 0.187.7 | [task-graph launches on every OS](0.187.7-task-graph-launches-on-every-os.md) |
 | 0.187.6 | [AiRaccoon checklist checks the long-query keyword cap](0.187.6-checklist-long-query-item.md) |
