@@ -1,0 +1,13 @@
+[mcp_servers.ai-raccoon]
+command = "ai-raccoon"
+
+[mcp_servers.code-review-graph]
+command = "code-review-graph"
+args = ["serve"]
+
+[mcp_servers.hermes]
+command = "hermes"
+args = [
+    "mcp",
+    "serve",
+]
