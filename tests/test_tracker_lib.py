@@ -12,6 +12,7 @@ from __future__ import annotations
 import json
 import os
 import subprocess
+import sys
 import threading
 from datetime import timedelta
 from pathlib import Path
@@ -389,6 +390,77 @@ def test_locked_store_serializes_concurrent_read_modify_write(load_script, tmp_p
         t.join()
 
     assert tl.load_json(path, {"n": 0}) == {"n": 20}
+
+
+# ---------------------------------------------------------------------------
+# cross-platform locking (Windows has no fcntl)
+# ---------------------------------------------------------------------------
+
+class _FakeMsvcrt:
+    """Stand-in for the Windows locking module: records calls and can simulate contention."""
+
+    LK_LOCK = 1
+    LK_NBLCK = 2
+    LK_UNLCK = 3
+
+    def __init__(self, busy=False):
+        self.busy = busy
+        self.calls = []
+
+    def locking(self, fd, mode, nbytes):
+        self.calls.append((fd, mode, nbytes))
+        if self.busy:
+            raise OSError("locked")
+
+
+def test_tracker_lib_imports_when_fcntl_is_missing(load_script, monkeypatch):
+    """Windows has no fcntl; importing tracker_lib must not raise (the pre-fix crash).
+
+    A `None` entry in sys.modules makes `import fcntl` raise ImportError exactly as a Windows
+    interpreter would, so this is the in-process reproduction of the import-time failure.
+    """
+    monkeypatch.setitem(sys.modules, "fcntl", None)
+    tl = load_script("features/common/skills/task/scripts/tracker_lib.py")
+    assert tl.fcntl is None
+
+
+def test_locked_store_locks_through_msvcrt_without_fcntl(load_script, tmp_path, monkeypatch):
+    """The Windows shape: fcntl absent, msvcrt present. locked_store must lock, not crash."""
+    tl = _load(load_script, tmp_path)
+    fake = _FakeMsvcrt()
+    monkeypatch.setattr(tl, "fcntl", None)
+    monkeypatch.setattr(tl, "msvcrt", fake)
+
+    with tl.locked_store():
+        pass
+
+    modes = [mode for _fd, mode, _n in fake.calls]
+    assert fake.LK_LOCK in modes
+    assert fake.LK_UNLCK in modes
+
+
+def test_lock_file_nonblocking_reports_windows_contention(load_script, tmp_path, monkeypatch):
+    tl = _load(load_script, tmp_path)
+    monkeypatch.setattr(tl, "fcntl", None)
+    monkeypatch.setattr(tl, "msvcrt", _FakeMsvcrt(busy=True))
+    tl.ensure_data_dir()
+    fh = open(tl.LOCK_FILE, "w", encoding="utf-8")
+    try:
+        assert tl.lock_file(fh, blocking=False) is False
+    finally:
+        fh.close()
+
+
+def test_lock_file_proceeds_when_no_primitive_exists(load_script, tmp_path, monkeypatch):
+    tl = _load(load_script, tmp_path)
+    monkeypatch.setattr(tl, "fcntl", None)
+    monkeypatch.setattr(tl, "msvcrt", None)
+    tl.ensure_data_dir()
+    fh = open(tl.LOCK_FILE, "w", encoding="utf-8")
+    try:
+        assert tl.lock_file(fh) is True
+    finally:
+        fh.close()
 
 
 # ---------------------------------------------------------------------------
