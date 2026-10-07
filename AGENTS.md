@@ -6,7 +6,7 @@ Agent-instruction framework distributed as a Codex plugin. Python 3.10+ scripts 
 
 > Domain: Developer tooling: agent instruction catalogs and repo scaffolding.
 > Stacks: python, js, github, Codex, hermes, pi, ts, node, changelog
-> Scaffolded by ai-badger 0.189.2. Source of truth for this file: `.ai-badger/AGENTS.md`.
+> Scaffolded by ai-badger 0.189.3. Source of truth for this file: `.ai-badger/AGENTS.md`.
 
 ## Commands
 
