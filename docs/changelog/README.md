@@ -19,6 +19,7 @@ When cutting a release:
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
+| 0.189.3 | [task-graph MCP server survives a non-UTF-8 console](0.189.3-task-graph-utf8-stdout.md) |
 | 0.189.2 | [task tracker runs on Windows again](0.189.2-windows-task-tracker-fcntl.md) |
 | 0.189.1 | [vendored adapter comment sync](0.189.1-vendored-adapter-hook-bridge-comment-sync.md) |
 | 0.189.0 | [pi native provider/model IDs](0.189.0-pi-native-provider-model-ids.md) |

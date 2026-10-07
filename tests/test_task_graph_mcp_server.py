@@ -398,6 +398,28 @@ def test_non_utf8_stdin_bytes_get_an_error_and_the_loop_survives(tmp_path):
     assert responses[2] == {"jsonrpc": "2.0", "id": 2, "result": {}}
 
 
+def test_tools_list_survives_a_non_utf8_stdout_codec(tmp_path):
+    """The Windows crash: a cp1252 stdout cannot encode the ``\u2192`` tool descriptions carry.
+
+    `initialize` succeeds but `tools/list` raises ``UnicodeEncodeError`` inside the write and
+    the process dies. The server must emit UTF-8 bytes regardless of the console codec (the
+    input side already reads bytes), so the reply survives and carries the arrow raw. The
+    existing harness sets ``encoding="utf-8"`` on the child pipes, which hid this on every OS.
+    """
+    env = dict(os.environ)
+    env[TRACKING_ROOT_ENV] = str(tmp_path)
+    env["PYTHONIOENCODING"] = "cp1252"
+    request = json.dumps({"jsonrpc": "2.0", "id": 1, "method": "tools/list"}).encode("ascii")
+    proc = subprocess.run(
+        [sys.executable, str(SERVER)], input=request + b"\n",
+        capture_output=True, env=env, check=False)
+
+    assert proc.returncode == 0, proc.stderr.decode("utf-8", "replace")
+    response = json.loads(proc.stdout.decode("utf-8").splitlines()[0])
+    assert [tool["name"] for tool in response["result"]["tools"]] == list(FROZEN_TOOLS)
+    assert "\u2192".encode("utf-8") in proc.stdout, "the arrow must travel as raw UTF-8, not escapes"
+
+
 def test_unknown_method_is_method_not_found_and_unknown_tool_is_invalid_params(mcp):
     server = mcp()
     response = server.call("tools/nowhere", {})
