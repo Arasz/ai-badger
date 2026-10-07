@@ -334,6 +334,11 @@ def test_run_skips_when_lock_already_held(resume_cron, monkeypatch):
     assert "resumeAttempts" not in entry
 
 
+def test_resume_cron_does_not_import_fcntl_directly(resume_cron):
+    """Windows has no fcntl, so resume_cron delegates locking to tracker_lib's helper."""
+    assert not hasattr(resume_cron, "fcntl")
+
+
 def test_main_wires_dry_run_flag_through_argv(resume_cron, monkeypatch):
     _write_tasks(resume_cron, [])
     monkeypatch.setattr(sys, "argv", ["resume_cron.py", "run", "--dry-run"])
