@@ -1,0 +1,194 @@
+[
+  {
+    "id": "openai/gpt-6.1-sol",
+    "valid": true
+  },
+  {
+    "id": "anthropic/claude-sonnet-5",
+    "valid": true
+  },
+  {
+    "id": "openrouter/vendor/name",
+    "valid": true
+  },
+  {
+    "id": "local/qwen:7b",
+    "valid": true
+  },
+  {
+    "id": "fireworks/accounts/fireworks/models/x",
+    "valid": true
+  },
+  {
+    "id": "openai/@preview/gpt-6",
+    "valid": true
+  },
+  {
+    "id": "a/b",
+    "valid": true
+  },
+  {
+    "id": "a-b.c_d/e:f~g@h+i",
+    "valid": true
+  },
+  {
+    "id": "UPPER/Model",
+    "valid": true
+  },
+  {
+    "id": "a/~",
+    "valid": true
+  },
+  {
+    "id": "a/@",
+    "valid": true
+  },
+  {
+    "id": "1/2",
+    "valid": true
+  },
+  {
+    "id": "p/mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm",
+    "valid": true
+  },
+  {
+    "id": "",
+    "valid": false
+  },
+  {
+    "id": " ",
+    "valid": false
+  },
+  {
+    "id": "sonnet",
+    "valid": false
+  },
+  {
+    "id": "openai/",
+    "valid": false
+  },
+  {
+    "id": "/gpt",
+    "valid": false
+  },
+  {
+    "id": "provider//model",
+    "valid": false
+  },
+  {
+    "id": "openai/gpt 6",
+    "valid": false
+  },
+  {
+    "id": "openai/gpt\n",
+    "valid": false
+  },
+  {
+    "id": "open ai/gpt",
+    "valid": false
+  },
+  {
+    "id": "openai/gpt\r",
+    "valid": false
+  },
+  {
+    "id": "openai/gpt\r\n",
+    "valid": false
+  },
+  {
+    "id": "openai/gpt\t",
+    "valid": false
+  },
+  {
+    "id": "openai/gpt\u0000",
+    "valid": false
+  },
+  {
+    "id": ".p/m",
+    "valid": false
+  },
+  {
+    "id": "_p/m",
+    "valid": false
+  },
+  {
+    "id": "-p/m",
+    "valid": false
+  },
+  {
+    "id": "@p/m",
+    "valid": false
+  },
+  {
+    "id": "p/.m",
+    "valid": false
+  },
+  {
+    "id": "p/:m",
+    "valid": false
+  },
+  {
+    "id": "p/-m",
+    "valid": false
+  },
+  {
+    "id": "p/_m",
+    "valid": false
+  },
+  {
+    "id": "p/m/",
+    "valid": false
+  },
+  {
+    "id": "p/m\\x",
+    "valid": false
+  },
+  {
+    "id": "p/m?x",
+    "valid": false
+  },
+  {
+    "id": "p/m#x",
+    "valid": false
+  },
+  {
+    "id": "p/m%20x",
+    "valid": false
+  },
+  {
+    "id": "p/m\u2028",
+    "valid": false
+  },
+  {
+    "id": "p/m\u2029",
+    "valid": false
+  },
+  {
+    "id": "p/m\u00a0",
+    "valid": false
+  },
+  {
+    "id": "p/m\u000b",
+    "valid": false
+  },
+  {
+    "id": "p/m\f",
+    "valid": false
+  },
+  {
+    "id": "p/\u00e9",
+    "valid": false
+  },
+  {
+    "id": "\u00e9/m",
+    "valid": false
+  },
+  {
+    "id": "p/m\nother",
+    "valid": false
+  },
+  {
+    "id": "p/m /other",
+    "valid": false
+  }
+]

@@ -16,6 +16,7 @@ user-global state — so the project docs name the prerequisite instead.
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -29,9 +30,10 @@ import frontmatter as fm
 #
 # `level:` (low|medium|high) passes through: the reader resolves the routing intent against
 # the model-groups registry (ADR-0027 G-3). `model:` is NOT on this list — it passes iff
-# openrouter/-qualified (a pin pi accepts as its own --model), and is stripped otherwise: a
+# a valid provider/model id (a pin pi accepts as its own --model), and is stripped otherwise: a
 # bare Claude lane (`opus`) would be rejected there. See render().
 PI_KEYS = ("name", "description", "level")
+MODEL_ID_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]*(?:/[A-Za-z0-9~@][A-Za-z0-9._~@:+-]*)+")
 
 AGENTS_SUBDIR = Path(".pi") / "agents"
 
@@ -104,7 +106,7 @@ def render(text: str, source_name: str) -> Optional[str]:
     The body below it is what the delegated process gets as its system prompt.
 
     Dual-key handling (ADR-0027 G-3): `level:` passes through via PI_KEYS; `model:` passes
-    iff openrouter/-qualified, else it is stripped — a bare Claude lane is not a pi model.
+    iff a valid provider/model id, else it is stripped — a bare Claude lane is not a pi model.
     """
     split = fm.split(text)
     if not split.present:
@@ -116,15 +118,15 @@ def render(text: str, source_name: str) -> Optional[str]:
     for key in PI_KEYS:
         if key in keep:
             out.extend(keep[key].lines)
-    if "model" in keep and _is_openrouter_model(keep["model"].value()):
+    if "model" in keep and _is_model_id(keep["model"].value()):
         out.extend(keep["model"].lines)
     out += ["---\n", "\n", MANAGED_HEADER.format(name=source_name) + "\n", "\n"]
     return "".join(out) + split.body.lstrip("\n")
 
 
-def _is_openrouter_model(value: str) -> bool:
-    """True only for a pin pi accepts as its own model: an `openrouter/`-qualified id."""
-    return value.strip().startswith("openrouter/")
+def _is_model_id(value: str) -> bool:
+    """Accept a provider/model pin, normalizing the frontmatter reader's whitespace."""
+    return MODEL_ID_RE.fullmatch(value.strip()) is not None
 
 
 def _manifest_targets(target_dir: Path) -> set:

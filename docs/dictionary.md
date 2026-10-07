@@ -69,7 +69,7 @@ Windows-only hook commands have no path into a scaffolded repo.
 | **Persona** (`personas/*.md`) | `.claude/agents/*.md` (subagents) | Skill or delegate_task `role` | `.github/agents/*.agent.md` (custom agents) | `<project>/.pi/agents/*.md`, read by the subagent extension through `fs` |
 | **Persona routing** (`config.json`) | Agent tool dispatch (`subagent_type`) | `delegate_task` role routing | Custom agent invocation (`/agent-name`) | The subagent extension's delegation tool |
 | **Read-only persona** | `disallowedTools:` denylist (keeps Bash and MCP) | Role prompt | `tools:` list | Not carried: pi's `tools` key becomes a `--tools` argument in Claude's vocabulary, so it is dropped and each delegation inherits the session's tool set |
-| **Model lane** (persona frontmatter `model:`, `level:`) | `model:` in `.claude/agents/*.md` | N/A — no custom-agent files to carry a lane | Dropped — Copilot picks its own model | `level:` passes through and the reader resolves it against the model-groups registry; `model:` passes only when it is `openrouter/`-qualified, and a bare Claude lane is stripped (ADR-0027) |
+| **Model lane** (persona frontmatter `model:`, `level:`) | `model:` in `.claude/agents/*.md` | N/A — no custom-agent files to carry a lane | Dropped — Copilot picks its own model | `level:` passes through and the reader resolves it against the model-groups registry; `model:` passes when it is a valid `<provider>/<model>` pin, and a bare Claude lane is stripped (ADR-0027) |
 
 Delivering `.pi/agents/*.md` without the subagent extension leaves them inert: pi core has no
 custom-agent feature of its own, so a machine that never ran

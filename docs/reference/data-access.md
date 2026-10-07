@@ -21,7 +21,7 @@ the design is in [ADR-0034](../adr/0034-third-party-egress-is-opt-in-and-lockabl
 | Per-prompt memory context, single search | nothing beyond the machine (stdio to the local `ai-raccoon` proxy) | local | on | `AI_BADGER_MEMORY_CONTEXT=0` turns the hook off |
 | Project-id lookup/registration (installing `welcome-ai-badger`, `den-refresh`) | the project id and the repo basename | the local `ai-raccoon` CLI/server | on for the installing scaffold and every den-refresh | off via `AI_BADGER_RACCOON_REGISTER=0`; a `--no-install` scaffold never calls |
 | Jev advisory (`task-decomposition/scripts/jev_choice.py`) | plan step goals, instructions, acceptance criteria, files, verifier | OpenRouter decisions, or `AI_BADGER_JEV_ENDPOINT` | **off** | `AI_BADGER_JEV=1` + `_TIER=1`/`_WAVES=1`; a non-loopback endpoint also needs the opt-in and, under a lock, an `allowHosts` entry for its host |
-| pi subagents by `level:` | the whole delegated task | the model `.ai-badger/model-groups.json` resolves (all `openrouter/*` ids) | on for pi projects | pi's own provider config; **not governed by the opt-in** |
+| pi subagents by `level:` | the whole delegated task | the model `.ai-badger/model-groups.json` resolves (shipped defaults use `openrouter/*`; project pins can name any provider) | on for pi projects | pi's own provider config; **not governed by the opt-in** |
 | archify update check | an HTTPS GET (IP and headers, no content) | `tt-a1i.github.io` | on when the skill runs it | `ARCHIFY_UPDATE_CHECK_DISABLED=1` |
 | archify brand capture | the URL the author names | that site | on demand | private addresses refused unless `ARCHIFY_BRAND_ALLOW_PRIVATE=1` |
 | archify rendered HTML | the viewer's IP when the page is opened | Google Fonts | on open | none |
@@ -198,13 +198,20 @@ Three findings shape these options:
 Wire compatibility with `jev_choice.py` has not been run yet. The research record's "Still open"
 list gives the evaluation that settles it.
 
+The memory planner still uses OpenRouter HTTP. Its resolved pin must have the `openrouter/`
+prefix and a `vendor/model` suffix. Native pins fall back before any planner HTTP call.
+`AI_BADGER_MEMORY_CONTEXT_PLANNER_MODEL` keeps the legacy `vendor/model` override, with an
+optional `openrouter/` prefix; nested paths and native punctuation such as `:` or `@` are refused.
+Two-segment overrides remain ambiguous by design for compatibility.
+
 ## Not governed by `AI_BADGER_ALLOW_THIRD_PARTY`
 
 - **Proxy enforcement.** ai-badger routes through `HTTPS_PROXY` when it is set, but never forces
   it: an unset or blank variable, or a matching `NO_PROXY` entry (or `NO_PROXY=*`), dials directly. Only the
   network's own egress firewall can make the DLP proxy mandatory. `HTTP_PROXY`, `ALL_PROXY`,
   system and PAC proxies, and proxy authentication are not used.
-- **pi delegation.** The model registry accepts only `openrouter/*` ids, and pi's own memory and
+- **pi delegation.** The model registry accepts valid `<provider>/<model>` pins without provider discovery or
+  policy filtering (ADR-0037). pi's own memory and
   RAG extensions run outside ai-badger's hooks.
 - **Third-party MCP binaries.** The internal network behaviour of semantica and
   code-review-graph has not been audited. ai-raccoon is local and approved (see above).

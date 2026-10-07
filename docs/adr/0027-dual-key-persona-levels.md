@@ -1,5 +1,7 @@
 # ADR-0027 — Dual-key persona lanes: `level:` beside `model:`
 
+Amended by [ADR-0037](0037-accept-provider-model-pins.md): native pi pins and the OpenRouter planner routing guard.
+
 **Date:** 2026-09-06
 **Status:** Accepted
 **Author:** PKG-3 lane (tiers/pkg3-lanes)

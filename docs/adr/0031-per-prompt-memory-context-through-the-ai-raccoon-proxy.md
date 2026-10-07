@@ -1,5 +1,7 @@
 # ADR-0031 — Per-prompt memory context through the ai-raccoon proxy, planned by an OpenRouter pipeline
 
+Amended by [ADR-0037](0037-accept-provider-model-pins.md): native pi pins and the OpenRouter planner routing guard.
+
 **Date:** 2026-09-28
 **Status:** Accepted (2026-09-28, targeting 0.178.0 — see `docs/changelog/0.178.0-per-prompt-memory-context.md`).
 Amended 2026-09-28 after the implementation review: Hermes stage limits (D1.6), the Hermes memo

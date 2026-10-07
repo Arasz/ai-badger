@@ -325,3 +325,37 @@ def test_pl7_expired_budget_is_timeout_without_a_post():
     result = qp.plan("q", post=post, base=BASE, key=KEY, model="vendor/m", budget=budget)
     assert as_pi(result) == {"status": "fallback", "reason": "timeout"}
     assert post.calls == []
+
+
+@pytest.mark.parametrize("ident", ["openai/gpt-6.1-sol", "local/qwen:7b",
+                                   "fireworks/accounts/fireworks/models/x"])
+def test_native_registry_planner_pin_refuses_before_transport(tmp_path, ident):
+    resolver = load_resolver(tmp_path)
+    path = registry(tmp_path, ident)
+    # Prove native pins passed registry validation; refusal belongs to planner routing.
+    assert resolver.resolve("medium", groups=resolver.load_groups(path)) == ident
+    post = Post(chat(PLAN_TEXT))
+    model = qp.planner_model(None, resolver, path)
+    result = call(post, model=model)
+    assert as_pi(result) == {"status": "fallback", "reason": "no-model"}
+    assert post.calls == []
+
+
+@pytest.mark.parametrize("override", ["fireworks/accounts/fireworks/models/x", "local/qwen:7b",
+                                      "openai/@preview/gpt-6", "vendor//model", "vendor/bad name",
+                                      "vendor/model/extra", "openrouter/vendor/model/extra"])
+def test_native_shape_override_refuses_before_transport(override):
+    post = Post(chat(PLAN_TEXT))
+    model = qp.planner_model(override, None, None)
+    assert as_pi(call(post, model=model)) == {"status": "fallback", "reason": "no-model"}
+    assert post.calls == []
+
+
+@pytest.mark.parametrize("override", ["vendor/model", "openrouter/vendor/model",
+                                      "openai/gpt-6.1-sol", " vendor/model "])
+def test_legacy_openrouter_override_reaches_transport(override):
+    post = Post(chat(PLAN_TEXT))
+    model = qp.planner_model(override, None, None)
+    assert as_pi(call(post, model=model)) == {"status": "ok", "plan": PLAN}
+    assert len(post.calls) == 1
+    assert post.calls[0]["body"]["model"] == override.strip().removeprefix("openrouter/")

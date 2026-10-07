@@ -169,7 +169,7 @@ def test_a_corrupt_manifest_is_tolerated_not_fatal(agents_arm, project):
     """A manifest.json that does not parse degrades to header-based ownership detection."""
     (project / ".ai-badger" / "manifest.json").write_text("{not json", encoding="utf-8")
 
-    result = agents_arm.adjust(_context(project))
+    agents_arm.adjust(_context(project))
 
     assert (project / ".pi" / "agents" / "architect.md").is_file()
 
@@ -237,7 +237,7 @@ def test_the_agents_arm_is_registered_in_pi_adjustment_json(root):
 #
 # Pi half (C3 strip, C4 bare-never matrix): `level:` passes through to .pi/agents/ (the pi
 # reader resolves it against the model-groups registry); `model:` passes iff
-# openrouter/-qualified — a bare Claude lane is not a pi --model argument and pi would
+# provider/model-qualified — a bare Claude lane is not a pi --model argument and pi would
 # reject it. A bare model therefore never survives pi delivery, whatever level sits beside
 # it. Grandfather (no level: at all) is pinned by
 # test_rendered_frontmatter_carries_only_the_keys_pi_reads above.
@@ -312,7 +312,7 @@ def test_l1_c3_pi_delivery_passes_level_but_strips_the_bare_lane(agents_arm, pro
 @pytest.mark.parametrize("model", ["opus", "openrouter/anthropic/claude-sonnet-4.5", None],
                          ids=["explicit-bare", "explicit-qualified", "level-only"])
 def test_l1_c4_pi_delivery_passes_level_and_only_qualified_models(agents_arm, level, model):
-    """Bare-never matrix: every level passes; only an openrouter/-qualified model joins it."""
+    """Bare-never matrix: every level passes; only a provider-qualified model joins it."""
     rendered = agents_arm.render(_dual_persona("m", level, model), "m.md")
 
     front = _front(rendered)
@@ -324,3 +324,28 @@ def test_l1_c4_pi_delivery_passes_level_and_only_qualified_models(agents_arm, le
     else:
         assert "model:" not in front, f"bare lane {model!r} must never reach pi"
 
+
+
+@pytest.mark.parametrize("model", ["openai/gpt-6.1-sol", "local/qwen:7b",
+                                  "fireworks/accounts/fireworks/models/x",
+                                  "openai/@preview/gpt-6", "openrouter/vendor/name",
+                                  "  openai/gpt-6.1-sol  "])
+def test_pi_regeneration_preserves_provider_model_pin(agents_arm, project, model):
+    """Grammar oracle: native pins stay verbatim through first delivery and regeneration."""
+    source = project / ".ai-badger" / "agents" / "architect.md"
+    source.write_text(_dual_persona("architect", "high", model), encoding="utf-8")
+    for _ in range(2):
+        result = agents_arm.adjust(_context(project))
+        text = (project / ".pi" / "agents" / "architect.md").read_text(encoding="utf-8")
+        assert result["applied"] is True
+        assert fm.split(text).fields()["model"] == model.strip()
+        assert fm.split(text).fields()["level"] == "high"
+        assert "Body for architect." in text
+
+
+@pytest.mark.parametrize("model", ["sonnet", "openrouter/", "openrouter/vendor//name",
+                                  "openrouter/vendor/bad name", "openai/.model"])
+def test_pi_delivery_drops_invalid_model_pin(agents_arm, model):
+    rendered = agents_arm.render(_dual_persona("architect", "high", model), "architect.md")
+    assert "model" not in fm.split(rendered).fields()
+    assert fm.split(rendered).fields()["level"] == "high"

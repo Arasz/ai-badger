@@ -49,6 +49,8 @@ held two files numbered 0002. That collision was resolved in 0.22.0. One number,
 | [0035](0035-host-allowlist-and-project-binding.md) | A locked project can allow named hosts; an exported project id must match the cwd; plaintext egress is refused | Accepted (2026-10-03, targeting 0.186.0) | `dataPolicy` object form `{mode: "local-only", allowHosts: [...]}` relaxes a lock but never replaces the opt-in; intersection across locking ancestors, exact https host on the dialled host, a bad entry voids the list; Jev resolves through `egress_allowed`; `AI_BADGER_PROJECT_ID` mismatching the walked id refuses the pipeline; non-loopback `http` refused |
 | [0036](0036-reuse-or-register-the-project-id-with-ai-raccoon.md) | Reuse or register the project id with ai-raccoon | Accepted (2026-10-04, targeting 0.188.0) | Amends ADR-0025 decision 1: a missing or blank `.ai-badger/project-id` asks the local ai-raccoon `project id get --name <repo>` and reuses a hit (legacy raw-text ids included) or mints and registers a uuid4; a present uuid costs exactly one `register` (it folds aliases, so no `check` — owner ruling 2026-10-04); non-guid ids are skipped; the name collapses a worktree to its main checkout; `AI_BADGER_RACCOON_REGISTER=0` disables every call, checked once; the memory-first gate names the walked id and `AI_RACCOON_PROJECT_ID` retires |
 
+| [0037](0037-accept-provider-model-pins.md) | Accept provider/model pins | Accepted (2026-10-06) | Shape-only registry/schema/pi admission preserves native pins; the OpenRouter memory planner refuses native resolved pins before HTTP; provider policy filtering is deferred |
+
 ## Writing a new one
 
 Take the next free number. Keep the filename kebab-case and imperative-ish
