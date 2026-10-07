@@ -136,7 +136,7 @@ export function commandsForTool(
 ): string[] {
   // An mcp_-prefixed name is additionally matched by its trailing segments, so a shipped
   // matcher like `memory_search` also fires for the MCP spellings hosts deliver (pi:
-  // `mcp_ai-raccoon_memory_search`, Claude: `mcp__ai-raccoon__memory_search`). Each tail
+  // `mcp__ai_raccoon__memory_search`, Claude: `mcp__ai-raccoon__memory_search`). Each tail
   // is compared whole, so an exact name never matches a substring.
   const candidates = opts?.mcpSuffix ? matcherCandidates(toolName) : [toolName];
   return commands
@@ -161,7 +161,7 @@ export function commandsForTool(
 }
 
 /** Post-side matcher selection: the same rules plus MCP-suffix awareness, because the
- * shipped PostToolUse entries name MCP tools that pi delivers as `mcp_<server>_<tool>`. */
+ * shipped PostToolUse entries name MCP tools that pi delivers as `mcp__<server>__<tool>`. */
 export function postCommandsForTool(
   commands: HookCommand[],
   toolName: string,
@@ -171,10 +171,10 @@ export function postCommandsForTool(
 }
 
 /** The names an mcp_-prefixed tool spelling may be matched by: the full name plus every
- * trailing separator-joined tail of its body, in both host spellings (pi delimits with
- * single underscores, Claude with double), because a server name may itself contain an
- * underscore and the tool part therefore has no fixed position. Non-MCP names yield only
- * themselves. */
+ * trailing separator-joined tail of its body, in both spellings (the retired pi-mcp-tools
+ * delimited with single underscores, pi and Claude with double), because a server name
+ * may itself contain an underscore and the tool part therefore has no fixed position.
+ * Non-MCP names yield only themselves. */
 function matcherCandidates(toolName: string): string[] {
   const candidates = new Set<string>([toolName]);
   const body = toolName.startsWith("mcp__")
