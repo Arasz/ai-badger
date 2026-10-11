@@ -1,4 +1,4 @@
-"""Regression: the framework supports exactly four agents — claude, copilot, hermes, pi.
+"""Regression: the framework supports five agents — claude, copilot, hermes, pi, codex.
 
 ADR-0016 removed junie support (0.82.0). These tests pin the three-agent scope so a
 future re-addition has to be a deliberate decision that updates this file, the schemas,
@@ -11,7 +11,7 @@ def test_agent_names_include_pi(load_script):
     """AGENT_NAMES includes pi as the fourth agent."""
     badger = load_script("engine/badger_lib.py")
     assert "pi" in badger.AGENT_NAMES
-    assert len(badger.AGENT_NAMES) == 4
+    assert set(badger.AGENT_NAMES) == {"claude", "copilot", "hermes", "pi", "codex"}
 
 
 def test_detect_never_reports_junie(tmp_path, load_script, monkeypatch):

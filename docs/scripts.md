@@ -1,7 +1,8 @@
 # ai-badger scripts — how to run them and their tests
 
 All scripts are plain Python 3.10+ standalone files (no install step). The framework validates
-JSON against `schemas/` with `jsonschema`, so install that once:
+JSON against `schemas/` with `jsonschema`. Codex project configuration uses `tomllib` on
+Python 3.11+ and the conditional `tomli` dependency on Python 3.10. Install the requirements:
 
 ```bash
 python3 -m pip install -r engine/requirements.txt   # jsonschema

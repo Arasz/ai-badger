@@ -2,11 +2,11 @@
 
 # ai-badger
 
-Agent-instruction framework distributed as a Codex plugin. Python 3.10+ scripts (detect/scaffold/validate/index_build/drift) materialize a per-repo .ai-badger/ scaffold from a features/{stack|common}/{feature} catalog. engine/requirements.txt declares three runtime dependencies plus one optional wrapper guard: jsonschema (required; validation refuses rather than silently passing), pyyaml (optional, guarded, and degrades to a printed note), and pydantic (required; the task-plan model and its schema generator); semantica is needed only by the optional wrapper. The task-graph plan server/CLI are PEP 723 scripts launched via `uv run --script`, so the consumer-side prerequisite is uv (it fetches pydantic>=2.12,<3 into its cache on first launch, with no pip install and no project-venv pollution). The plan DAG layer is stdlib graphlib; networkx is deliberately not used. Two .mjs helper scripts under skills/maintain-agent-instructions/.
+Agent-instruction framework distributed through a Claude Code plugin and native repository scaffolds for Claude Code, Copilot, Hermes, pi and Codex. Python 3.10+ scripts (detect/scaffold/validate/index_build/drift) materialize a per-repo .ai-badger/ scaffold from a features/{stack|common}/{feature} catalog. engine/requirements.txt declares runtime dependencies plus one optional wrapper guard: jsonschema (required; validation refuses rather than silently passing), pyyaml (optional, guarded, and degrades to a printed note), and pydantic (required; the task-plan model and its schema generator); tomli supplies TOML parsing on Python 3.10; semantica is needed only by the optional wrapper. The task-graph plan server/CLI are PEP 723 scripts launched via `uv run --script`, so the consumer-side prerequisite is uv (it fetches pydantic>=2.12,<3 into its cache on first launch, with no pip install and no project-venv pollution). The plan DAG layer is stdlib graphlib; networkx is deliberately not used. Two .mjs helper scripts under skills/maintain-agent-instructions/.
 
 > Domain: Developer tooling: agent instruction catalogs and repo scaffolding.
-> Stacks: python, js, github, Codex, hermes, pi, ts, node, changelog
-> Scaffolded by ai-badger 0.189.4. Source of truth for this file: `.ai-badger/AGENTS.md`.
+> Stacks: python, js, github, claude, hermes, pi, ts, node, changelog, codex
+> Scaffolded by ai-badger 0.190.0. Source of truth for this file: `.ai-badger/AGENTS.md`.
 
 ## Commands
 
@@ -18,14 +18,15 @@ Agent-instruction framework distributed as a Codex plugin. Python 3.10+ scripts 
 
 Before editing matching files, read the applicable scoped instruction file:
 
-- `docs/**/*.md,README.md,AGENTS.md` → `.ai-badger/instructions/documentation.instructions.md`
+- `docs/**/*.md,README.md,CLAUDE.md` → `.ai-badger/instructions/documentation.instructions.md`
 - `**/*.py` → `.ai-badger/instructions/python.instructions.md`
 - `**/*.js,**/*.mjs,**/*.cjs` → `.ai-badger/instructions/javascript.instructions.md`
 - `**/.github/workflows/*.yml,**/.github/workflows/*.yaml` → `.ai-badger/instructions/github-actions.instructions.md`
 - `skills/**/SKILL.md,**/*.hermes.md,**/HERMES.md,.hermes/**` → `.ai-badger/instructions/hermes.instructions.md`
-- `**/AGENTS.override.md,**/AGENTS.md,.pi/**` → `.ai-badger/instructions/pi.instructions.md`
+- `**/AGENTS.override.md,**/CLAUDE.md,.pi/**` → `.ai-badger/instructions/pi.instructions.md`
 - `**/*.ts,**/*.tsx,**/tsconfig.json` → `.ai-badger/instructions/typescript.instructions.md`
 - `**/package.json,**/bun.lock,**/*.mjs,**/*.cjs` → `.ai-badger/instructions/node.instructions.md`
+- `**/AGENTS.md,**/AGENTS.override.md,.codex/**,.agents/skills/**` → `.ai-badger/instructions/codex.instructions.md`
 
 Additional invariants load contextually via these paths — see `.ai-badger/invariants/` for the full set.
 
@@ -36,7 +37,7 @@ Additional invariants load contextually via these paths — see `.ai-badger/inva
 - Quality gate before merge, security review, and adversarially verifying a claim this session made about its own work → `code-reviewer`
 - Hermes skills, hooks and gateway configuration, and HERMES.md → `hermes-agent-author`
 - Long, multi-package or autonomous sessions — route work instead of doing it → `delegator`
-- Every dispatch names its `model` — the delegation map is `.ai-badger/delegation.md`.
+- Codex custom agents inherit the parent model; Claude model aliases in the delegation map are not Codex model identifiers.
 - Parallel dispatches each name their own `isolation` — lanes sharing a tree share its build output.
 
 ## Prompt markers
@@ -233,3 +234,7 @@ nearest `.ai-badger/skills/task-decomposition/scripts/task_graph_server.py`, run
 Skills, personas, and instructions here are managed by ai-badger. Run `welcome-ai-badger`
 to re-scaffold after changing `.ai-badger/config.json`, and `feed-badger` to contribute
 project-agnostic improvements back to the framework. Provenance: `.ai-badger/manifest.json`.
+
+<!-- ai-badger:keep-start -->
+<!-- Project-specific overrides go here (survives re-scaffold) -->
+<!-- ai-badger:keep-end -->

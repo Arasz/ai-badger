@@ -1,10 +1,10 @@
 # Delegation map — ai-badger
 
-> Scaffolded by ai-badger 0.189.4. Regenerated on every scaffold; do not edit.
+> Scaffolded by ai-badger 0.190.0. Regenerated on every scaffold; do not edit.
 
 ## Stacks
 
-python, js, github, claude, hermes, pi, ts, node, changelog
+python, js, github, claude, hermes, pi, ts, node, changelog, codex
 
 ## Personas available here
 

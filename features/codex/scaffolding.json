@@ -1,0 +1,13 @@
+{
+  "agent": "codex",
+  "description": "Codex root instruction discovery.",
+  "files": [
+    {
+      "source": "templates/AGENTS.md.tmpl",
+      "target": "AGENTS.md",
+      "managed": true,
+      "template": true,
+      "aibCopy": "AGENTS.md"
+    }
+  ]
+}

@@ -1,0 +1,62 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "env AI_BADGER_CODEX_HOOK=1 python3 -I -c 'import os,pathlib,runpy,sys; root=pathlib.Path(sys.argv[1]); script=root/'\"'\"'.ai-badger/skills'\"'\"'/sys.argv[2]; sys.exit(0) if not script.is_file() or not script.resolve().is_relative_to(root) or any(p.is_symlink() for p in (script,*script.parents) if p!=root and root in p.parents) else None; sys.exit(0) if any(p.is_symlink() for tree in (script.parent.parent,root/'\"'\"'.ai-badger/hooks'\"'\"') for p in (tree,*tree.rglob('\"'\"'*'\"'\"'))) else None; os.environ['\"'\"'CLAUDE_PROJECT_DIR'\"'\"']=str(root); sys.path.insert(0,str(script.parent)); runpy.run_path(str(script),run_name='\"'\"'__main__'\"'\"')' /absolute/project/root git-work/scripts/git_internals_guard.py",
+            "timeout": 10
+          }
+        ],
+        "matcher": "^Bash$"
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cat >/dev/null || true; command -v code-review-graph >/dev/null 2>&1 || exit 0; git rev-parse --git-dir >/dev/null 2>&1 && code-review-graph update --skip-flows --repo \"$(git rev-parse --show-toplevel 2>/dev/null)\" || true",
+            "timeout": 30
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cat >/dev/null || true; command -v code-review-graph >/dev/null 2>&1 || exit 0; git rev-parse --git-dir >/dev/null 2>&1 && code-review-graph status --repo \"$(git rev-parse --show-toplevel 2>/dev/null)\" || echo 'Not a git repo, skipping'",
+            "timeout": 10
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "env AI_BADGER_CODEX_HOOK=1 python3 -I -c 'import os,pathlib,runpy,sys; root=pathlib.Path(sys.argv[1]); script=root/'\"'\"'.ai-badger/skills'\"'\"'/sys.argv[2]; sys.exit(0) if not script.is_file() or not script.resolve().is_relative_to(root) or any(p.is_symlink() for p in (script,*script.parents) if p!=root and root in p.parents) else None; sys.exit(0) if any(p.is_symlink() for tree in (script.parent.parent,root/'\"'\"'.ai-badger/hooks'\"'\"') for p in (tree,*tree.rglob('\"'\"'*'\"'\"'))) else None; os.environ['\"'\"'CLAUDE_PROJECT_DIR'\"'\"']=str(root); sys.path.insert(0,str(script.parent)); runpy.run_path(str(script),run_name='\"'\"'__main__'\"'\"')' /absolute/project/root git-work/scripts/git_config_health_hook.py",
+            "timeout": 10
+          }
+        ],
+        "matcher": "startup|resume"
+      }
+    ],
+    "SessionEnd": [],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "env AI_BADGER_CODEX_HOOK=1 python3 -I -c 'import os,pathlib,runpy,sys; root=pathlib.Path(sys.argv[1]); script=root/'\"'\"'.ai-badger/skills'\"'\"'/sys.argv[2]; sys.exit(0) if not script.is_file() or not script.resolve().is_relative_to(root) or any(p.is_symlink() for p in (script,*script.parents) if p!=root and root in p.parents) else None; sys.exit(0) if any(p.is_symlink() for tree in (script.parent.parent,root/'\"'\"'.ai-badger/hooks'\"'\"') for p in (tree,*tree.rglob('\"'\"'*'\"'\"'))) else None; os.environ['\"'\"'CLAUDE_PROJECT_DIR'\"'\"']=str(root); sys.path.insert(0,str(script.parent)); runpy.run_path(str(script),run_name='\"'\"'__main__'\"'\"')' /absolute/project/root prompt-markers/scripts/user_prompt_hook.py"
+          }
+        ]
+      }
+    ],
+    "Stop": []
+  }
+}

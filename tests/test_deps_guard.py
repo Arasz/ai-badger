@@ -83,6 +83,20 @@ class TestClassification:
         assert guard.main(["--root", str(repo)]) == 0
         assert "PASS" in capsys.readouterr().out
 
+    def test_newer_stdlib_tomllib_is_recognized_on_python_310(
+            self, tmp_path, guard, monkeypatch, capsys):
+        """The supported 3.10 interpreter cannot resolve the 3.11 stdlib parser."""
+        repo = _repo(tmp_path, DECLARED + "tomli>=2; python_version < '3.11'\n")
+        _module(repo, "engine/parser.py",
+                "try:\n    import tomllib\n"
+                "except ImportError:\n    import tomli as tomllib\n")
+        origin = guard._origin
+        monkeypatch.setattr(guard, "_origin",
+                            lambda name: None if name == "tomllib" else origin(name))
+
+        assert guard.main(["--root", str(repo)]) == 0
+        assert "PASS" in capsys.readouterr().out
+
     def test_a_first_party_sibling_import_is_never_flagged(self, tmp_path, guard, capsys):
         """Hooks and skill scripts import siblings and engine/ modules by bare name."""
         repo = _repo(tmp_path)

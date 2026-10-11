@@ -4,8 +4,26 @@ How ai-badger's concepts map to each supported agent's native terminology.
 
 `features/common/support.json` is the machine-readable version of this page, one entry per agent
 per capability, and the thing to edit when an agent's surface changes. The tables here are the
-prose view of it, plus the places where a concept has no pi equivalent and saying so is the
+prose view of it, plus the places where a concept has no native equivalent and saying so is the
 useful answer.
+
+## Codex
+
+Codex uses native project resources. These mappings supplement the historical harness tables
+below; [`codex.md`](codex.md) carries setup and the exact supported hook subset.
+
+| ai-badger concept | Codex delivery |
+|---|---|
+| Skill | `.agents/skills/<name>` symlink to the embedded `.ai-badger/skills/<name>` package |
+| Project instructions | Full `AGENTS.md` discovery copy; root `AGENTS.override.md` takes precedence |
+| Scoped instructions and invariants | Paths and prose assembled into the project instruction file |
+| Persona | `.codex/agents/<name>.toml`, with `name`, `description`, `developer_instructions` |
+| Model lane | Inherit the Codex parent model and reasoning; no Claude lane translation |
+| MCP server | Project `.codex/config.toml` `[mcp_servers.<name>]`, trusted projects only |
+| Hooks | Selected native command registrations in `.codex/hooks.json`; hook definitions require trust |
+| External plugin installation | Not automated by the Codex scaffold; upstream plugin support is a separate surface |
+| Task skill | Common task workflow through discovered skills and native persona dispatch; Claude transcript accounting is not Codex usage accounting |
+| Manifest and config | The shared `.ai-badger/manifest.json` and `.ai-badger/config.json` contracts |
 
 ## Skills / Plugins
 
@@ -44,7 +62,7 @@ exception that proves the rule worth knowing: it uses `before_agent_start` and `
 the bus seams, because a steer that rides pi's queue is exactly-once where a per-request
 context copy would be consumed and vanish (ADR-0026).
 
-Only Claude Code's `Stop` reaches the model: its stdout is read as
+Claude Code's `Stop` reaches the model: its stdout is read as
 `{"decision": "block", "reason": "..."}` and by no other route. `SessionEnd` has no decision
 control and its JSON output is ignored, so anything wired there must be disk-side work only,
 which is why ai-badger runs the same script on both events and lets it block on one of them.
@@ -58,9 +76,9 @@ Windows-only hook commands have no path into a scaffolded repo.
 | ai-badger | Claude Code | Hermes Agent | GitHub Copilot | pi |
 |---|---|---|---|---|
 | **Project instructions** | `CLAUDE.md` | `HERMES.md` / `.hermes.md` | `.github/copilot-instructions.md` | `AGENTS.override.md` |
-| **Scoped instructions** (`instructions/*.md`) | Referenced in `CLAUDE.md` | Referenced in `HERMES.md` | `.github/instructions/*.md` with `applyTo` frontmatter | N/A — pi reads no scoped-instruction directory; a `features/pi/instructions/*.md` file is delivered as a pi instruction file instead |
-| **Invariants** | `CLAUDE.md` sections | `HERMES.md` sections | `copilot-instructions.md` sections | Read from the root `CLAUDE.md`: pi loads `AGENTS.md`, `AGENTS.override.md` and `CLAUDE.md`, and the keep region carries none of the invariant text itself |
-| **Source of truth** | `.ai-badger/CLAUDE.md` | `.ai-badger/HERMES.md` | `.ai-badger/copilot-instructions.md` | `features/pi/templates/AGENTS.override.md.tmpl`, rendered to the repo root with a keep region |
+| **Scoped instructions** (`instructions/*.md`) | Referenced in `CLAUDE.md` | Referenced in `HERMES.md` | `.github/instructions/*.md` with `applyTo` frontmatter | Referenced in full `AGENTS.override.md` guidance |
+| **Invariants** | `CLAUDE.md` sections | `HERMES.md` sections | `copilot-instructions.md` sections | Embedded in `AGENTS.override.md` sections |
+| **Source of truth** | `.ai-badger/CLAUDE.md` | `.ai-badger/HERMES.md` | `.ai-badger/copilot-instructions.md` | `.ai-badger/AGENTS.override.md`, rendered from the pi template with a keep region |
 
 ## Personas
 

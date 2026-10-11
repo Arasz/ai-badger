@@ -1,0 +1,29 @@
+{
+  "agent": "codex",
+  "adjustments": [
+    {
+      "feature": "skills",
+      "description": "Publish selected skills through repository discovery symlinks",
+      "script": "adjust_skills.py",
+      "cleanupOnDeselection": true
+    },
+    {
+      "feature": "agents",
+      "description": "Convert personas to standalone Codex TOML agents",
+      "script": "adjust_agents.py",
+      "cleanupOnDeselection": true
+    },
+    {
+      "feature": "mcp",
+      "description": "Append project MCP declarations preserving operator TOML",
+      "script": "adjust_mcp.py",
+      "cleanupOnDeselection": true
+    },
+    {
+      "feature": "hooks",
+      "description": "Publish explicitly compatible command hooks",
+      "script": "adjust_hooks.py",
+      "cleanupOnDeselection": true
+    }
+  ]
+}

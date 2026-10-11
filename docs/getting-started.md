@@ -17,16 +17,19 @@ next to the block it appears in.
 ai-badger is a **versioned catalog of agent instructions** — invariants, scoped instructions,
 personas, and skills — plus scripts that materialize a project-tailored slice of that catalog
 into any repository as a `.ai-badger/` directory and the agent-discovery files each coding agent
-looks for (`CLAUDE.md`, `.github/copilot-instructions.md`, `HERMES.md`). It
+looks for (`CLAUDE.md`, `.github/copilot-instructions.md`, `HERMES.md`, `AGENTS.override.md`, `AGENTS.md`). It
 exists so that the rules you want an AI coding agent to follow live in one maintained place
 instead of being retyped, drifting, and rotting in every repo separately. It runs in two
 directions: `welcome-ai-badger` / `den-refresh` push the catalog into a project, `feed-badger`
 pulls generalizable improvements back out.
 
+Codex users should follow [Codex setup](codex.md) for the native skill, persona, MCP and
+hook routes. The older transcript below remains a record of its original agents and output.
+
 ### Who it is not for
 
-- **You do not use one of the three supported agents.** Only `claude`, `copilot`, and
-  `hermes` are valid values in `config.json` (see [`schemas/config.schema.json`](../schemas/config.schema.json)).
+- **You do not use one of the supported agents.** `claude`, `copilot`,
+  `hermes`, `pi` and `codex` are valid values in `config.json` (see [`schemas/config.schema.json`](../schemas/config.schema.json)).
   Nothing here generates instructions for an agent outside that list.
 - **You want a linter, a test runner, or CI enforcement.** ai-badger writes instruction files.
   It does not check your code. The only thing it enforces mechanically is its own catalog's
@@ -157,7 +160,7 @@ python3 -m pip install -r "$AI_BADGER/engine/requirements.txt"
 ```
 
 The file installs the runtime dependencies (`jsonschema` required, `pyyaml` optional and
-guarded, `pydantic` required for the task-plan model) plus `semantica`, needed only by the
+guarded, `pydantic` required for the task-plan model, and `tomli` for TOML on Python 3.10) plus `semantica`, needed only by the
 optional Semantica wrapper. Skipping this is the single most common failure — see
 [Troubleshooting](#7-troubleshooting).
 

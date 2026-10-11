@@ -1,0 +1,9 @@
+{
+  "name": "codex",
+  "description": "OpenAI Codex native repository instructions, skills, custom agents, MCP and bounded hooks.",
+  "detectionSignals": [
+    ".codex",
+    "~/.codex"
+  ],
+  "requires": []
+}

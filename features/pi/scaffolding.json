@@ -6,7 +6,8 @@
       "source": "templates/AGENTS.override.md.tmpl",
       "target": "AGENTS.override.md",
       "managed": true,
-      "template": true
+      "template": true,
+      "aibCopy": "AGENTS.override.md"
     }
   ]
 }

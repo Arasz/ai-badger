@@ -51,6 +51,8 @@ held two files numbered 0002. That collision was resolved in 0.22.0. One number,
 
 | [0037](0037-accept-provider-model-pins.md) | Accept provider/model pins | Accepted (2026-10-06) | Shape-only registry/schema/pi admission preserves native pins; the OpenRouter memory planner refuses native resolved pins before HTTP; provider policy filtering is deferred |
 
+| [0038](0038-codex-harness-delivery.md) | Deliver Codex through project-native surfaces | Accepted (2026-10-11) | Add Codex detection and scaffold delivery through AGENTS.md, symlinked skills, TOML personas and MCP, plus a bounded native hook subset; preserve operator config and trust; reconcile pi override precedence |
+
 ## Writing a new one
 
 Take the next free number. Keep the filename kebab-case and imperative-ish

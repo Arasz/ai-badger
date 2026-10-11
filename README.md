@@ -16,6 +16,9 @@ instructions used across projects. It is three things in one repo:
    improvements a project made back into the catalog via a draft PR; `den-refresh` pulls
    framework updates into an already-scaffolded project.
 
+Codex uses the project scaffold directly; see [`docs/codex.md`](docs/codex.md) for setup and
+the supported native surfaces.
+
 Badger-themed name, professional-grade contents: the badger digs the framework into your repo
 and digs improvements back out.
 
@@ -123,6 +126,7 @@ wrong claim in a PR body passes every one of them. That still needs a reviewer.
 | **Claude Code** | Full | `CLAUDE.md`, personas as agent modes, plugin hooks, skills, plugin installs, `.mcp.json` | none |
 | **Hermes Agent** | Full | `HERMES.md`, personas as native roles, plugin hooks, namespaced skill symlinks under `~/.hermes/skills/` | MCP has no project route, so the block is printed for you to merge (ADR-0014) |
 | **GitHub Copilot** | Full | instructions, scoped instructions, custom agents, `.github/hooks/`, skills, `.github/mcp.json` | no plugin install, and `feed-badger` has no programmatic route |
+| **Codex** | Project scaffold | `AGENTS.md`, `.agents/skills/` symlinks, `.codex/agents/*.toml`, project MCP and selected native hooks | partial hook parity; no automated external plugin installs; see [Codex support](docs/codex.md) |
 | **pi** | Full | `AGENTS.override.md`, `.pi/agents/` personas, the tool-event hooks through a TS adapter, `.ai-badger/skills`, project-scoped MCP | no plugin install, and `feed-badger` has no programmatic route |
 
 `features/common/support.json` is the matrix of record: one entry per agent per capability,
@@ -133,7 +137,7 @@ agent's surface changes, not this table.
 
 `ai-raccoon`, `angular`, `aspire`, `azure`, `changelog`, `cosmos`, `css`, `dotnet`, `github`, `js`,
 `mcp`, `node`, `python`, `react`, `terraform`, `ts`, `ux`, `vue`, plus **`common`** for
-stack-agnostic content and agent-specific stacks (`claude`, `copilot`, `hermes`, `pi`). Derive it
+stack-agnostic content and agent-specific stacks (`claude`, `copilot`, `hermes`, `pi`, `codex`). Derive it
 rather than quoting this line: `ls features/`.
 
 ## Install
@@ -167,14 +171,15 @@ output, and the failures that actually bite.
 
 Run **`welcome-ai-badger`** inside a project you want to scaffold:
 
-1. It detects stacks, present agents (`claude`, `copilot`, `hermes`, `pi`), and commands from
+1. It detects stacks, present agents (`claude`, `copilot`, `hermes`, `pi`, `codex`), and commands from
    the repo and asks you to confirm/refine a `.ai-badger/config.json` profile (project summary,
    domain, persona routing, plugin scope).
 2. It materializes `.ai-badger/` (selected skills, personas, invariants, instructions, an
-   assembled `CLAUDE.md` / `HERMES.md` / `AGENTS.override.md`, and plugin installs),
-   recording exactly what it wrote in `.ai-badger/manifest.json`.
+   assembled agent instructions and plugin installs). Codex also receives its native
+   discovery and TOML configuration. The scaffold records what it wrote in
+   `.ai-badger/manifest.json`.
 3. Essential agent-discovery files (`CLAUDE.md`, `.github/copilot-instructions.md`,
-   `HERMES.md`/`.hermes.md`, `AGENTS.override.md`) are copied into their conventional locations
+   `HERMES.md`/`.hermes.md`, `AGENTS.override.md`, `AGENTS.md`) are copied into their conventional locations
    with a header pointing back at `.ai-badger/` as the source of truth, since some agent CLIs
    only look there.
 
@@ -345,7 +350,7 @@ ai-badger/
     dotnet/ azure/ aspire/ cosmos/ terraform/ mcp/ changelog/ python/  {personas,invariants,instructions}/…
     github/ react/ vue/ angular/ node/ js/ ts/ css/ ux/  {personas,invariants,instructions}/…
     ai-raccoon/                  # The memory server's own stack: its skill and its CLI dependency
-    claude/ copilot/ hermes/ pi/ # Agent stacks: scaffolding.json, adjustments/, templates/
+    claude/ copilot/ hermes/ pi/ codex/ # Agent stacks: scaffolding.json, adjustments/, templates/
                                  # pi additionally ships the TypeScript hook adapter and its tests
 ```
 
@@ -361,7 +366,7 @@ flowchart TB
       STACKS["one directory per stack\ndotnet · azure · aspire · cosmos · terraform · mcp\nnode · js · ts · react · vue · css · ux · github · angular · python · changelog · ai-raccoon"]
     end
     SKILLSDIR["features/common/skills/\ndefault + optIn, per each SKILL.md's own scope\nsee docs/skills.md for the roster"]
-    AGENTS["features/{claude|copilot|hermes|pi}/\nscaffolding.json · adjustments/ · templates/"]
+    AGENTS["features/{claude|copilot|hermes|pi|codex}/\nscaffolding.json · adjustments/ · templates/"]
     MCPCAT["features/*/mcp/ + stack-mcp.json\ncode-review-graph · hermes · ai-raccoon (MCP)\nsemantica · playwright · aspire (aspire stack)"]
     MKT[".claude-plugin/marketplace.json\n+ installable plugin"]
   end
@@ -376,7 +381,7 @@ flowchart TB
   subgraph PROJ["target repo (.ai-badger/)"]
     CFG["config.json\n(agent-authored)"]
     MAN["manifest.json\n(script-written provenance)"]
-    OUT[".ai-badger/ files\n+ CLAUDE.md / copilot / hermes / pi copies"]
+    OUT[".ai-badger/ files\n+ CLAUDE.md / copilot / hermes / pi / Codex copies"]
   end
   SKILLS -->|welcome| PROJ
   PROJ -->|feed: manifest diff| PRD["draft PR → ai-badger"]
@@ -387,7 +392,7 @@ flowchart TB
 
 The framework scripts (`index_build.py`, `validate.py`, and the `detect.py` / `scaffold.py`
 pair inside `welcome-ai-badger`) are mechanical Python 3.10+; `engine/requirements.txt` holds
-their runtime dependencies:
+their runtime dependencies (including conditional `tomli` for Codex TOML on Python 3.10):
 
 ```bash
 python3 -m pip install -r engine/requirements.txt
@@ -395,8 +400,8 @@ python3 -m pip install -r engine/requirements.txt
 
 `jsonschema` is required because validation refuses rather than silently passing; `pyyaml` is
 optional and guarded, degrading to a printed note; `pydantic` is required for the task-plan
-model and its schema generator; and `semantica` is needed only by the optional Semantica
-wrapper.
+model and its schema generator; `tomli` parses TOML on Python 3.10; and `semantica` is
+needed only by the optional Semantica wrapper.
 
 The `task-graph` plan server and CLI ship as PEP 723 scripts launched with
 `uv run --script …`, so the one consumer-side prerequisite is **`uv`**: it fetches

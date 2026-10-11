@@ -1,7 +1,7 @@
 {
   "$schema": "../../schemas/support.schema.json",
   "description": "Agent capability matrix: what each agent supports and what ai-badger scaffolds for it.",
-  "lastUpdated": "2026-09-30",
+  "lastUpdated": "2026-10-11",
   "agents": {
     "claude": {
       "name": "Claude Code",
@@ -65,7 +65,7 @@
         },
         "feedbackLoop": {
           "supported": true,
-          "mechanism": "feed-badger detects additions → PR",
+          "mechanism": "feed-badger detects additions \u2192 PR",
           "aiBadgerSupport": true
         }
       }
@@ -106,7 +106,7 @@
           "supported": true,
           "mechanism": "SKILL.md with YAML frontmatter, discovered from ~/.hermes/skills/ and external_dirs",
           "aiBadgerSupport": true,
-          "scaffoldedBy": "scaffold.py symlink_hermes_skills() — namespaced under ~/.hermes/skills/<project>/"
+          "scaffoldedBy": "scaffold.py symlink_hermes_skills() \u2014 namespaced under ~/.hermes/skills/<project>/"
         },
         "customAgents": {
           "supported": false,
@@ -131,7 +131,7 @@
         },
         "feedbackLoop": {
           "supported": true,
-          "mechanism": "feed-badger detects additions → PR",
+          "mechanism": "feed-badger detects additions \u2192 PR",
           "aiBadgerSupport": true
         }
       }
@@ -161,11 +161,11 @@
           "supported": true,
           "mechanism": "Custom agents (.github/agents/*.agent.md)",
           "aiBadgerSupport": true,
-          "scaffoldedBy": "copilot/adjustments/adjust_agents.py — maps personas to .github/agents/"
+          "scaffoldedBy": "copilot/adjustments/adjust_agents.py \u2014 maps personas to .github/agents/"
         },
         "hooks": {
           "supported": true,
-          "mechanism": ".github/hooks/*.json — events: sessionStart, sessionEnd, preToolUse, postToolUse, userPromptSubmitted, agentStop, subagentStop, errorOccurred",
+          "mechanism": ".github/hooks/*.json \u2014 events: sessionStart, sessionEnd, preToolUse, postToolUse, userPromptSubmitted, agentStop, subagentStop, errorOccurred",
           "configPath": ".github/hooks/",
           "format": {
             "version": 1,
@@ -186,19 +186,19 @@
         },
         "skills": {
           "supported": true,
-          "mechanism": ".github/skills/*/SKILL.md or .claude/skills/*/SKILL.md — YAML frontmatter (name, description) + markdown body",
+          "mechanism": ".github/skills/*/SKILL.md or .claude/skills/*/SKILL.md \u2014 YAML frontmatter (name, description) + markdown body",
           "aiBadgerSupport": true,
-          "scaffoldedBy": "copilot/adjustments/adjust_skills.py — symlinks into .github/skills/"
+          "scaffoldedBy": "copilot/adjustments/adjust_skills.py \u2014 symlinks into .github/skills/"
         },
         "customAgents": {
           "supported": true,
-          "mechanism": ".github/agents/*.agent.md — YAML frontmatter (name, description, tools, model, mcp-servers, user-invocable)",
+          "mechanism": ".github/agents/*.agent.md \u2014 YAML frontmatter (name, description, tools, model, mcp-servers, user-invocable)",
           "aiBadgerSupport": true,
-          "scaffoldedBy": "copilot/adjustments/adjust_agents.py — maps personas to .github/agents/"
+          "scaffoldedBy": "copilot/adjustments/adjust_agents.py \u2014 maps personas to .github/agents/"
         },
         "plugins": {
           "supported": true,
-          "mechanism": "copilot plugin marketplace/install — delivers skills, hooks, agents, MCP servers",
+          "mechanism": "copilot plugin marketplace/install \u2014 delivers skills, hooks, agents, MCP servers",
           "aiBadgerSupport": false
         },
         "mcpServers": {
@@ -231,7 +231,7 @@
         },
         "invariants": {
           "supported": true,
-          "mechanism": "root CLAUDE.md (pi loads AGENTS.md, AGENTS.override.md and CLAUDE.md); the AGENTS.override.md keep region carries none of the invariant text itself",
+          "mechanism": "Full generated AGENTS.override.md guidance including invariant summaries; this override also supplies shared context when Codex is configured",
           "aiBadgerSupport": true
         },
         "scopedInstructions": {
@@ -241,28 +241,28 @@
         },
         "personas": {
           "supported": true,
-          "mechanism": "pi core has no persona feature of its own; agent files are read by a subagent extension (canonical in the pi-badger-integration repo at extensions/subagent/index.ts, installed user-scope at ~/.pi/agent/extensions/subagent/ by its publish flow) which registers one delegation tool and reads <project>/.pi/agents/*.md itself through fs — not through pi's trust-gated project resource loader — so the personas load in headless `pi -p` runs with no trust decision saved",
+          "mechanism": "pi core has no persona feature of its own; agent files are read by a subagent extension (canonical in the pi-badger-integration repo at extensions/subagent/index.ts, installed user-scope at ~/.pi/agent/extensions/subagent/ by its publish flow) which registers one delegation tool and reads <project>/.pi/agents/*.md itself through fs \u2014 not through pi's trust-gated project resource loader \u2014 so the personas load in headless `pi -p` runs with no trust decision saved",
           "aiBadgerSupport": true,
-          "scaffoldedBy": "pi/adjustments/adjust_agents.py — writes <project>/.pi/agents/*.md and installs the subagent extension user-scope"
+          "scaffoldedBy": "pi/adjustments/adjust_agents.py \u2014 writes <project>/.pi/agents/*.md and installs the subagent extension user-scope"
         },
         "hooks": {
           "supported": true,
-          "mechanism": "Extension events the adapter subscribes to: tool_call — see pi's extension API docs for the full event set",
+          "mechanism": "Extension events the adapter subscribes to: tool_call \u2014 see pi's extension API docs for the full event set",
           "configPath": "~/.pi/agent/extensions/",
           "aiBadgerSupport": true,
           "wiredBy": "pi/adjustments/adjust_hooks.py"
         },
         "skills": {
           "supported": true,
-          "mechanism": "SKILL.md YAML frontmatter, Agent Skills standard — pi does not read .claude/skills/; the installed ai-badger adapter's resources_discover contributes <project>/.ai-badger/skills to pi's skill paths, ungated (deliberate divergence from pi's own gating of project skills, calibrated by the adapter's pre-existing hooks shell-command channel — ADR-0023)",
+          "mechanism": "SKILL.md YAML frontmatter, Agent Skills standard \u2014 pi does not read .claude/skills/; the installed ai-badger adapter's resources_discover contributes <project>/.ai-badger/skills to pi's skill paths, ungated (deliberate divergence from pi's own gating of project skills, calibrated by the adapter's pre-existing hooks shell-command channel \u2014 ADR-0023)",
           "aiBadgerSupport": true,
-          "scaffoldedBy": "scaffold.py delivers skills to .ai-badger/skills; pi/adjustments/adjust_skills.py — migration-only: removes this project's path from the user-global settings.json skills array (gated on the installed adapter's resources_discover capability marker)"
+          "scaffoldedBy": "scaffold.py delivers skills to .ai-badger/skills; pi/adjustments/adjust_skills.py \u2014 migration-only: removes this project's path from the user-global settings.json skills array (gated on the installed adapter's resources_discover capability marker)"
         },
         "customAgents": {
           "supported": true,
           "mechanism": "<project>/.pi/agents/*.md and ~/.pi/agent/agents/*.md, `name`/`description` frontmatter plus a body used as the agent's prompt; discovery and dispatch belong to whichever subagent extension is installed, not to pi core",
           "aiBadgerSupport": true,
-          "scaffoldedBy": "pi/adjustments/adjust_agents.py — writes <project>/.pi/agents/*.md and installs the subagent extension user-scope"
+          "scaffoldedBy": "pi/adjustments/adjust_agents.py \u2014 writes <project>/.pi/agents/*.md and installs the subagent extension user-scope"
         },
         "plugins": {
           "supported": true,
@@ -271,9 +271,9 @@
         },
         "mcpServers": {
           "supported": true,
-          "mechanism": "pi ships MCP as a built-in extension (0.99.1+); config in ~/.pi/agent/mcp.json (global) and .pi/mcp.json (project; read only for trusted projects — a headless run with defaultProjectTrust ask|never skips it; project entries override global by name); tools named mcp__<server>__<tool> — a server's exposure is codemode (default), codemode-deferred, deferred (loaded through tool_search), direct, or hidden, with per-tool toolExposure overrides; local stdio and remote http/sse; the settings.json 'mcp' key is not read by pi — it is the retired extension's legacy state, and on re-scaffold this project's shape-matched entries are removed from it, gated on the project's .pi/mcp.json existing as a parseable JSON object. .mcp.json — Claude Code's and the Copilot CLI's project config — is not read by pi. This scaffold's pi destination writes .pi/mcp.json with union-merge semantics: new entries are templated with \"exposure\": \"direct\" (one executable plus args, ~ home form), an existing entry survives re-scaffold byte-identical with its exposure/toolExposure tuning, and entries the scaffold does not recognize (user-added servers) are never dropped",
+          "mechanism": "pi ships MCP as a built-in extension (0.99.1+); config in ~/.pi/agent/mcp.json (global) and .pi/mcp.json (project; read only for trusted projects \u2014 a headless run with defaultProjectTrust ask|never skips it; project entries override global by name); tools named mcp__<server>__<tool> \u2014 a server's exposure is codemode (default), codemode-deferred, deferred (loaded through tool_search), direct, or hidden, with per-tool toolExposure overrides; local stdio and remote http/sse; the settings.json 'mcp' key is not read by pi \u2014 it is the retired extension's legacy state, and on re-scaffold this project's shape-matched entries are removed from it, gated on the project's .pi/mcp.json existing as a parseable JSON object. .mcp.json \u2014 Claude Code's and the Copilot CLI's project config \u2014 is not read by pi. This scaffold's pi destination writes .pi/mcp.json with union-merge semantics: new entries are templated with \"exposure\": \"direct\" (one executable plus args, ~ home form), an existing entry survives re-scaffold byte-identical with its exposure/toolExposure tuning, and entries the scaffold does not recognize (user-added servers) are never dropped",
           "aiBadgerSupport": true,
-          "scaffoldedBy": "scaffold.py's pi destination (mcp_tools.py generate_pi_mcp_json) — writes .pi/mcp.json: new entries templated with \"exposure\": \"direct\", existing entries and their exposure/toolExposure tuning preserved byte-identical, user-added servers never dropped; pi/adjustments/adjust_mcp.py — migration-only: removes this project's shape-matched entries from ~/.pi/agent/settings.json's mcp key (gated on the project's .pi/mcp.json existing as a parseable JSON object) or prints the removal proposal (--no-install); never writes user-global config (ADR-0014 decision 6)"
+          "scaffoldedBy": "scaffold.py's pi destination (mcp_tools.py generate_pi_mcp_json) \u2014 writes .pi/mcp.json: new entries templated with \"exposure\": \"direct\", existing entries and their exposure/toolExposure tuning preserved byte-identical, user-added servers never dropped; pi/adjustments/adjust_mcp.py \u2014 migration-only: removes this project's shape-matched entries from ~/.pi/agent/settings.json's mcp key (gated on the project's .pi/mcp.json existing as a parseable JSON object) or prints the removal proposal (--no-install); never writes user-global config (ADR-0014 decision 6)"
         },
         "cacheAwareDispatch": {
           "supported": false,
@@ -283,6 +283,74 @@
         "feedbackLoop": {
           "supported": false,
           "mechanism": "No programmatic feed-badger integration",
+          "aiBadgerSupport": false
+        }
+      }
+    },
+    "codex": {
+      "name": "OpenAI Codex",
+      "vendor": "OpenAI",
+      "capabilities": {
+        "instructions": {
+          "supported": true,
+          "mechanism": "Hierarchical AGENTS.override.md / AGENTS.md, one nonempty file per directory; override wins",
+          "aiBadgerSupport": true,
+          "scaffoldedFile": "AGENTS.md"
+        },
+        "invariants": {
+          "supported": true,
+          "mechanism": "Full generated guidance in AGENTS.md and managed pi AGENTS.override.md",
+          "aiBadgerSupport": true
+        },
+        "scopedInstructions": {
+          "supported": true,
+          "mechanism": "Directory-scoped AGENTS.md hierarchy; ai-badger references scoped instruction files from root guidance",
+          "aiBadgerSupport": false
+        },
+        "personas": {
+          "supported": true,
+          "mechanism": "Standalone .codex/agents/<name>.toml with name, description, developer_instructions; parent model and reasoning inherited",
+          "aiBadgerSupport": true,
+          "scaffoldedBy": "codex/adjustments/adjust_agents.py"
+        },
+        "customAgents": {
+          "supported": true,
+          "mechanism": "Standalone native TOML custom agents; read-only sandbox for architect, code-reviewer and qa",
+          "aiBadgerSupport": true,
+          "scaffoldedBy": "codex/adjustments/adjust_agents.py"
+        },
+        "skills": {
+          "supported": true,
+          "mechanism": "Repository .agents/skills/*/SKILL.md; relative symlink discovery",
+          "aiBadgerSupport": true,
+          "scaffoldedBy": "codex/adjustments/adjust_skills.py"
+        },
+        "mcpServers": {
+          "supported": true,
+          "mechanism": "Trusted project .codex/config.toml [mcp_servers.NAME]; project-only owned block; user-scoped declarations require operator setup",
+          "aiBadgerSupport": true,
+          "scaffoldedBy": "codex/adjustments/adjust_mcp.py"
+        },
+        "hooks": {
+          "supported": true,
+          "mechanism": "Native hooks.json and inline TOML command hooks. ai-badger ports UserPromptSubmit prompt markers, SessionStart Git config health and PreToolUse Bash Git storage guard only. Project trust and /hooks review required; no patch, MCP, Stop, transcript accounting or delegation parity",
+          "aiBadgerSupport": true,
+          "configPath": ".codex/hooks.json",
+          "wiredBy": "codex/adjustments/adjust_hooks.py"
+        },
+        "plugins": {
+          "supported": true,
+          "mechanism": "Native Codex plugin distribution",
+          "aiBadgerSupport": false
+        },
+        "cacheAwareDispatch": {
+          "supported": true,
+          "mechanism": "Provider caching; ai-badger does not implement automatic cache-aware native dispatch",
+          "aiBadgerSupport": false
+        },
+        "feedbackLoop": {
+          "supported": "partial",
+          "mechanism": "Skills can be invoked; native transcript accounting and automatic feedback integration are not ported",
           "aiBadgerSupport": false
         }
       }

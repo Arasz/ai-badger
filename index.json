@@ -1,6 +1,6 @@
 {
   "$schema": "./schemas/index.schema.json",
-  "frameworkVersion": "0.189.4",
+  "frameworkVersion": "0.190.0",
   "stacks": {
     "ai-raccoon": {
       "skills": [
@@ -181,6 +181,54 @@
         ],
         "requires": [],
         "commands": {}
+      }
+    },
+    "codex": {
+      "instructions": [
+        {
+          "name": "codex.instructions",
+          "path": "features/codex/instructions/codex.instructions.md"
+        }
+      ],
+      "templates": [
+        {
+          "name": "AGENTS.md.tmpl",
+          "path": "features/codex/templates/AGENTS.md.tmpl"
+        }
+      ],
+      "adjustments": [
+        {
+          "name": "adjust_agents",
+          "path": "features/codex/adjustments/adjust_agents.py"
+        },
+        {
+          "name": "adjust_hooks",
+          "path": "features/codex/adjustments/adjust_hooks.py"
+        },
+        {
+          "name": "adjust_mcp",
+          "path": "features/codex/adjustments/adjust_mcp.py"
+        },
+        {
+          "name": "adjust_skills",
+          "path": "features/codex/adjustments/adjust_skills.py"
+        },
+        {
+          "name": "adjustment",
+          "path": "features/codex/adjustments/adjustment.json"
+        },
+        {
+          "name": "codex_paths",
+          "path": "features/codex/adjustments/codex_paths.py"
+        }
+      ],
+      "meta": {
+        "description": "OpenAI Codex native repository instructions, skills, custom agents, MCP and bounded hooks.",
+        "detectionSignals": [
+          ".codex",
+          "~/.codex"
+        ],
+        "requires": []
       }
     },
     "common": {
