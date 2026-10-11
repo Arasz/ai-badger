@@ -29,6 +29,9 @@ that no longer hashes to what the manifest recorded means the framework moved ah
 mirror (stale), and one that still matches it would re-scaffold to what the last run wrote,
 so the difference was made in the target here (hand-edited).
 
+Owned Codex hook commands bind an absolute root for trust. Only that root argument
+is normalized across the throwaway reproduction; runner code and operator commands remain checked.
+
 Usage: scaffold_freshness_guard.py [--root <dir>]
 """
 from __future__ import annotations
@@ -272,12 +275,35 @@ def strip_stamps(value: Any) -> Any:
     return value
 
 
+def strip_codex_hook_roots(value: Any) -> Any:
+    """Normalize only the machine-bound root argument of owned isolated hook commands."""
+    if isinstance(value, list):
+        return [strip_codex_hook_roots(item) for item in value]
+    if not isinstance(value, dict):
+        return value
+    result = {key: strip_codex_hook_roots(item) for key, item in value.items()}
+    command = result.get("command")
+    if isinstance(command, str) and command.startswith("env AI_BADGER_CODEX_HOOK=1 "):
+        try:
+            parts = shlex.split(command)
+        except ValueError:
+            return result
+        scripts = {"prompt-markers/scripts/user_prompt_hook.py",
+                   "git-work/scripts/git_config_health_hook.py",
+                   "git-work/scripts/git_internals_guard.py"}
+        if (len(parts) == 8 and parts[:5] == ["env", "AI_BADGER_CODEX_HOOK=1", "python3", "-I", "-c"]
+                and Path(parts[6]).is_absolute() and parts[7] in scripts):
+            parts[6] = "<scaffold-root>"
+            result["command"] = shlex.join(parts)
+    return result
+
+
 def normalized(path: Path) -> Any:
     """File content with stamp churn removed: parsed-and-stripped JSON, or de-stamped text."""
     raw = path.read_bytes()
     if path.suffix == ".json":
         try:
-            return json.dumps(strip_stamps(json.loads(raw.decode("utf-8"))), sort_keys=True)
+            return json.dumps(strip_codex_hook_roots(strip_stamps(json.loads(raw.decode("utf-8")))), sort_keys=True)
         except (UnicodeDecodeError, ValueError):
             pass
     try:

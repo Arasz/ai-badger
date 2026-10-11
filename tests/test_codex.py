@@ -119,7 +119,8 @@ def test_hook_subset_and_user_preservation(load_script, tmp_path):
     assert 'PreToolUse' not in parsed
     delivered = parsed['UserPromptSubmit'][0]['hooks'][0]['command']
     assert '${CLAUDE_PROJECT_DIR}' not in delivered
-    assert str(tmp_path) not in delivered
+    assert str(tmp_path.resolve()) in delivered
+    assert 'python3 -I -c' in delivered
     assert 'AI_BADGER_CODEX_HOOK=1' in delivered
     arm.adjust(context(tmp_path))
     assert dst.read_text() == first
@@ -227,8 +228,20 @@ def test_native_hook_allow_deny_context_subprocess(load_script, root, tmp_path, 
     moved = tmp_path.with_name(tmp_path.name + ' moved project')
     tmp_path.rename(moved)
     tmp_path = moved
+    # Moving changes the approved root; refresh registrations before hook review.
+    build_scaffolder(module, root=root, target=tmp_path, config=config,
+                     skills=['git-work', 'prompt-markers']).run()
+    hooks = json.loads((tmp_path / '.codex/hooks.json').read_text())['hooks']
     nested = tmp_path / 'nested'
     nested.mkdir()
+    (nested / 'pathlib.py').write_text("raise RuntimeError('UNREVIEWED_CWD_IMPORT')\n")
+    fake = nested / '.ai-badger/skills/prompt-markers/scripts/user_prompt_hook.py'
+    fake.parent.mkdir(parents=True)
+    fake.write_text("print('UNREVIEWED_NESTED_SCRIPT')\n")
+    (nested / '.ai-badger/config.json').write_text('{}')
+    fake_guard = nested / '.ai-badger/skills/git-work/scripts/git_internals_guard.py'
+    fake_guard.parent.mkdir(parents=True)
+    fake_guard.write_text("print('{}')\n")
     environment = dict(os.environ, PATH=str(Path(sys.executable).parent) + os.pathsep + os.environ['PATH'])
     def fire(event, payload):
         command = hooks[event][0]['hooks'][0]['command']
@@ -371,3 +384,89 @@ def test_declined_skill_link_removed_even_without_delivered_skills(load_script, 
     ctx['config']['exclude'] = {'skills': ['first']}
     arm.adjust(ctx)
     assert not (tmp_path / '.agents/skills/first').is_symlink()
+
+
+def test_deselect_codex_cleans_owned_merged_entries(load_script, root, tmp_path, monkeypatch):
+    """Whole-file pruning cannot own merged config; adjustment cleanup must still run."""
+    import badger_lib as bl
+    from scaffold_helpers import _config, build_scaffolder
+    index = load_script('tooling/index_build.py').build_index(root)
+    monkeypatch.setattr(bl, 'read_index', lambda _: index)
+    module = load_script('features/common/skills/welcome-ai-badger/scripts/scaffold.py')
+    config = _config(stacks=['python'], agents=['codex'])
+    build_scaffolder(module, root=root, target=tmp_path, config=config,
+                     skills=['git-work', 'prompt-markers']).run()
+    dst = tmp_path / '.codex/config.toml'
+    operator = '[mcp_servers.operator]\ncommand = "operator-command"\n'
+    dst.write_text(operator + dst.read_text())
+    hooks_path = tmp_path / '.codex/hooks.json'
+    hooks = json.loads(hooks_path.read_text())
+    user = {'type': 'command', 'command': 'echo operator'}
+    hooks['hooks'].setdefault('Stop', []).append({'hooks': [user]})
+    hooks_path.write_text(json.dumps(hooks))
+    assert '# ai-badger:mcp-start' in dst.read_text()
+    assert 'AI_BADGER_CODEX_HOOK=1' in hooks_path.read_text()
+
+    config['agents'] = ['claude']
+    build_scaffolder(module, root=root, target=tmp_path, config=config,
+                     skills=['git-work', 'prompt-markers']).run()
+
+    assert dst.read_text() == operator
+    remaining = json.loads(hooks_path.read_text())
+    assert remaining['hooks']['Stop'][-1]['hooks'] == [user]
+    assert 'AI_BADGER_CODEX_HOOK=1' not in hooks_path.read_text()
+
+
+@pytest.mark.parametrize('arm_name,rel,operator', [
+    ('mcp', '.codex/config.toml', '# user layout\n[mcp_servers.user]\ncommand="user"\n'),
+    ('hooks', '.codex/hooks.json', '{ "hooks": {"Stop": [{"matcher": "operator"}]}}\n'),
+    ('hooks', '.codex/hooks.json', '{ "operatorMetadata": "untouched" }\n'),
+    ('hooks', '.codex/hooks.json', '{ "hooks": { "Stop": [{"hooks": [{"command": "operator"}]}]}}\n'),
+])
+def test_deselection_preserves_operator_bytes_and_missing_files(
+        load_script, tmp_path, arm_name, rel, operator):
+    arm = load_script(f'features/codex/adjustments/adjust_{arm_name}.py')
+    ctx = context(tmp_path, config={'agents': []})
+    arm.adjust(ctx)
+    dst = tmp_path / rel
+    assert not dst.exists()
+    dst.parent.mkdir(exist_ok=True)
+    dst.write_text(operator)
+    arm.adjust(ctx)
+    assert dst.read_text() == operator
+    dst.write_text('malformed [')
+    arm.adjust(ctx)
+    assert dst.read_text() == 'malformed ['
+
+
+def test_bound_hook_refuses_script_symlink_escape(load_script, tmp_path):
+    import subprocess
+    arm = load_script('features/codex/adjustments/adjust_hooks.py')
+    script = tmp_path / '.ai-badger/skills/prompt-markers/scripts/user_prompt_hook.py'
+    script.parent.mkdir(parents=True)
+    outside = tmp_path.parent / (tmp_path.name + '-outside.py')
+    outside.write_text("print('ESCAPED_HOOK_EXECUTED')\n")
+    script.symlink_to(outside)
+    arm.adjust(context(tmp_path))
+    command = json.loads((tmp_path / '.codex/hooks.json').read_text())['hooks']['UserPromptSubmit'][0]['hooks'][0]['command']
+    result = subprocess.run(command, shell=True, cwd=tmp_path, text=True,
+                            input='{}', capture_output=True, check=True)
+    assert result.stdout == ''
+
+
+def test_bound_hook_refuses_helper_symlink_escape(load_script, root, tmp_path):
+    import shutil
+    import subprocess
+    arm = load_script('features/codex/adjustments/adjust_hooks.py')
+    directory = tmp_path / '.ai-badger/skills/git-work/scripts'
+    shutil.copytree(root / 'features/common/skills/git-work/scripts', directory)
+    outside = tmp_path.parent / (tmp_path.name + '-helper.py')
+    outside.write_text("print('ESCAPED_HELPER_EXECUTED')\n")
+    helper = directory / 'shell_parser.py'
+    helper.unlink()
+    helper.symlink_to(outside)
+    arm.adjust(context(tmp_path))
+    command = json.loads((tmp_path / '.codex/hooks.json').read_text())['hooks']['PreToolUse'][0]['hooks'][0]['command']
+    result = subprocess.run(command, shell=True, cwd=tmp_path, text=True,
+                            input='{}', capture_output=True, check=True)
+    assert result.stdout == ''

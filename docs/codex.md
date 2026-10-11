@@ -74,9 +74,16 @@ were delivered:
 | `git-work/scripts/git_internals_guard.py` | `PreToolUse` | `^Bash$` |
 
 The native shell tool matches `Bash`, including `exec_command`. User hook handlers are
-preserved; re-scaffolding refreshes owned registrations and removes declined ones. The
+preserved; re-scaffolding refreshes owned registrations and removes declined ones.
+Deselecting Codex removes only its managed MCP block and recognized hook handlers.
+Malformed configuration and symlinks remain unchanged so cleanup can retry after repair. The
 scaffold supplies the project root to these shared scripts through `CLAUDE_PROJECT_DIR`,
 which is a compatibility environment variable rather than a Claude runtime requirement.
+Each approved command binds to the scaffolded absolute project root and uses isolated Python
+imports; nested repository markers cannot redirect execution. Moving or cloning a project
+requires re-scaffolding and reviewing the changed hook commands. Scripts with symlink paths
+are skipped. The framework repository keeps `.codex/hooks.json` untracked because
+its approved root is machine specific; `.codex/hooks.example.json` shows the generated shape.
 
 No MCP, `Stop`, file-edit, dispatch or transcript-accounting hooks are wired for Codex.
 Native patch inputs differ from Claude file-edit inputs, so generated-file and other patch

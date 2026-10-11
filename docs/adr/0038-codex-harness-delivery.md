@@ -51,3 +51,7 @@ contracts. Native project delivery is the smaller complete integration.
 
 The [research record](../work/2026-10-11-codex-harness-research.md) captures upstream evidence.
 [`codex.md`](../codex.md) documents setup, ownership and runtime limits.
+
+Hook commands bind the scaffolded absolute root and isolate Python imports. Relocation requires
+re-scaffolding and hook review. Merged MCP and hook adapters opt into deselection cleanup,
+removing only their owned entries while preserving operator files and malformed configuration.

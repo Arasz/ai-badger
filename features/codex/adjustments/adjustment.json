@@ -14,12 +14,14 @@
     {
       "feature": "mcp",
       "description": "Append project MCP declarations preserving operator TOML",
-      "script": "adjust_mcp.py"
+      "script": "adjust_mcp.py",
+      "cleanupOnDeselection": true
     },
     {
       "feature": "hooks",
       "description": "Publish explicitly compatible command hooks",
-      "script": "adjust_hooks.py"
+      "script": "adjust_hooks.py",
+      "cleanupOnDeselection": true
     }
   ]
 }

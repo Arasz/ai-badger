@@ -48,8 +48,7 @@ def _value(value: Any) -> str:
 
 def adjust(context: dict[str, Any]) -> dict[str, Any]:
     """Preserve unmanaged bytes and server collisions; validate before any write."""
-    if 'codex' not in context['config'].get('agents', []):
-        return {'applied': False, 'files': [], 'notes': 'codex not selected'}
+    selected = 'codex' in context['config'].get('agents', [])
     dst = context['target'] / '.codex/config.toml'
     if symlink_parent(dst, context['target']):
         return {'applied': False, 'files': [], 'notes': 'Codex config discovery symlink preserved'}
@@ -72,7 +71,8 @@ def adjust(context: dict[str, Any]) -> dict[str, Any]:
         existing = tomllib.loads(base + suffix).get('mcp_servers', {})
         sections = []
         declined = set(context.get('mcp_declined', []))
-        for name, server in sorted(context.get('mcp_declarations', {}).items()):
+        declarations = context.get('mcp_declarations', {}) if selected else {}
+        for name, server in sorted(declarations.items()):
             if name in declined or name in existing or server.get('scope', 'project') != 'project':
                 continue
             entry = _entry(server)

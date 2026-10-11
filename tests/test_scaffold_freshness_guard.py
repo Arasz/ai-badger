@@ -767,3 +767,22 @@ def test_a_second_scaffold_regenerates_the_same_tree_modulo_stamps(fresh_repo, t
     assert residual == [], (
         "the second scaffold regenerates a different tree (stamp-tolerated paths only): "
         f"{residual}\nrun-2 stdout:\n{proc.stdout}")
+
+
+def test_bound_codex_hook_root_is_the_only_path_churn_exempted(load_script, tmp_path):
+    import shlex
+    guard = load_script('gates/scaffold_freshness_guard.py')
+    arm = load_script('features/codex/adjustments/adjust_hooks.py')
+    left, right = tmp_path / 'left.json', tmp_path / 'right.json'
+    script = next(iter(arm.SCRIPTS))
+    def content(root, runner=arm.RUNNER):
+        command = arm.PREFIX + 'python3 -I -c ' + shlex.quote(runner) + ' ' + shlex.quote(root) + ' ' + shlex.quote(script)
+        return json.dumps({'hooks': {'UserPromptSubmit': [{'hooks': [{'command': command}]}]}})
+    left.write_text(content('/original/project'))
+    right.write_text(content('/reproduction/project'))
+    assert guard.same_content(left, right)
+    right.write_text(content('/reproduction/project', arm.RUNNER + '; print("changed")'))
+    assert not guard.same_content(left, right)
+    left.write_text(json.dumps({'command': 'operator /original/project'}))
+    right.write_text(json.dumps({'command': 'operator /reproduction/project'}))
+    assert not guard.same_content(left, right)

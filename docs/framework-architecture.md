@@ -224,7 +224,8 @@ for the genuinely creative decisions.
   plus selected invariants/instructions/routing, create the agent-file copies/references
   (§5 below), wire hooks into agent settings, run agent-specific adjustments (e.g. Copilot
   hooks/skills/agents), install skills per scope via `install_plugins.py`, and write
-  `manifest.json`.
+  `manifest.json`. Adjustment items can opt into `cleanupOnDeselection`; only those items
+  run for an unselected harness, removing owned merged entries without installing resources.
 
   Internally it is one `Scaffolder` holding a `ScaffoldContext` — a dataclass carrying root,
   target, config, index, stacks, skills, exclusions and notes — plus seven collaborators
