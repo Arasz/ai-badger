@@ -1,7 +1,7 @@
 {
   "$schema": "../schemas/manifest.schema.json",
   "frameworkVersion": "0.190.0",
-  "frameworkCommit": "d0e9d84ae75322649f7f2c8c0eeaab39869f1bdb",
+  "frameworkCommit": "9ff4ee4dabb1b2043f16ebec9136c583028559a4",
   "frameworkDirty": true,
   "frameworkRoot": ".",
   "generatedAt": null,
@@ -3175,7 +3175,7 @@
       "source": "features/codex/adjustments/adjust_skills.py",
       "target": ".agents/skills/ai-raccoon-memory",
       "frameworkVersion": "0.190.0",
-      "hash": "6374596ff732c5037a6f2c7e635980d89ee1cfbbf30608182acaf43ca71226d0"
+      "hash": "ce20e912fd8c9cb7518f092e1fb280ebc6034a230196bbeafdd33a5121a9f67f"
     },
     {
       "feature": "adjustments",
@@ -3184,7 +3184,7 @@
       "source": "features/codex/adjustments/adjust_skills.py",
       "target": ".agents/skills/archify",
       "frameworkVersion": "0.190.0",
-      "hash": "6374596ff732c5037a6f2c7e635980d89ee1cfbbf30608182acaf43ca71226d0"
+      "hash": "ce20e912fd8c9cb7518f092e1fb280ebc6034a230196bbeafdd33a5121a9f67f"
     },
     {
       "feature": "adjustments",
@@ -3193,7 +3193,7 @@
       "source": "features/codex/adjustments/adjust_skills.py",
       "target": ".agents/skills/artifact-verification",
       "frameworkVersion": "0.190.0",
-      "hash": "6374596ff732c5037a6f2c7e635980d89ee1cfbbf30608182acaf43ca71226d0"
+      "hash": "ce20e912fd8c9cb7518f092e1fb280ebc6034a230196bbeafdd33a5121a9f67f"
     },
     {
       "feature": "adjustments",
@@ -3202,7 +3202,7 @@
       "source": "features/codex/adjustments/adjust_skills.py",
       "target": ".agents/skills/browser-usage",
       "frameworkVersion": "0.190.0",
-      "hash": "6374596ff732c5037a6f2c7e635980d89ee1cfbbf30608182acaf43ca71226d0"
+      "hash": "ce20e912fd8c9cb7518f092e1fb280ebc6034a230196bbeafdd33a5121a9f67f"
     },
     {
       "feature": "adjustments",
@@ -3211,7 +3211,7 @@
       "source": "features/codex/adjustments/adjust_skills.py",
       "target": ".agents/skills/call-behaviorist",
       "frameworkVersion": "0.190.0",
-      "hash": "6374596ff732c5037a6f2c7e635980d89ee1cfbbf30608182acaf43ca71226d0"
+      "hash": "ce20e912fd8c9cb7518f092e1fb280ebc6034a230196bbeafdd33a5121a9f67f"
     },
     {
       "feature": "adjustments",
@@ -3220,7 +3220,7 @@
       "source": "features/codex/adjustments/adjust_skills.py",
       "target": ".agents/skills/code-review-checklist",
       "frameworkVersion": "0.190.0",
-      "hash": "6374596ff732c5037a6f2c7e635980d89ee1cfbbf30608182acaf43ca71226d0"
+      "hash": "ce20e912fd8c9cb7518f092e1fb280ebc6034a230196bbeafdd33a5121a9f67f"
     },
     {
       "feature": "adjustments",
@@ -3229,7 +3229,7 @@
       "source": "features/codex/adjustments/adjust_skills.py",
       "target": ".agents/skills/code-review-evidence",
       "frameworkVersion": "0.190.0",
-      "hash": "6374596ff732c5037a6f2c7e635980d89ee1cfbbf30608182acaf43ca71226d0"
+      "hash": "ce20e912fd8c9cb7518f092e1fb280ebc6034a230196bbeafdd33a5121a9f67f"
     },
     {
       "feature": "adjustments",
@@ -3238,7 +3238,7 @@
       "source": "features/codex/adjustments/adjust_skills.py",
       "target": ".agents/skills/commit-reminder",
       "frameworkVersion": "0.190.0",
-      "hash": "6374596ff732c5037a6f2c7e635980d89ee1cfbbf30608182acaf43ca71226d0"
+      "hash": "ce20e912fd8c9cb7518f092e1fb280ebc6034a230196bbeafdd33a5121a9f67f"
     },
     {
       "feature": "adjustments",
@@ -3247,7 +3247,7 @@
       "source": "features/codex/adjustments/adjust_skills.py",
       "target": ".agents/skills/complete-project-scope-code-review",
       "frameworkVersion": "0.190.0",
-      "hash": "6374596ff732c5037a6f2c7e635980d89ee1cfbbf30608182acaf43ca71226d0"
+      "hash": "ce20e912fd8c9cb7518f092e1fb280ebc6034a230196bbeafdd33a5121a9f67f"
     },
     {
       "feature": "adjustments",
@@ -3256,7 +3256,7 @@
       "source": "features/codex/adjustments/adjust_skills.py",
       "target": ".agents/skills/create-task-spec",
       "frameworkVersion": "0.190.0",
-      "hash": "6374596ff732c5037a6f2c7e635980d89ee1cfbbf30608182acaf43ca71226d0"
+      "hash": "ce20e912fd8c9cb7518f092e1fb280ebc6034a230196bbeafdd33a5121a9f67f"
     },
     {
       "feature": "adjustments",
@@ -3265,7 +3265,7 @@
       "source": "features/codex/adjustments/adjust_skills.py",
       "target": ".agents/skills/debug-issue",
       "frameworkVersion": "0.190.0",
-      "hash": "6374596ff732c5037a6f2c7e635980d89ee1cfbbf30608182acaf43ca71226d0"
+      "hash": "ce20e912fd8c9cb7518f092e1fb280ebc6034a230196bbeafdd33a5121a9f67f"
     },
     {
       "feature": "adjustments",
@@ -3274,7 +3274,7 @@
       "source": "features/codex/adjustments/adjust_skills.py",
       "target": ".agents/skills/den-refresh",
       "frameworkVersion": "0.190.0",
-      "hash": "6374596ff732c5037a6f2c7e635980d89ee1cfbbf30608182acaf43ca71226d0"
+      "hash": "ce20e912fd8c9cb7518f092e1fb280ebc6034a230196bbeafdd33a5121a9f67f"
     },
     {
       "feature": "adjustments",
@@ -3283,7 +3283,7 @@
       "source": "features/codex/adjustments/adjust_skills.py",
       "target": ".agents/skills/design-tests",
       "frameworkVersion": "0.190.0",
-      "hash": "6374596ff732c5037a6f2c7e635980d89ee1cfbbf30608182acaf43ca71226d0"
+      "hash": "ce20e912fd8c9cb7518f092e1fb280ebc6034a230196bbeafdd33a5121a9f67f"
     },
     {
       "feature": "adjustments",
@@ -3292,7 +3292,7 @@
       "source": "features/codex/adjustments/adjust_skills.py",
       "target": ".agents/skills/differential-feature-refactor",
       "frameworkVersion": "0.190.0",
-      "hash": "6374596ff732c5037a6f2c7e635980d89ee1cfbbf30608182acaf43ca71226d0"
+      "hash": "ce20e912fd8c9cb7518f092e1fb280ebc6034a230196bbeafdd33a5121a9f67f"
     },
     {
       "feature": "adjustments",
@@ -3301,7 +3301,7 @@
       "source": "features/codex/adjustments/adjust_skills.py",
       "target": ".agents/skills/documentation",
       "frameworkVersion": "0.190.0",
-      "hash": "6374596ff732c5037a6f2c7e635980d89ee1cfbbf30608182acaf43ca71226d0"
+      "hash": "ce20e912fd8c9cb7518f092e1fb280ebc6034a230196bbeafdd33a5121a9f67f"
     },
     {
       "feature": "adjustments",
@@ -3310,7 +3310,7 @@
       "source": "features/codex/adjustments/adjust_skills.py",
       "target": ".agents/skills/documentation-drift-audit",
       "frameworkVersion": "0.190.0",
-      "hash": "6374596ff732c5037a6f2c7e635980d89ee1cfbbf30608182acaf43ca71226d0"
+      "hash": "ce20e912fd8c9cb7518f092e1fb280ebc6034a230196bbeafdd33a5121a9f67f"
     },
     {
       "feature": "adjustments",
@@ -3319,7 +3319,7 @@
       "source": "features/codex/adjustments/adjust_skills.py",
       "target": ".agents/skills/evidence-first-research",
       "frameworkVersion": "0.190.0",
-      "hash": "6374596ff732c5037a6f2c7e635980d89ee1cfbbf30608182acaf43ca71226d0"
+      "hash": "ce20e912fd8c9cb7518f092e1fb280ebc6034a230196bbeafdd33a5121a9f67f"
     },
     {
       "feature": "adjustments",
@@ -3328,7 +3328,7 @@
       "source": "features/codex/adjustments/adjust_skills.py",
       "target": ".agents/skills/feed-badger",
       "frameworkVersion": "0.190.0",
-      "hash": "6374596ff732c5037a6f2c7e635980d89ee1cfbbf30608182acaf43ca71226d0"
+      "hash": "ce20e912fd8c9cb7518f092e1fb280ebc6034a230196bbeafdd33a5121a9f67f"
     },
     {
       "feature": "adjustments",
@@ -3337,7 +3337,7 @@
       "source": "features/codex/adjustments/adjust_skills.py",
       "target": ".agents/skills/git-work",
       "frameworkVersion": "0.190.0",
-      "hash": "6374596ff732c5037a6f2c7e635980d89ee1cfbbf30608182acaf43ca71226d0"
+      "hash": "ce20e912fd8c9cb7518f092e1fb280ebc6034a230196bbeafdd33a5121a9f67f"
     },
     {
       "feature": "adjustments",
@@ -3346,7 +3346,7 @@
       "source": "features/codex/adjustments/adjust_skills.py",
       "target": ".agents/skills/humanizer",
       "frameworkVersion": "0.190.0",
-      "hash": "6374596ff732c5037a6f2c7e635980d89ee1cfbbf30608182acaf43ca71226d0"
+      "hash": "ce20e912fd8c9cb7518f092e1fb280ebc6034a230196bbeafdd33a5121a9f67f"
     },
     {
       "feature": "adjustments",
@@ -3355,7 +3355,7 @@
       "source": "features/codex/adjustments/adjust_skills.py",
       "target": ".agents/skills/maintain-agent-instructions",
       "frameworkVersion": "0.190.0",
-      "hash": "6374596ff732c5037a6f2c7e635980d89ee1cfbbf30608182acaf43ca71226d0"
+      "hash": "ce20e912fd8c9cb7518f092e1fb280ebc6034a230196bbeafdd33a5121a9f67f"
     },
     {
       "feature": "adjustments",
@@ -3364,7 +3364,7 @@
       "source": "features/codex/adjustments/adjust_skills.py",
       "target": ".agents/skills/mcp-index",
       "frameworkVersion": "0.190.0",
-      "hash": "6374596ff732c5037a6f2c7e635980d89ee1cfbbf30608182acaf43ca71226d0"
+      "hash": "ce20e912fd8c9cb7518f092e1fb280ebc6034a230196bbeafdd33a5121a9f67f"
     },
     {
       "feature": "adjustments",
@@ -3373,7 +3373,7 @@
       "source": "features/codex/adjustments/adjust_skills.py",
       "target": ".agents/skills/multi-agent-communication",
       "frameworkVersion": "0.190.0",
-      "hash": "6374596ff732c5037a6f2c7e635980d89ee1cfbbf30608182acaf43ca71226d0"
+      "hash": "ce20e912fd8c9cb7518f092e1fb280ebc6034a230196bbeafdd33a5121a9f67f"
     },
     {
       "feature": "adjustments",
@@ -3382,7 +3382,7 @@
       "source": "features/codex/adjustments/adjust_skills.py",
       "target": ".agents/skills/multi-lane-report-assembly",
       "frameworkVersion": "0.190.0",
-      "hash": "6374596ff732c5037a6f2c7e635980d89ee1cfbbf30608182acaf43ca71226d0"
+      "hash": "ce20e912fd8c9cb7518f092e1fb280ebc6034a230196bbeafdd33a5121a9f67f"
     },
     {
       "feature": "adjustments",
@@ -3391,7 +3391,7 @@
       "source": "features/codex/adjustments/adjust_skills.py",
       "target": ".agents/skills/owner-gate-review",
       "frameworkVersion": "0.190.0",
-      "hash": "6374596ff732c5037a6f2c7e635980d89ee1cfbbf30608182acaf43ca71226d0"
+      "hash": "ce20e912fd8c9cb7518f092e1fb280ebc6034a230196bbeafdd33a5121a9f67f"
     },
     {
       "feature": "adjustments",
@@ -3400,7 +3400,7 @@
       "source": "features/codex/adjustments/adjust_skills.py",
       "target": ".agents/skills/pre-push-gate-debugging",
       "frameworkVersion": "0.190.0",
-      "hash": "6374596ff732c5037a6f2c7e635980d89ee1cfbbf30608182acaf43ca71226d0"
+      "hash": "ce20e912fd8c9cb7518f092e1fb280ebc6034a230196bbeafdd33a5121a9f67f"
     },
     {
       "feature": "adjustments",
@@ -3409,7 +3409,7 @@
       "source": "features/codex/adjustments/adjust_skills.py",
       "target": ".agents/skills/prompt-markers",
       "frameworkVersion": "0.190.0",
-      "hash": "6374596ff732c5037a6f2c7e635980d89ee1cfbbf30608182acaf43ca71226d0"
+      "hash": "ce20e912fd8c9cb7518f092e1fb280ebc6034a230196bbeafdd33a5121a9f67f"
     },
     {
       "feature": "adjustments",
@@ -3418,7 +3418,7 @@
       "source": "features/codex/adjustments/adjust_skills.py",
       "target": ".agents/skills/qa",
       "frameworkVersion": "0.190.0",
-      "hash": "6374596ff732c5037a6f2c7e635980d89ee1cfbbf30608182acaf43ca71226d0"
+      "hash": "ce20e912fd8c9cb7518f092e1fb280ebc6034a230196bbeafdd33a5121a9f67f"
     },
     {
       "feature": "adjustments",
@@ -3427,7 +3427,7 @@
       "source": "features/codex/adjustments/adjust_skills.py",
       "target": ".agents/skills/quick-task",
       "frameworkVersion": "0.190.0",
-      "hash": "6374596ff732c5037a6f2c7e635980d89ee1cfbbf30608182acaf43ca71226d0"
+      "hash": "ce20e912fd8c9cb7518f092e1fb280ebc6034a230196bbeafdd33a5121a9f67f"
     },
     {
       "feature": "adjustments",
@@ -3436,7 +3436,7 @@
       "source": "features/codex/adjustments/adjust_skills.py",
       "target": ".agents/skills/refactor-safely",
       "frameworkVersion": "0.190.0",
-      "hash": "6374596ff732c5037a6f2c7e635980d89ee1cfbbf30608182acaf43ca71226d0"
+      "hash": "ce20e912fd8c9cb7518f092e1fb280ebc6034a230196bbeafdd33a5121a9f67f"
     },
     {
       "feature": "adjustments",
@@ -3445,7 +3445,7 @@
       "source": "features/codex/adjustments/adjust_skills.py",
       "target": ".agents/skills/research-record-audit",
       "frameworkVersion": "0.190.0",
-      "hash": "6374596ff732c5037a6f2c7e635980d89ee1cfbbf30608182acaf43ca71226d0"
+      "hash": "ce20e912fd8c9cb7518f092e1fb280ebc6034a230196bbeafdd33a5121a9f67f"
     },
     {
       "feature": "adjustments",
@@ -3454,7 +3454,7 @@
       "source": "features/codex/adjustments/adjust_skills.py",
       "target": ".agents/skills/review-changes",
       "frameworkVersion": "0.190.0",
-      "hash": "6374596ff732c5037a6f2c7e635980d89ee1cfbbf30608182acaf43ca71226d0"
+      "hash": "ce20e912fd8c9cb7518f092e1fb280ebc6034a230196bbeafdd33a5121a9f67f"
     },
     {
       "feature": "adjustments",
@@ -3463,7 +3463,7 @@
       "source": "features/codex/adjustments/adjust_skills.py",
       "target": ".agents/skills/review-gate-diff-verification",
       "frameworkVersion": "0.190.0",
-      "hash": "6374596ff732c5037a6f2c7e635980d89ee1cfbbf30608182acaf43ca71226d0"
+      "hash": "ce20e912fd8c9cb7518f092e1fb280ebc6034a230196bbeafdd33a5121a9f67f"
     },
     {
       "feature": "adjustments",
@@ -3472,7 +3472,7 @@
       "source": "features/codex/adjustments/adjust_skills.py",
       "target": ".agents/skills/review-tests",
       "frameworkVersion": "0.190.0",
-      "hash": "6374596ff732c5037a6f2c7e635980d89ee1cfbbf30608182acaf43ca71226d0"
+      "hash": "ce20e912fd8c9cb7518f092e1fb280ebc6034a230196bbeafdd33a5121a9f67f"
     },
     {
       "feature": "adjustments",
@@ -3481,7 +3481,7 @@
       "source": "features/codex/adjustments/adjust_skills.py",
       "target": ".agents/skills/scripts-tooling-refactor",
       "frameworkVersion": "0.190.0",
-      "hash": "6374596ff732c5037a6f2c7e635980d89ee1cfbbf30608182acaf43ca71226d0"
+      "hash": "ce20e912fd8c9cb7518f092e1fb280ebc6034a230196bbeafdd33a5121a9f67f"
     },
     {
       "feature": "adjustments",
@@ -3490,7 +3490,7 @@
       "source": "features/codex/adjustments/adjust_skills.py",
       "target": ".agents/skills/semantica-knowledge-graph",
       "frameworkVersion": "0.190.0",
-      "hash": "6374596ff732c5037a6f2c7e635980d89ee1cfbbf30608182acaf43ca71226d0"
+      "hash": "ce20e912fd8c9cb7518f092e1fb280ebc6034a230196bbeafdd33a5121a9f67f"
     },
     {
       "feature": "adjustments",
@@ -3499,7 +3499,7 @@
       "source": "features/codex/adjustments/adjust_skills.py",
       "target": ".agents/skills/send-message",
       "frameworkVersion": "0.190.0",
-      "hash": "6374596ff732c5037a6f2c7e635980d89ee1cfbbf30608182acaf43ca71226d0"
+      "hash": "ce20e912fd8c9cb7518f092e1fb280ebc6034a230196bbeafdd33a5121a9f67f"
     },
     {
       "feature": "adjustments",
@@ -3508,7 +3508,7 @@
       "source": "features/codex/adjustments/adjust_skills.py",
       "target": ".agents/skills/spec-driven-refactoring",
       "frameworkVersion": "0.190.0",
-      "hash": "6374596ff732c5037a6f2c7e635980d89ee1cfbbf30608182acaf43ca71226d0"
+      "hash": "ce20e912fd8c9cb7518f092e1fb280ebc6034a230196bbeafdd33a5121a9f67f"
     },
     {
       "feature": "adjustments",
@@ -3517,7 +3517,7 @@
       "source": "features/codex/adjustments/adjust_skills.py",
       "target": ".agents/skills/status-report",
       "frameworkVersion": "0.190.0",
-      "hash": "6374596ff732c5037a6f2c7e635980d89ee1cfbbf30608182acaf43ca71226d0"
+      "hash": "ce20e912fd8c9cb7518f092e1fb280ebc6034a230196bbeafdd33a5121a9f67f"
     },
     {
       "feature": "adjustments",
@@ -3526,7 +3526,7 @@
       "source": "features/codex/adjustments/adjust_skills.py",
       "target": ".agents/skills/task",
       "frameworkVersion": "0.190.0",
-      "hash": "6374596ff732c5037a6f2c7e635980d89ee1cfbbf30608182acaf43ca71226d0"
+      "hash": "ce20e912fd8c9cb7518f092e1fb280ebc6034a230196bbeafdd33a5121a9f67f"
     },
     {
       "feature": "adjustments",
@@ -3535,7 +3535,7 @@
       "source": "features/codex/adjustments/adjust_skills.py",
       "target": ".agents/skills/task-decomposition",
       "frameworkVersion": "0.190.0",
-      "hash": "6374596ff732c5037a6f2c7e635980d89ee1cfbbf30608182acaf43ca71226d0"
+      "hash": "ce20e912fd8c9cb7518f092e1fb280ebc6034a230196bbeafdd33a5121a9f67f"
     },
     {
       "feature": "adjustments",
@@ -3544,7 +3544,7 @@
       "source": "features/codex/adjustments/adjust_skills.py",
       "target": ".agents/skills/test-economy",
       "frameworkVersion": "0.190.0",
-      "hash": "6374596ff732c5037a6f2c7e635980d89ee1cfbbf30608182acaf43ca71226d0"
+      "hash": "ce20e912fd8c9cb7518f092e1fb280ebc6034a230196bbeafdd33a5121a9f67f"
     },
     {
       "feature": "adjustments",
@@ -3553,7 +3553,7 @@
       "source": "features/codex/adjustments/adjust_skills.py",
       "target": ".agents/skills/welcome-ai-badger",
       "frameworkVersion": "0.190.0",
-      "hash": "6374596ff732c5037a6f2c7e635980d89ee1cfbbf30608182acaf43ca71226d0"
+      "hash": "ce20e912fd8c9cb7518f092e1fb280ebc6034a230196bbeafdd33a5121a9f67f"
     },
     {
       "feature": "adjustments",
@@ -3562,7 +3562,7 @@
       "source": "features/codex/adjustments/adjust_skills.py",
       "target": ".agents/skills/worktree-agent-isolation",
       "frameworkVersion": "0.190.0",
-      "hash": "6374596ff732c5037a6f2c7e635980d89ee1cfbbf30608182acaf43ca71226d0"
+      "hash": "ce20e912fd8c9cb7518f092e1fb280ebc6034a230196bbeafdd33a5121a9f67f"
     },
     {
       "feature": "adjustments",
@@ -3571,7 +3571,7 @@
       "source": "features/codex/adjustments/adjust_skills.py",
       "target": ".agents/skills/code-review",
       "frameworkVersion": "0.190.0",
-      "hash": "6374596ff732c5037a6f2c7e635980d89ee1cfbbf30608182acaf43ca71226d0"
+      "hash": "ce20e912fd8c9cb7518f092e1fb280ebc6034a230196bbeafdd33a5121a9f67f"
     },
     {
       "feature": "adjustments",
@@ -3580,7 +3580,7 @@
       "source": "features/codex/adjustments/adjust_agents.py",
       "target": ".codex/agents/architect.toml",
       "frameworkVersion": "0.190.0",
-      "hash": "7efb945120ea3f9d8a481b5a14eaaae75895dc1bfc6e95b7b63a8a42eeb1e1ad",
+      "hash": "6e87bc111a9a67a5aa0db0cea4f1abd2621007aecd7d311a4e7501173665b3b5",
       "outputHash": "64b4daee8989801d900b48ed69e625b0fe4c0c1d98b2a3c86b48394f15d5e085"
     },
     {
@@ -3590,7 +3590,7 @@
       "source": "features/codex/adjustments/adjust_agents.py",
       "target": ".codex/agents/code-reviewer.toml",
       "frameworkVersion": "0.190.0",
-      "hash": "7efb945120ea3f9d8a481b5a14eaaae75895dc1bfc6e95b7b63a8a42eeb1e1ad",
+      "hash": "6e87bc111a9a67a5aa0db0cea4f1abd2621007aecd7d311a4e7501173665b3b5",
       "outputHash": "f161c5a98c96d6cdf64a3bb9bdac44364668b746dcf05a645b0652b380133b61"
     },
     {
@@ -3600,7 +3600,7 @@
       "source": "features/codex/adjustments/adjust_agents.py",
       "target": ".codex/agents/delegator.toml",
       "frameworkVersion": "0.190.0",
-      "hash": "7efb945120ea3f9d8a481b5a14eaaae75895dc1bfc6e95b7b63a8a42eeb1e1ad",
+      "hash": "6e87bc111a9a67a5aa0db0cea4f1abd2621007aecd7d311a4e7501173665b3b5",
       "outputHash": "81106a1a4cda92ce6e3be2a305d7e48ba96d7e9047c961f020cef82a52189e53"
     },
     {
@@ -3610,7 +3610,7 @@
       "source": "features/codex/adjustments/adjust_agents.py",
       "target": ".codex/agents/qa.toml",
       "frameworkVersion": "0.190.0",
-      "hash": "7efb945120ea3f9d8a481b5a14eaaae75895dc1bfc6e95b7b63a8a42eeb1e1ad",
+      "hash": "6e87bc111a9a67a5aa0db0cea4f1abd2621007aecd7d311a4e7501173665b3b5",
       "outputHash": "ff4600a6305f9817a31889659f36358b9b2ac96df8f104f08f445048e7b9b54f"
     },
     {
@@ -3620,7 +3620,7 @@
       "source": "features/codex/adjustments/adjust_agents.py",
       "target": ".codex/agents/test-engineer.toml",
       "frameworkVersion": "0.190.0",
-      "hash": "7efb945120ea3f9d8a481b5a14eaaae75895dc1bfc6e95b7b63a8a42eeb1e1ad",
+      "hash": "6e87bc111a9a67a5aa0db0cea4f1abd2621007aecd7d311a4e7501173665b3b5",
       "outputHash": "09870f6b10646fa63f44aeec08bb9a9090a3f78ba1e661655d0ba79ae59156f7"
     },
     {
@@ -3630,7 +3630,7 @@
       "source": "features/codex/adjustments/adjust_agents.py",
       "target": ".codex/agents/hermes-agent-author.toml",
       "frameworkVersion": "0.190.0",
-      "hash": "7efb945120ea3f9d8a481b5a14eaaae75895dc1bfc6e95b7b63a8a42eeb1e1ad",
+      "hash": "6e87bc111a9a67a5aa0db0cea4f1abd2621007aecd7d311a4e7501173665b3b5",
       "outputHash": "95ceadd7bd5aa74b853cad0036a449b31126a9c34f62e04661e820fcd8e45bc7"
     },
     {
@@ -3640,7 +3640,7 @@
       "source": "features/codex/adjustments/adjust_agents.py",
       "target": ".codex/agents/api-engineer.toml",
       "frameworkVersion": "0.190.0",
-      "hash": "7efb945120ea3f9d8a481b5a14eaaae75895dc1bfc6e95b7b63a8a42eeb1e1ad",
+      "hash": "6e87bc111a9a67a5aa0db0cea4f1abd2621007aecd7d311a4e7501173665b3b5",
       "outputHash": "f55b2f97b05fb4eccfe4b02608a7759b5da078e4c56277a892d44119758eac88"
     },
     {

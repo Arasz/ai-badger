@@ -163,9 +163,9 @@ def _ours(dst: Path, skills_root: Path, owned_targets: set) -> bool:
         return False
     try:
         dst.resolve().relative_to(skills_root.resolve())
-    except (ValueError, OSError):
+        return dst.resolve() == (skills_root / dst.name).resolve()
+    except (ValueError, OSError, RuntimeError):
         return False
-    return dst.resolve() == (skills_root / dst.name).resolve()
 
 
 def _remove(dst: Path) -> None:

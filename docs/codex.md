@@ -75,8 +75,9 @@ were delivered:
 
 The native shell tool matches `Bash`, including `exec_command`. User hook handlers are
 preserved; re-scaffolding refreshes owned registrations and removes declined ones.
-Deselecting Codex removes only its managed MCP block, recognized hook handlers and the
-`.agents/skills/` links that point at ai-badger's own skills.
+Deselecting Codex removes its managed MCP block, recognized hook handlers, managed persona
+TOMLs and the `.agents/skills/` links that point at ai-badger's own skills, even while
+`codex` remains a detected stack; operator entries stay.
 Malformed configuration and symlinks remain unchanged so cleanup can retry after repair. The
 scaffold supplies the project root to these shared scripts through `CLAUDE_PROJECT_DIR`,
 which is a compatibility environment variable rather than a Claude runtime requirement.

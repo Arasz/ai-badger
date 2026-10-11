@@ -386,16 +386,18 @@ def test_declined_skill_link_removed_even_without_delivered_skills(load_script, 
     assert not (tmp_path / '.agents/skills/first').is_symlink()
 
 
-def test_deselect_codex_cleans_owned_merged_entries(load_script, root, tmp_path, monkeypatch):
-    """Whole-file pruning cannot own merged config; adjustment cleanup must still run."""
+@pytest.mark.parametrize('stacks', [['python'], ['python', 'codex']])
+def test_deselect_codex_cleans_owned_merged_entries(load_script, root, tmp_path, monkeypatch, stacks):
+    """Whole-file pruning cannot own merged config, nor a still-detected codex stack."""
     import badger_lib as bl
     from scaffold_helpers import _config, build_scaffolder
     index = load_script('tooling/index_build.py').build_index(root)
     monkeypatch.setattr(bl, 'read_index', lambda _: index)
     module = load_script('features/common/skills/welcome-ai-badger/scripts/scaffold.py')
-    config = _config(stacks=['python'], agents=['codex'])
+    config = _config(stacks=stacks, agents=['codex'])
     build_scaffolder(module, root=root, target=tmp_path, config=config,
                      skills=['git-work', 'prompt-markers']).run()
+    assert list((tmp_path / '.codex/agents').glob('*.toml'))
     dst = tmp_path / '.codex/config.toml'
     operator = '[mcp_servers.operator]\ncommand = "operator-command"\n'
     dst.write_text(operator + dst.read_text())
@@ -417,6 +419,7 @@ def test_deselect_codex_cleans_owned_merged_entries(load_script, root, tmp_path,
     assert 'AI_BADGER_CODEX_HOOK=1' not in hooks_path.read_text()
     links = tmp_path / '.agents/skills'
     assert not any(entry.is_symlink() for entry in links.iterdir())
+    assert not list((tmp_path / '.codex/agents').glob('*.toml'))
 
 
 def test_deselect_codex_removes_only_owned_skill_links(load_script, tmp_path):
@@ -437,6 +440,35 @@ def test_deselect_codex_removes_only_owned_skill_links(load_script, tmp_path):
     assert (discovery / 'operator').is_dir()
     assert (discovery / 'elsewhere').is_symlink()
     assert result['files'] == []
+
+
+def test_deselect_codex_removes_only_owned_persona_files(load_script, tmp_path):
+    arm = load_script('features/codex/adjustments/adjust_agents.py')
+    directory = tmp_path / '.codex/agents'
+    directory.mkdir(parents=True)
+    (directory / 'architect.toml').write_text(arm.HEADER + 'architect.md\nname = "architect"\n')
+    (directory / 'operator.toml').write_text('name = "operator"\n')
+    (directory / 'linked.toml').symlink_to(directory / 'architect.toml')
+
+    result = arm.adjust(context(tmp_path, config={'agents': ['claude']}))
+
+    assert sorted(p.name for p in directory.iterdir()) == ['linked.toml', 'operator.toml']
+    assert result['files'] == []
+
+
+def test_deselect_codex_survives_skill_link_loop(load_script, tmp_path):
+    arm = load_script('features/codex/adjustments/adjust_skills.py')
+    skill = tmp_path / '.ai-badger/skills/first'
+    skill.mkdir(parents=True)
+    (skill / 'SKILL.md').write_text('first')
+    arm.adjust(context(tmp_path, skills=['first']))
+    loop = tmp_path / '.agents/skills/loop'
+    loop.symlink_to(loop)
+
+    arm.adjust(context(tmp_path, config={'agents': ['claude']}, skills=[]))
+
+    assert not (tmp_path / '.agents/skills/first').is_symlink()
+    assert loop.is_symlink()
 
 
 @pytest.mark.parametrize('arm_name,rel,operator', [

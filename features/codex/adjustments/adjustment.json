@@ -10,7 +10,8 @@
     {
       "feature": "agents",
       "description": "Convert personas to standalone Codex TOML agents",
-      "script": "adjust_agents.py"
+      "script": "adjust_agents.py",
+      "cleanupOnDeselection": true
     },
     {
       "feature": "mcp",

@@ -17,11 +17,11 @@ HEADER = '# Managed by ai-badger; source: .ai-badger/agents/'
 
 def adjust(context: dict[str, Any]) -> dict[str, Any]:
     """Emit standalone agents with parent model inheritance and safe ownership pruning."""
-    if 'codex' not in context['config'].get('agents', []):
-        return {'applied': False, 'files': [], 'notes': 'codex not selected'}
     directory = context['target'] / '.codex/agents'
     if symlink_parent(directory, context['target']):
         return {'applied': False, 'files': [], 'notes': 'Codex agents discovery symlink preserved'}
+    if 'codex' not in context['config'].get('agents', []):
+        return _deselect(directory)
     directory.mkdir(parents=True, exist_ok=True)
     files, refused, selected = [], [], set()
     for persona in context.get('personas', []):
@@ -47,7 +47,22 @@ def adjust(context: dict[str, Any]) -> dict[str, Any]:
         files.append(f'.codex/agents/{name}.toml')
     if context.get('prune', True):
         for dst in directory.glob('*.toml'):
-            if not dst.is_symlink() and dst.name not in selected and dst.read_text().startswith(HEADER):
+            if dst.name not in selected and _owned(dst):
                 dst.unlink()
     return {'applied': bool(files), 'files': files,
             'notes': f'Codex agents inherit parent model; preserved operator collisions: {refused}'}
+
+
+def _owned(path: Path) -> bool:
+    """True for a regular persona file ai-badger wrote, recognised by its managed header."""
+    return not path.is_symlink() and path.read_text(encoding='utf-8').startswith(HEADER)
+
+
+def _deselect(directory: Path) -> dict[str, Any]:
+    """Remove ai-badger persona files once Codex leaves config.agents; keep operator files."""
+    removed = sorted(p.name for p in directory.glob('*.toml') if _owned(p)) if directory.is_dir() else []
+    for name in removed:
+        (directory / name).unlink()
+    notes = (f"removed {', '.join('.codex/agents/' + n for n in removed)} — codex is no longer "
+             f"in config.agents") if removed else 'codex not selected'
+    return {'applied': bool(removed), 'files': [], 'notes': notes}
