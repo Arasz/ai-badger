@@ -16,6 +16,7 @@ Everything written down about this project, grouped by what you came here to do.
 | [framework-architecture.md](framework-architecture.md) | **The reference.** The stack × feature catalog model, the `config.json` / `manifest.json` contracts, the script-vs-agent responsibility split, plugins, `task` base + extensions, target repo structure, data-flow diagrams |
 | [skills.md](skills.md) | Every shipped skill grouped by what it's for, what it actually changes on disk, when to reach for it, and which ones are hook-backed rather than invoked by name |
 | [retrieval.md](retrieval.md) | How the MCP tool index is searched: BM25 over fused fields, why the gate is a coverage ratio rather than a score, the eval fixture set, and the telemetry that tells you whether any of it ran |
+| [codex.md](codex.md) | Codex project setup, native instructions/skills/personas/MCP/hooks, trust, preserved files and runtime limits |
 | [dictionary.md](dictionary.md) | How ai-badger's vocabulary (skills, hooks, instructions, personas, scaffolding) maps onto each supported agent's native terminology |
 | [scripts.md](scripts.md) | Running the framework scripts and the test suite |
 | [hermes-claude-compatibility.md](hermes-claude-compatibility.md) | Claude Code features mapped to their Hermes Agent equivalents — hook systems, session tracking, statusline, delegation, gaps |
@@ -67,7 +68,7 @@ The complete map. A directory missing from this table is a directory nobody will
 | [`brand/`](brand/README.md) | The logo, palette and usage rules. Predates `assets/`; pinned by the root README |
 | [`screenshots/`](screenshots/README.md) | Screenshots used by the pages above. Predates `assets/`; pinned by `skills.md` |
 
-The four quadrants are Diátaxis. The eight root `*.md` files listed earlier have not been
+The four quadrants are Diátaxis. The root `*.md` files listed earlier have not been
 re-placed into them yet — several are pinned by `README.md` and `CONTRIBUTING.md`, which makes
 that a job for the `documentation` gateway's `migrate-documentation` member, with its own PR.
 

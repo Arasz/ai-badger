@@ -69,7 +69,8 @@ Stack-scoped skill *extensions* live inline inside the base skill directory (e.g
 Historical note: skills previously lived at the repo-root `skills/` directory as a workaround
 for the Claude Code plugin loader's discovery mechanism. This was resolved by having the
 scaffolder symlink `.hermes/skills/` for Hermes auto-discovery and updating the plugin hook
-paths.
+paths. Codex receives project `.agents/skills/<name>` symlinks to the same embedded skill
+directories; OpenAI documents symlink discovery explicitly. See [`codex.md`](codex.md).
 
 ### `index.json` — the source of truth
 
@@ -215,8 +216,8 @@ for the genuinely creative decisions.
   `gates/skills_lint.py`). Derive the list rather than trusting it:
   `python3 tooling/validate.py --help` prints the `--kind` choices.
 - `detect.py` — best-effort detection: stacks from package/project files and extensions, agents
-  from `CLAUDE.md` / `.github/copilot-instructions.md` traces (repo *and* user
-  scope: `~/.claude`, `~/.copilot`), commands from stack metadata → emits a *proposed*
+  from native instruction or configuration traces (repo *and* user scope; see agent
+  detection below), commands from stack metadata → emits a *proposed*
   `config.json` for the agent to refine.
 - `scaffold.py` — given a validated `config.json` + a framework checkout + `index.json`:
   materialize `.ai-badger/` (copy selected features), assemble `CLAUDE.md` from the template
@@ -336,6 +337,11 @@ target-repo/
     agent-instructions/{schema.json, model.schema.json, model.json}
   CLAUDE.md                  # COPY of .ai-badger/CLAUDE.md, header: "source of truth: .ai-badger/CLAUDE.md"
   HERMES.md / .hermes.md      # COPY, when hermes is a configured agent
+  AGENTS.md                  # Codex discovery copy; .ai-badger/AGENTS.md is its managed source
+  .agents/skills/<name>       # Codex symlink to ../../.ai-badger/skills/<name>
+  .codex/agents/*.toml        # Codex personas: name, description, developer_instructions
+  .codex/config.toml         # project MCP tables, preserving unrelated config
+  .codex/hooks.json          # native command hooks for the supported subset
   AGENTS.override.md         # pi's project-instruction file, rendered from features/pi/templates/
   .github/
     copilot-instructions.md  # COPY (copilot present) — header note
@@ -375,17 +381,28 @@ renders each agent's template and writes a full copy with a managed header; no p
 `@import` mechanism exists anywhere in the scaffolder.
 
 **Agent detection** (`detect.py`): an agent counts as "present" if the repo *or* the user scope
-shows its traces — `claude`: `CLAUDE.md` or `~/.claude`; `copilot`:
+shows its traces — `codex`: project `.codex/` or user `~/.codex`; `claude`: `CLAUDE.md` or `~/.claude`; `copilot`:
 `.github/copilot-instructions.md` or `~/.copilot`; `hermes`: `.hermes.md`, `HERMES.md` or
 `~/.hermes`; `pi`: a `.pi/` directory in the repo or `~/.pi/` in user scope. Only present
-agents get files initialized; ai-badger never adds an agent a project doesn't already use.
+agents get files initialized; a project can also explicitly select agents in `config.json`.
+
+Codex has its own `features/codex/` descriptor and adjustments. Markdown personas remain
+canonical under `.ai-badger/agents/`; the adjustment emits standalone TOML personas without
+translating Claude model lanes into OpenAI model ids. MCP uses Codex's project TOML route
+rather than assuming `.mcp.json` is visible. Native hooks need Codex's project and hook trust;
+scaffolding does not grant either.
+
+Codex selects `AGENTS.override.md` before `AGENTS.md` at each directory. A pi override in a
+shared repository therefore wins over the Codex copy. The managed pi template includes the same full
+project guidance; a hand-authored override is preserved and requires its
+owner to reconcile the guidance. See [ADR-0038](adr/0038-codex-harness-delivery.md).
 
 ## 7. Data flow, end to end
 
 ```mermaid
 flowchart LR
   REPO["target repo files\n(package.json, *.csproj, extensions)"] --> DET["detect.py"]
-  USER["user scope\n~/.claude ~/.copilot traces"] --> DET
+  USER["user scope\n~/.claude ~/.copilot ~/.hermes ~/.pi ~/.codex traces"] --> DET
   DET --> PC["proposed config"]
   PC --> AG["AGENT"]
   AG --> CFG["config.json"]
