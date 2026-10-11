@@ -6,8 +6,9 @@ Research date: 2026-10-11. Scope: local Codex CLI, desktop and IDE project confi
 
 At the starting revision, `features/common/support.json` named Claude, Copilot, Hermes and pi.
 `schemas/config.schema.json` accepted those four agents. `features/codex/` did not exist.
-A root `AGENTS.md` was present in this repository, but that file alone did not constitute
-catalog support: detection, persona delivery, skill discovery, MCP and hooks lacked a Codex route.
+Root `AGENTS.md` and `.codex/` persona, MCP and hook files were already tracked as
+repository-local conversions. They did not constitute catalog support: detection,
+persona delivery, skill discovery, MCP and hooks lacked a Codex scaffold route.
 
 ## Evidence and delivery decisions
 

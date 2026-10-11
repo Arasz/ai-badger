@@ -1,0 +1,56 @@
+# {{PROJECT_NAME}}
+
+{{PROJECT_SUMMARY}}
+
+> Domain: {{PROJECT_DOMAIN}}
+> Stacks: {{STACKS}}
+> Scaffolded by ai-badger {{FRAMEWORK_VERSION}}. Source of truth for this file: `.ai-badger/{{SOURCE_OF_TRUTH}}`.
+
+## Commands
+
+{{COMMANDS}}
+
+## Path-specific instructions
+
+Before editing matching files, read the applicable scoped instruction file:
+
+{{PATH_INSTRUCTIONS}}
+
+Additional invariants load contextually via these paths — see `.ai-badger/invariants/` for the full set.
+
+## Agent delegation
+
+{{PERSONA_ROUTING}}
+- Codex custom agents inherit the parent model; Claude model aliases in the delegation map are not Codex model identifiers.
+- Parallel dispatches each name their own `isolation` — lanes sharing a tree share its build output.
+
+## Prompt markers
+
+This project understands prompt markers (see `.ai-badger/skills/prompt-markers`):
+
+- `h:` / `hint:` — a lead to validate before acting (research first).
+- `f:` / `feedback:` — a high-priority correction; adjust immediately.
+- `e:` / `extension:` — a request to expand the current task's scope.
+- `q:` / `queue:` — a queued instruction to analyze and run after active work completes.
+- `i:` / `important:` — important: high priority, do not drop it; handle at the next natural boundary.
+- `i!:` / `important!:` — immediate emergency interrupt: STOP, pause/cancel active tasks, and react instantly.
+
+Every marker accepts an **importance token**: insert `!` before the colon (`f!:`, `queue!:`) to make that marker interrupt-grade — preempt current work and handle it first. On pi the session-signals extension aborts the running turn for you; here, treat a `!`-marker as preempting whatever is in flight — never queue it silently behind work already running.
+
+A marker is expanded by a `UserPromptSubmit` hook, which fires only when a message **starts a turn**. A message sent **mid-turn** — queued while work is already running — reaches the model as an attachment and never passes through that hook, so its marker is never expanded. Apply the behaviour above yourself whenever you see a marker arrive that way.
+
+{{MCP_INSTRUCTIONS}}
+
+## Non-negotiable invariants
+
+{{INVARIANTS}}
+
+## Framework
+
+Skills, personas, and instructions here are managed by ai-badger. Run `welcome-ai-badger`
+to re-scaffold after changing `.ai-badger/config.json`, and `feed-badger` to contribute
+project-agnostic improvements back to the framework. Provenance: `.ai-badger/manifest.json`.
+
+<!-- ai-badger:keep-start -->
+<!-- Project-specific overrides go here (survives re-scaffold) -->
+<!-- ai-badger:keep-end -->

@@ -2,11 +2,11 @@
 
 # ai-badger
 
-Agent-instruction framework distributed as a Claude Code plugin. Python 3.10+ scripts (detect/scaffold/validate/index_build/drift) materialize a per-repo .ai-badger/ scaffold from a features/{stack|common}/{feature} catalog. engine/requirements.txt declares three runtime dependencies plus one optional wrapper guard: jsonschema (required; validation refuses rather than silently passing), pyyaml (optional, guarded, and degrades to a printed note), and pydantic (required; the task-plan model and its schema generator); semantica is needed only by the optional wrapper. The task-graph plan server/CLI are PEP 723 scripts launched via `uv run --script`, so the consumer-side prerequisite is uv (it fetches pydantic>=2.12,<3 into its cache on first launch, with no pip install and no project-venv pollution). The plan DAG layer is stdlib graphlib; networkx is deliberately not used. Two .mjs helper scripts under skills/maintain-agent-instructions/.
+Agent-instruction framework distributed through a Claude Code plugin and native repository scaffolds for Claude Code, Copilot, Hermes, pi and Codex. Python 3.10+ scripts (detect/scaffold/validate/index_build/drift) materialize a per-repo .ai-badger/ scaffold from a features/{stack|common}/{feature} catalog. engine/requirements.txt declares runtime dependencies plus one optional wrapper guard: jsonschema (required; validation refuses rather than silently passing), pyyaml (optional, guarded, and degrades to a printed note), and pydantic (required; the task-plan model and its schema generator); tomli supplies TOML parsing on Python 3.10; semantica is needed only by the optional wrapper. The task-graph plan server/CLI are PEP 723 scripts launched via `uv run --script`, so the consumer-side prerequisite is uv (it fetches pydantic>=2.12,<3 into its cache on first launch, with no pip install and no project-venv pollution). The plan DAG layer is stdlib graphlib; networkx is deliberately not used. Two .mjs helper scripts under skills/maintain-agent-instructions/.
 
 > Domain: Developer tooling: agent instruction catalogs and repo scaffolding.
-> Stacks: python, js, github, claude, hermes, pi, ts, node, changelog
-> Scaffolded by ai-badger 0.189.3. Source of truth for this file: `.ai-badger/CLAUDE.md`.
+> Stacks: python, js, github, claude, hermes, pi, ts, node, changelog, codex
+> Scaffolded by ai-badger 0.190.0. Source of truth for this file: `.ai-badger/CLAUDE.md`.
 
 ## Commands
 
@@ -26,6 +26,7 @@ Before editing matching files, read the applicable scoped instruction file:
 - `**/AGENTS.override.md,**/CLAUDE.md,.pi/**` → `.ai-badger/instructions/pi.instructions.md`
 - `**/*.ts,**/*.tsx,**/tsconfig.json` → `.ai-badger/instructions/typescript.instructions.md`
 - `**/package.json,**/bun.lock,**/*.mjs,**/*.cjs` → `.ai-badger/instructions/node.instructions.md`
+- `**/AGENTS.md,**/AGENTS.override.md,.codex/**,.agents/skills/**` → `.ai-badger/instructions/codex.instructions.md`
 
 Additional invariants load contextually via these paths — see `.ai-badger/invariants/` for the full set.
 

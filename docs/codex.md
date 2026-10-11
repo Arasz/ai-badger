@@ -58,6 +58,10 @@ and trust the generated definitions before relying on them. New or changed defin
 review again. Scaffolding does not grant project trust, alter hook trust, or bypass either.
 Use `/mcp` or `codex mcp list` to inspect the MCP connections available in your client.
 
+Automated MCP delivery follows the catalog's existing stdio declaration format.
+Codex also accepts native HTTP servers; configure those directly in its TOML file.
+Existing operator HTTP entries are preserved.
+
 ## Hook scope
 
 Hook parity is partial. The scaffold registers these handlers only when their skill scripts
