@@ -415,6 +415,28 @@ def test_deselect_codex_cleans_owned_merged_entries(load_script, root, tmp_path,
     remaining = json.loads(hooks_path.read_text())
     assert remaining['hooks']['Stop'][-1]['hooks'] == [user]
     assert 'AI_BADGER_CODEX_HOOK=1' not in hooks_path.read_text()
+    links = tmp_path / '.agents/skills'
+    assert not any(entry.is_symlink() for entry in links.iterdir())
+
+
+def test_deselect_codex_removes_only_owned_skill_links(load_script, tmp_path):
+    """A directory symlink escapes manifest pruning, so deselection must unlink it here."""
+    arm = load_script('features/codex/adjustments/adjust_skills.py')
+    skill = tmp_path / '.ai-badger/skills/first'
+    skill.mkdir(parents=True)
+    (skill / 'SKILL.md').write_text('first')
+    arm.adjust(context(tmp_path, skills=['first']))
+    discovery = tmp_path / '.agents/skills'
+    assert (discovery / 'first').is_symlink()
+    (discovery / 'operator').mkdir()
+    (discovery / 'elsewhere').symlink_to(tmp_path / '.ai-badger')
+
+    result = arm.adjust(context(tmp_path, config={'agents': ['claude']}, skills=[]))
+
+    assert not (discovery / 'first').is_symlink()
+    assert (discovery / 'operator').is_dir()
+    assert (discovery / 'elsewhere').is_symlink()
+    assert result['files'] == []
 
 
 @pytest.mark.parametrize('arm_name,rel,operator', [

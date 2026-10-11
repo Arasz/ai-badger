@@ -53,5 +53,6 @@ The [research record](../work/2026-10-11-codex-harness-research.md) captures ups
 [`codex.md`](../codex.md) documents setup, ownership and runtime limits.
 
 Hook commands bind the scaffolded absolute root and isolate Python imports. Relocation requires
-re-scaffolding and hook review. Merged MCP and hook adapters opt into deselection cleanup,
-removing only their owned entries while preserving operator files and malformed configuration.
+re-scaffolding and hook review. Merged MCP and hook adapters, and the skill-link adapter, opt
+into deselection cleanup, removing only their owned entries while preserving operator files and
+malformed configuration. Skill links need it because manifest pruning skips directory symlinks.

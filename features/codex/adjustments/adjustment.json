@@ -4,7 +4,8 @@
     {
       "feature": "skills",
       "description": "Publish selected skills through repository discovery symlinks",
-      "script": "adjust_skills.py"
+      "script": "adjust_skills.py",
+      "cleanupOnDeselection": true
     },
     {
       "feature": "agents",

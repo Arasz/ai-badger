@@ -30,9 +30,6 @@ def adjust(context: Dict[str, Any]) -> Dict[str, Any]:
     Returns:
         {'applied': bool, 'files': list[str], 'notes': str}
     """
-    if "codex" not in context.get("config", {}).get("agents", []):
-        return {"applied": False, "files": [], "notes": "codex not in config.agents"}
-
     target_dir = context["target_dir"]
     target = context["target"]
     skills = context.get("skills", [])
@@ -40,10 +37,12 @@ def adjust(context: Dict[str, Any]) -> Dict[str, Any]:
     agent_skills = target / ".agents" / "skills"
     if symlink_parent(agent_skills, target):
         return {"applied": False, "files": [], "notes": "Codex skills discovery symlink preserved"}
-    agent_skills.mkdir(parents=True, exist_ok=True)
 
     skills_root = target_dir / "skills"
     owned_targets = _manifest_targets(target_dir)
+    if "codex" not in context.get("config", {}).get("agents", []):
+        return _deselect(agent_skills, skills_root, owned_targets)
+    agent_skills.mkdir(parents=True, exist_ok=True)
 
     linked, refused = [], []
     for skill_name in skills:
@@ -102,6 +101,18 @@ def adjust(context: Dict[str, Any]) -> Dict[str, Any]:
         "files": [f".agents/skills/{name}" for name in linked],
         "notes": "; ".join(notes) or "No skills with SKILL.md found",
     }
+
+
+def _deselect(discovery_dir: Path, skills_root: Path, owned_targets: set) -> Dict[str, Any]:
+    """Unlink every ai-badger skill link once Codex leaves config.agents; keep the rest."""
+    if not discovery_dir.is_dir():
+        return {"applied": False, "files": [], "notes": "codex not in config.agents"}
+    removed = _owned_entries(discovery_dir, skills_root, owned_targets)
+    for name in removed:
+        (discovery_dir / name).unlink()
+    notes = (f"removed {', '.join('.agents/skills/' + n for n in removed)} — codex is no "
+             f"longer in config.agents") if removed else "codex not in config.agents"
+    return {"applied": bool(removed), "files": [], "notes": notes}
 
 
 def _owned_entries(discovery_dir: Path, skills_root: Path, owned_targets: set) -> list:
