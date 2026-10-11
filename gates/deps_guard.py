@@ -147,7 +147,8 @@ def classify(name: str, shipped: Set[str]) -> str:
         return FIRST_PARTY
     origin = _origin(name)
     if origin is None:
-        return THIRD_PARTY
+        # tomllib joined the stdlib in 3.11; supported 3.10 uses declared tomli.
+        return STDLIB if name == "tomllib" else THIRD_PARTY
     if origin == "":
         return STDLIB
     if set(Path(origin).parts) & set(SITE_DIRS) or _under(origin, SITE_PREFIXES):
