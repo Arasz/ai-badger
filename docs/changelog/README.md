@@ -19,6 +19,7 @@ When cutting a release:
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
+| 0.189.4 | [CodeQL, setup-node and pylint toolchain bumps](0.189.4-dependency-bumps.md) |
 | 0.189.3 | [task-graph MCP server survives a non-UTF-8 console](0.189.3-task-graph-utf8-stdout.md) |
 | 0.189.2 | [task tracker runs on Windows again](0.189.2-windows-task-tracker-fcntl.md) |
 | 0.189.1 | [vendored adapter comment sync](0.189.1-vendored-adapter-hook-bridge-comment-sync.md) |
