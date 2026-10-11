@@ -126,7 +126,7 @@ wrong claim in a PR body passes every one of them. That still needs a reviewer.
 | **Claude Code** | Full | `CLAUDE.md`, personas as agent modes, plugin hooks, skills, plugin installs, `.mcp.json` | none |
 | **Hermes Agent** | Full | `HERMES.md`, personas as native roles, plugin hooks, namespaced skill symlinks under `~/.hermes/skills/` | MCP has no project route, so the block is printed for you to merge (ADR-0014) |
 | **GitHub Copilot** | Full | instructions, scoped instructions, custom agents, `.github/hooks/`, skills, `.github/mcp.json` | no plugin install, and `feed-badger` has no programmatic route |
-| **Codex** | Project scaffold | `AGENTS.md`, `.agents/skills/` symlinks, `.codex/agents/*.toml`, project MCP and selected native hooks | hook parity and external plugin installs are partial; see [Codex support](docs/codex.md) |
+| **Codex** | Project scaffold | `AGENTS.md`, `.agents/skills/` symlinks, `.codex/agents/*.toml`, project MCP and selected native hooks | partial hook parity; no automated external plugin installs; see [Codex support](docs/codex.md) |
 | **pi** | Full | `AGENTS.override.md`, `.pi/agents/` personas, the tool-event hooks through a TS adapter, `.ai-badger/skills`, project-scoped MCP | no plugin install, and `feed-badger` has no programmatic route |
 
 `features/common/support.json` is the matrix of record: one entry per agent per capability,

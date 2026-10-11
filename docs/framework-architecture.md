@@ -381,7 +381,7 @@ renders each agent's template and writes a full copy with a managed header; no p
 `@import` mechanism exists anywhere in the scaffolder.
 
 **Agent detection** (`detect.py`): an agent counts as "present" if the repo *or* the user scope
-shows its traces — `codex`: project `.codex/` or user `~/.codex`; `claude`: `CLAUDE.md` or `~/.claude`; `copilot`:
+shows its traces — `codex`: project `.codex/` or user `$CODEX_HOME` (default `~/.codex`); `claude`: `CLAUDE.md` or `~/.claude`; `copilot`:
 `.github/copilot-instructions.md` or `~/.copilot`; `hermes`: `.hermes.md`, `HERMES.md` or
 `~/.hermes`; `pi`: a `.pi/` directory in the repo or `~/.pi/` in user scope. Only present
 agents get files initialized; a project can also explicitly select agents in `config.json`.

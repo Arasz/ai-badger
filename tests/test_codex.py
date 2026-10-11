@@ -139,6 +139,9 @@ def test_scaffold_native_discovery_and_repeat(load_script, root, tmp_path, monke
     runner.run()
     instruction = tmp_path / ('AGENTS.override.md' if 'pi' in agents else 'AGENTS.md')
     text = instruction.read_text()
+    canonical = tmp_path / '.ai-badger' / instruction.name
+    assert canonical.is_file(), 'managed instruction header must name an existing source copy'
+    assert 'TDD is mandatory' in canonical.read_text()
     assert 'Non-negotiable invariants' in text
     assert 'TDD is mandatory' in text
     assert 'Path-specific instructions' in text

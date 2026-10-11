@@ -146,7 +146,9 @@ traces; the agent authors `project.summary`, `project.domain`, and `personaRouti
 `.ai-badger/` (`config.json`, `manifest.json`, `CLAUDE.md`, `agents/`, `instructions/`,
 `invariants/`, `skills/`, `agent-instructions/`, `state.json`) and copies the agent-discovery
 files each coding agent looks for (`CLAUDE.md`, `.github/copilot-instructions.md`,
-`HERMES.md`) to their conventional locations.
+`HERMES.md`, `AGENTS.override.md`, `AGENTS.md`) to their conventional locations.
+Codex also receives native skills, personas, MCP and bounded hooks; see
+[Codex support](codex.md).
 
 **When to use it.** A repository has never been scaffolded — "welcome-ai-badger", "scaffold this
 project", "add agent instructions here", "onboard this repo".

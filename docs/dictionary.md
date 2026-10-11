@@ -76,9 +76,9 @@ Windows-only hook commands have no path into a scaffolded repo.
 | ai-badger | Claude Code | Hermes Agent | GitHub Copilot | pi |
 |---|---|---|---|---|
 | **Project instructions** | `CLAUDE.md` | `HERMES.md` / `.hermes.md` | `.github/copilot-instructions.md` | `AGENTS.override.md` |
-| **Scoped instructions** (`instructions/*.md`) | Referenced in `CLAUDE.md` | Referenced in `HERMES.md` | `.github/instructions/*.md` with `applyTo` frontmatter | N/A — pi reads no scoped-instruction directory; a `features/pi/instructions/*.md` file is delivered as a pi instruction file instead |
-| **Invariants** | `CLAUDE.md` sections | `HERMES.md` sections | `copilot-instructions.md` sections | Read from the root `CLAUDE.md`: pi loads `AGENTS.md`, `AGENTS.override.md` and `CLAUDE.md`, and the keep region carries none of the invariant text itself |
-| **Source of truth** | `.ai-badger/CLAUDE.md` | `.ai-badger/HERMES.md` | `.ai-badger/copilot-instructions.md` | `features/pi/templates/AGENTS.override.md.tmpl`, rendered to the repo root with a keep region |
+| **Scoped instructions** (`instructions/*.md`) | Referenced in `CLAUDE.md` | Referenced in `HERMES.md` | `.github/instructions/*.md` with `applyTo` frontmatter | Referenced in full `AGENTS.override.md` guidance |
+| **Invariants** | `CLAUDE.md` sections | `HERMES.md` sections | `copilot-instructions.md` sections | Embedded in `AGENTS.override.md` sections |
+| **Source of truth** | `.ai-badger/CLAUDE.md` | `.ai-badger/HERMES.md` | `.ai-badger/copilot-instructions.md` | `.ai-badger/AGENTS.override.md`, rendered from the pi template with a keep region |
 
 ## Personas
 
