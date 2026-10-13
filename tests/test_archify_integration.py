@@ -154,8 +154,8 @@ def test_invariant_title_and_link_reach_claude_md(make_scaffolder, root):
     assert f"- **{title}**" in section, (
         f"title {title!r} not found under '## Non-negotiable invariants' — "
         f"a bare 'archify' mention elsewhere would not satisfy this")
-    assert "→ `.ai-badger/invariants/archify-diagrams.md`" in section, (
-        "the invariant summary must link to the copy carrying the rationale")
+    assert f"- **{title}** (`archify-diagrams`)" in section, (
+        "the invariant summary must name the file carrying the rationale")
 
 
 def test_dependency_check_reports_node_present(load_script, root, tmp_path):

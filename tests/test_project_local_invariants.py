@@ -44,7 +44,7 @@ def test_a_local_invariant_renders_demoted_inside_the_section(make_scaffolder):
     section = _invariants_section(claude_md)
 
     assert "- **Static classes only**" in section
-    assert "→ `.ai-badger/invariants/local/static-classes.md`" in section
+    assert "(`local/static-classes`)" in section
     assert "Prefer sealed records and pure functions over mutable classes." in section
     assert not claude_md.rstrip().endswith("Static classes only")
     aib_copy = (target / ".ai-badger" / "CLAUDE.md").read_text(encoding="utf-8")
@@ -131,7 +131,8 @@ def test_an_empty_local_dir_keeps_the_slot_sane(make_scaffolder, root):
     target, _ = _scaffold(make_scaffolder, _config_without_invariants(root))
     section = _invariants_section((target / "CLAUDE.md").read_text(encoding="utf-8"))
 
-    assert section.strip() == "_None yet._"
+    assert section.strip().endswith("_None yet._")
+    assert "- **" not in section
 
 
 def test_a_whitespace_only_local_file_is_skipped_not_rendered(make_scaffolder, root):
@@ -142,7 +143,8 @@ def test_a_whitespace_only_local_file_is_skipped_not_rendered(make_scaffolder, r
     target, _ = _scaffold(make_scaffolder, _config_without_invariants(root))
     section = _invariants_section((target / "CLAUDE.md").read_text(encoding="utf-8"))
 
-    assert section.strip() == "_None yet._"
+    assert section.strip().endswith("_None yet._")
+    assert "- **" not in section
     assert "\n\n\n" not in section
 
 

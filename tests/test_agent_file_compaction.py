@@ -66,8 +66,42 @@ def test_an_invariant_becomes_a_bullet_with_its_rule_and_a_link(rendering):
     line = rendering.invariant_summary(text, "tdd-is-mandatory")
 
     assert line == (
-        "- **TDD is mandatory** — Write a failing, behavior-focused test before any production "
-        "code change.\n  → `.ai-badger/invariants/tdd-is-mandatory.md`")
+        "- **TDD is mandatory** (`tdd-is-mandatory`) — Write a failing, behavior-focused test "
+        "before any production code change.")
+    assert "→" not in line
+
+
+def test_a_long_rule_is_cut_at_its_first_dash_outside_code(rendering):
+    rule = ("Write a failing, behavior-focused test before any production code change and keep "
+            "it small enough to read at a glance in review today")
+    text = f"# T\n\n{rule} — the clause after the dash is rationale and stays in the file.\n"
+
+    line = rendering.invariant_summary(text, "t")
+
+    assert line == f"- **T** (`t`) — {rule}."
+
+
+def test_a_long_rule_with_the_dash_inside_a_code_span_is_not_cut(rendering):
+    rule = ("Write `a — b` before any production code change and keep it small enough to read "
+            "at a glance in review today, then run the whole suite once and read what it says")
+    assert len(rule) > 160
+    text = f"# T\n\n{rule}.\n"
+
+    line = rendering.invariant_summary(text, "t")
+
+    assert line == f"- **T** (`t`) — {rule}."
+
+
+def test_a_short_rule_keeps_its_dash_clause(rendering):
+    text = "# T\n\nDo it — always.\n"
+
+    assert rendering.invariant_summary(text, "t") == "- **T** (`t`) — Do it — always."
+
+
+def test_invariant_bullets_are_joined_one_per_line(rendering, tmp_path):
+    slots = rendering.TemplateRendering(_ctx(tmp_path)).compute_doc_slots(["- a", "- b"], [])
+
+    assert slots["INVARIANTS"] == "- a\n- b"
 
 
 def test_the_summary_keeps_the_sentence_that_states_the_rule(rendering):
@@ -109,6 +143,7 @@ def test_a_rule_that_lives_in_a_list_keeps_the_list(rendering):
 
     assert "docs/changelog/{version}-{slug}.md" in line
     assert "1. Bump `VERSION`" in line
+    assert "(`version-changelog-required`)" in line
     assert "traceable" not in line, "only the opening block belongs in the summary"
 
 
