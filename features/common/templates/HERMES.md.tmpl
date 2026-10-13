@@ -56,7 +56,7 @@ This project understands prompt markers (see `.ai-badger/skills/prompt-markers`)
 - `i:` / `important:` — important: high priority, do not drop it; handle at the next natural boundary.
 - `i!:` / `important!:` — immediate emergency interrupt: STOP, pause/cancel active tasks, and react instantly.
 
-A `!` before the colon (`f!:`, `queue!:`) makes any marker interrupt-grade: handle it before work in flight. A marker sent mid-turn never reaches the expansion hook — apply it yourself.
+A `!` before the colon (`f!:`, `queue!:`) makes any marker interrupt-grade: stop and handle it before the work in flight, never queued behind it. A marker sent mid-turn skips the hook that expands it — apply it yourself.
 
 {{MCP_INSTRUCTIONS}}
 
