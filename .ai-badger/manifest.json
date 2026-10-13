@@ -1,7 +1,7 @@
 {
   "$schema": "../schemas/manifest.schema.json",
   "frameworkVersion": "0.191.0",
-  "frameworkCommit": "ce36071d7568f5376e9fe0a5649fb47a690ac504",
+  "frameworkCommit": "8456a82a39b106c1a5b33831c1e0a1281a634293",
   "frameworkDirty": true,
   "frameworkRoot": ".",
   "generatedAt": null,
@@ -1541,12 +1541,12 @@
       "source": "features/common/skills/welcome-ai-badger",
       "target": ".ai-badger/skills/welcome-ai-badger",
       "frameworkVersion": "0.191.0",
-      "hash": "9c5b0de1cd93b409c700a0952d84367f2c822fe302b6de40bce1731d736b661f",
+      "hash": "05d79e3ca7619f2f17d643f0f1c22b60220a202fbbc0c6e48033ab94da141edc",
       "dirMeta": {
         "file_count": 27,
         "dir_count": 2
       },
-      "sourceHash": "9c5b0de1cd93b409c700a0952d84367f2c822fe302b6de40bce1731d736b661f",
+      "sourceHash": "05d79e3ca7619f2f17d643f0f1c22b60220a202fbbc0c6e48033ab94da141edc",
       "sourceMeta": {
         "file_count": 27,
         "dir_count": 2
@@ -1702,7 +1702,7 @@
       "target": "CLAUDE.md",
       "frameworkVersion": "0.191.0",
       "hash": "4408426bbc69652bedbea04970afbaca4eef100bce15055f6c58662bd95513cb",
-      "outputHash": "a7efc8e6335311f0d6977d09e99d4b09a93eecb6836865211547274b9a3cb5d5",
+      "outputHash": "e9208a8cdcbcc6a69392d8490ae7731149204e536bd8158e8effd78032a04cec",
       "seedOnce": false
     },
     {
@@ -1713,7 +1713,7 @@
       "target": ".github/copilot-instructions.md",
       "frameworkVersion": "0.191.0",
       "hash": "4408426bbc69652bedbea04970afbaca4eef100bce15055f6c58662bd95513cb",
-      "outputHash": "a6b31117fab086f5e6c675808af54e784cec8316a2b6fbef16319e84f9cbabee",
+      "outputHash": "398983caa40a1edfb9706bc4b7f12fd4de769f37b3e1928752d9f55a2f420d0c",
       "seedOnce": false
     },
     {
@@ -1724,7 +1724,7 @@
       "target": "HERMES.md",
       "frameworkVersion": "0.191.0",
       "hash": "3c13caeef558f281ae110320c42c63ed7b6c296e0c0b740bf2ec9138537462d6",
-      "outputHash": "8c37738c198199ffc7b25b6f12bbf468986454e92c50376925e1033b9a245ff3",
+      "outputHash": "737cc89423c80b93e8e8bcc78b8ed2ee63b7d84aa4fb35853c1c578fcd7c1ba6",
       "seedOnce": false
     },
     {
@@ -1735,7 +1735,7 @@
       "target": "AGENTS.override.md",
       "frameworkVersion": "0.191.0",
       "hash": "fd8bd121a0403ab65732a247be1798ca5e374f182372bd84279a1c89250c974c",
-      "outputHash": "acff851b59380223bf93e45bc0eca14e31aacf0c93f637d9c28099f1496b3367",
+      "outputHash": "fa978ce21de9d2d2f4031629ef2ebab5324a2fac3ce48196cddce378f4642bce",
       "seedOnce": false
     },
     {
@@ -1746,7 +1746,7 @@
       "target": "AGENTS.md",
       "frameworkVersion": "0.191.0",
       "hash": "98971cfc990663073e5eae3fabd8bf5a7bc7e3d309d7d7bbca17b6cf1cbded9b",
-      "outputHash": "a7cc69bed630daa6ba7c3eb1b58d8dbe0a1a360b15f49581f2e487550899c6d7",
+      "outputHash": "2101c1b1de2ff6248a0edc61799344e9b1b9b181da03dbb28d1c2c8b7aa4f097",
       "seedOnce": false
     },
     {

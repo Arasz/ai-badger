@@ -58,25 +58,8 @@ def invariant_summary(text: str, name: str) -> str:
         # The list *is* the rule — "Every release must:" alone says nothing. Keep it whole,
         # indented under the bullet, rather than truncating at the colon.
         return f"{label} — " + opening.replace("\n", "\n  ")
-    rule = _shorten(_rule_sentence(opening))
+    rule = _rule_sentence(opening)
     return label + (f" — {rule}." if rule else "")
-
-
-# A rule sentence longer than this is cut at its first " — " outside a code span.
-_LONG_RULE = 160
-
-
-def _shorten(rule: str) -> str:
-    """*rule* cut at its first spaced em dash outside a code span when it is over `_LONG_RULE`."""
-    if len(rule) <= _LONG_RULE:
-        return rule
-    in_code = False
-    for index, char in enumerate(rule):
-        if char == "`":
-            in_code = not in_code
-        elif not in_code and rule.startswith(" — ", index):
-            return rule[:index].rstrip(",;:")
-    return rule
 
 
 _ABBREVIATION = re.compile(r"\b(?:e\.g|i\.e|etc|cf|vs|approx)\.$", re.IGNORECASE)

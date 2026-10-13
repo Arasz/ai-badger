@@ -71,31 +71,15 @@ def test_an_invariant_becomes_a_bullet_with_its_rule_and_a_link(rendering):
     assert "→" not in line
 
 
-def test_a_long_rule_is_cut_at_its_first_dash_outside_code(rendering):
-    rule = ("Write a failing, behavior-focused test before any production code change and keep "
-            "it small enough to read at a glance in review today")
-    text = f"# T\n\n{rule} — the clause after the dash is rationale and stays in the file.\n"
-
-    line = rendering.invariant_summary(text, "t")
-
-    assert line == f"- **T** (`t`) — {rule}."
-
-
-def test_a_long_rule_with_the_dash_inside_a_code_span_is_not_cut(rendering):
-    rule = ("Write `a — b` before any production code change and keep it small enough to read "
-            "at a glance in review today, then run the whole suite once and read what it says")
+def test_a_long_rule_keeps_the_clause_after_its_dash(rendering):
+    # Cutting at the dash left "Derive the list, or delete it" as a subject with no predicate.
+    rule = ("A hand-maintained list meant to mirror something else — the gates on disk, the "
+            "copies of a helper — drifts the moment someone adds to one side and not the other, "
+            "and nothing notices")
     assert len(rule) > 160
     text = f"# T\n\n{rule}.\n"
 
-    line = rendering.invariant_summary(text, "t")
-
-    assert line == f"- **T** (`t`) — {rule}."
-
-
-def test_a_short_rule_keeps_its_dash_clause(rendering):
-    text = "# T\n\nDo it — always.\n"
-
-    assert rendering.invariant_summary(text, "t") == "- **T** (`t`) — Do it — always."
+    assert rendering.invariant_summary(text, "t") == f"- **T** (`t`) — {rule}."
 
 
 def test_invariant_bullets_are_joined_one_per_line(rendering, tmp_path):
