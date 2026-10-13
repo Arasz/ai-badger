@@ -240,6 +240,6 @@ def test_qa_family_and_the_test_invariant_reach_a_scaffolded_project(make_scaffo
     claude_md = (target / "CLAUDE.md").read_text(encoding="utf-8")
     assert "## Non-negotiable invariants" in claude_md
     section = claude_md[claude_md.index("## Non-negotiable invariants"):]
-    assert f"→ `.ai-badger/invariants/{INVARIANT}.md`" in section, (
+    assert f"(`{INVARIANT}`)" in section, (
         f"{INVARIANT}: not linked under '## Non-negotiable invariants' in the generated CLAUDE.md"
     )

@@ -19,6 +19,7 @@ When cutting a release:
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
+| 0.191.0 | [0.191.0: Compact agent instruction files](0.191.0-compact-agent-instruction-files.md) |
 | 0.190.0 | [0.190.0: Codex harness support](0.190.0-codex-harness-support.md) |
 | 0.189.4 | [CodeQL, setup-node and pylint toolchain bumps](0.189.4-dependency-bumps.md) |
 | 0.189.3 | [task-graph MCP server survives a non-UTF-8 console](0.189.3-task-graph-utf8-stdout.md) |

@@ -78,8 +78,8 @@ def test_invariant_heading_reaches_claude_md(make_scaffolder, root, name):
         f"{name}: title {title!r} not found under "
         f"'## Non-negotiable invariants' in the generated CLAUDE.md"
     )
-    assert f"→ `.ai-badger/invariants/{name}.md`" in section, (
-        f"{name}: the summary must link to the copy carrying the rationale"
+    assert f"- **{title}** (`{name}`)" in section, (
+        f"{name}: the summary must name the file carrying the rationale"
     )
 
 

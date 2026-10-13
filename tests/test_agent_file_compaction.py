@@ -66,8 +66,26 @@ def test_an_invariant_becomes_a_bullet_with_its_rule_and_a_link(rendering):
     line = rendering.invariant_summary(text, "tdd-is-mandatory")
 
     assert line == (
-        "- **TDD is mandatory** — Write a failing, behavior-focused test before any production "
-        "code change.\n  → `.ai-badger/invariants/tdd-is-mandatory.md`")
+        "- **TDD is mandatory** (`tdd-is-mandatory`) — Write a failing, behavior-focused test "
+        "before any production code change.")
+    assert "→" not in line
+
+
+def test_a_long_rule_keeps_the_clause_after_its_dash(rendering):
+    # Cutting at the dash left "Derive the list, or delete it" as a subject with no predicate.
+    rule = ("A hand-maintained list meant to mirror something else — the gates on disk, the "
+            "copies of a helper — drifts the moment someone adds to one side and not the other, "
+            "and nothing notices")
+    assert len(rule) > 160
+    text = f"# T\n\n{rule}.\n"
+
+    assert rendering.invariant_summary(text, "t") == f"- **T** (`t`) — {rule}."
+
+
+def test_invariant_bullets_are_joined_one_per_line(rendering, tmp_path):
+    slots = rendering.TemplateRendering(_ctx(tmp_path)).compute_doc_slots(["- a", "- b"], [])
+
+    assert slots["INVARIANTS"] == "- a\n- b"
 
 
 def test_the_summary_keeps_the_sentence_that_states_the_rule(rendering):
@@ -109,6 +127,7 @@ def test_a_rule_that_lives_in_a_list_keeps_the_list(rendering):
 
     assert "docs/changelog/{version}-{slug}.md" in line
     assert "1. Bump `VERSION`" in line
+    assert "(`version-changelog-required`)" in line
     assert "traceable" not in line, "only the opening block belongs in the summary"
 
 
