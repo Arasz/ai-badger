@@ -160,10 +160,14 @@ Only these codes are emitted; anything else is a bug, not a shape to handle:
 `prerequisite-missing`, `config-error`, `store-error`.
 
 An argument that fails validation returns `invalid-arguments` with one finding per problem in
-`details.findings[]`: `path` (`steps[0].acceptance_criteria[0]`, or `arguments` for the top
-level), `problem` (unknown properties on one object are grouped: `properties "foo", "bar" are
-not accepted`), `fix`, and `expected_shape` — the failing object's fields, `?` marking optional
-ones. `detail` repeats all of it as text. The received value is never echoed back. A client that
+`details.findings[]`: `path` (the object holding the problem, `steps[0].acceptance_criteria[0]`,
+or `arguments` for the top level), `problem` (names the property; unknown properties on one
+object are grouped: `properties "foo", "bar" are not accepted`), `fix`, and `expected_shape` —
+the failing object's fields, `?` marking optional ones. A plan that fails the graph checks
+(unknown or self dependency, cycle, duplicate step or criterion id) returns the same finding
+shape with path `steps[i]` (or `steps`) and the authored step shape. `detail` repeats all of it
+as text. The received values are never echoed back: a finding names only the property, step id
+or dependency it is about, and an unknown property name is cut at 64 characters. A client that
 checks arguments against the published `inputSchema` itself (pi does) may refuse an unknown
 property before the server sees it, with that client's own message.
 

@@ -474,5 +474,5 @@ def test_cli_reports_actionable_argument_findings(tmp_path):
     error = json.loads(proc.stdout)["error"]
     assert error["code"] == "invalid-arguments"
     assert error["details"]["findings"][0]["path"] == "steps[0]"
-    assert error["details"]["findings"][0]["problem"] == 'properties "status" are not accepted'
+    assert error["details"]["findings"][0]["problem"] == 'property "status" is not accepted'
     assert "Expected input shape" in error["detail"]

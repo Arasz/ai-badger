@@ -1,7 +1,7 @@
 {
   "$schema": "../schemas/manifest.schema.json",
   "frameworkVersion": "0.194.0",
-  "frameworkCommit": "c9e4b227088e6b6987519ff583e82836a1af0695",
+  "frameworkCommit": "a53f2d1b3490db29a5f647ecd082bb8aa8c9b109",
   "frameworkDirty": true,
   "frameworkRoot": ".",
   "generatedAt": null,
@@ -1509,12 +1509,12 @@
       "source": "features/common/skills/task-decomposition",
       "target": ".ai-badger/skills/task-decomposition",
       "frameworkVersion": "0.194.0",
-      "hash": "c1e8b1512e69a45134650a767781adf27869d9f81fd780d09770e7956c42d80d",
+      "hash": "b9005fb7e00ea4ed3c3aaac4f0c678a47209c6f4fe050e418eb53e8e97f0e71e",
       "dirMeta": {
         "file_count": 12,
         "dir_count": 2
       },
-      "sourceHash": "c1e8b1512e69a45134650a767781adf27869d9f81fd780d09770e7956c42d80d",
+      "sourceHash": "b9005fb7e00ea4ed3c3aaac4f0c678a47209c6f4fe050e418eb53e8e97f0e71e",
       "sourceMeta": {
         "file_count": 12,
         "dir_count": 2

@@ -672,7 +672,7 @@ def test_plan_create_rejects_dag_findings_as_structured_invalid_arguments(mcp):
 
     duplicate = _create_args(steps=[_step("s1"), _step("s1", goal="again")])
     error = _error(server, "plan_create", duplicate, "invalid-arguments")
-    assert "duplicate" in json.dumps(error["details"]["findings"])
+    assert "more than once" in json.dumps(error["details"]["findings"])
 
     schema = _create_args(loop="turbo")
     error = _error(server, "plan_create", schema, "invalid-arguments")
@@ -1408,7 +1408,7 @@ def test_actionable_error_at_the_root_names_the_arguments(mcp):
 
     finding = error["details"]["findings"][0]
     assert finding["path"] == "arguments"
-    assert finding["problem"] == 'properties "extra_root" are not accepted'
+    assert finding["problem"] == 'property "extra_root" is not accepted'
     assert finding["expected_shape"]["task_id"] == "string"
     assert SENTINEL not in json.dumps(error)
 
@@ -1418,4 +1418,74 @@ def test_step_level_status_is_still_refused(mcp):
     error = _error(server, "plan_create", _create_args(
         steps=[{**_step(), "status": "pending"}]), "invalid-arguments")
     assert error["details"]["findings"][0]["path"] == "steps[0]"
-    assert error["details"]["findings"][0]["problem"] == 'properties "status" are not accepted'
+    assert error["details"]["findings"][0]["problem"] == 'property "status" is not accepted'
+
+
+def test_identical_plan_replace_still_warns_about_ac_runtime_fields(mcp):
+    server = mcp()
+    _create(server)
+    steps = [_step(acceptance_criteria=[_ac_with_runtime_fields()])]
+
+    payload = _payload(server, "plan_replace", {
+        **_create_args(steps=steps), "expected_revision": 0})
+
+    assert payload["replaced"] is False
+    assert payload["warnings"][0]["path"] == "steps[0].acceptance_criteria[0]"
+
+
+def test_plan_graph_failures_use_the_actionable_finding_shape(mcp):
+    server = mcp()
+    unknown = _create_args(steps=[_step(), _step("s2", depends_on=["ghost"])])
+
+    error = _error(server, "plan_create", unknown, "invalid-arguments")
+
+    assert error["detail"].startswith("the plan failed validation:")
+    finding = error["details"]["findings"][0]
+    assert set(finding) == {"path", "problem", "fix", "expected_shape"}
+    assert "depends on unknown step 'ghost'" in finding["problem"]
+    assert "existing step id" in finding["fix"]
+    assert finding["expected_shape"][0]["acceptance_criteria?"] == [AC_DRAFT_SHAPE]
+
+    duplicate_ac = _create_args(steps=[_step(acceptance_criteria=[_ac(), _ac()])])
+    finding = _error(server, "plan_create", duplicate_ac,
+                     "invalid-arguments")["details"]["findings"][0]
+    assert finding["path"] == "steps[0]"
+    assert "unique id" in finding["fix"]
+
+    duplicate_step = _create_args(steps=[_step(), _step("s1", goal="again")])
+    finding = _error(server, "plan_create", duplicate_step,
+                     "invalid-arguments")["details"]["findings"][0]
+    assert finding["path"] == "steps[1]"
+    assert finding["problem"] == "step id 's1' is used more than once"
+
+
+def test_actionable_errors_on_nested_step_complete_arguments(mcp):
+    server = mcp()
+    arguments = {"task_id": TASK_ID, "step_id": "s1", "expected_revision": SENTINEL,
+                 "criterion_results": {"ac1": SENTINEL},
+                 "evidence": [{"kind": "test", "summary": "ok", "extra": SENTINEL}]}
+
+    error = _error(server, "step_complete", arguments, "invalid-arguments")
+
+    by_path = {}
+    for finding in error["details"]["findings"]:
+        by_path.setdefault(finding["path"], []).append(finding)
+    assert by_path["evidence[0]"][0]["problem"] == 'property "extra" is not accepted'
+    assert by_path["evidence[0]"][0]["expected_shape"]["kind"] == \
+        "'command' | 'test' | 'artifact' | 'review' | 'note'"
+    root_problems = [finding["problem"] for finding in by_path["arguments"]]
+    assert any(problem.startswith('property "expected_revision" is invalid')
+               for problem in root_problems)
+    assert any(problem.startswith('property "criterion_results" is invalid')
+               for problem in root_problems)
+    assert SENTINEL not in json.dumps(error)
+
+
+def test_unknown_key_names_are_clipped(mcp):
+    server = mcp()
+    long_key = "K" * 500
+
+    error = _error(server, "plan_create", _create_args(**{long_key: 1}), "invalid-arguments")
+
+    assert long_key not in json.dumps(error)
+    assert "K" * 64 + "\u2026" in error["details"]["findings"][0]["problem"]

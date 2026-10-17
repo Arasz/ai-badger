@@ -329,12 +329,6 @@ def _conflict(task_id: str, current_revision: Optional[int],
          "expected_revision": expected_revision})
 
 
-def _findings(exc: ValidationError) -> List[dict]:
-    """Pydantic errors as structured findings: loc as a dotted path, type, message."""
-    return [{"loc": ".".join(str(part) for part in error["loc"]), "type": error["type"],
-             "msg": error["msg"]} for error in exc.errors()]
-
-
 _NoneType = type(None)
 _SCALAR_NAMES = {str: "string", int: "integer", float: "number", bool: "boolean"}
 
@@ -428,7 +422,7 @@ def _argument_findings(root: Any, exc: ValidationError) -> List[dict]:
             if path not in unknown:
                 unknown[path] = {"path": path, "names": [], "expected_shape": shape}
                 findings.append(unknown[path])
-            unknown[path]["names"].append(str(field))
+            unknown[path]["names"].append(_clip(str(field)))
             continue
         if error["type"] == "missing":
             problem = f'required property "{field}" is missing'
@@ -444,18 +438,26 @@ def _argument_findings(root: Any, exc: ValidationError) -> List[dict]:
         findings.append({"path": path, "problem": problem, "fix": fix, "expected_shape": shape})
     for finding in findings:
         if "names" in finding:
-            names = ", ".join(f'"{name}"' for name in finding.pop("names"))
-            finding["problem"] = f"properties {names} are not accepted"
-            finding["fix"] = ("remove them; this object accepts only the properties in "
-                              "expected_shape (a trailing ? marks an optional one)")
+            names = finding.pop("names")
+            quoted = ", ".join(f'"{name}"' for name in names)
+            finding["problem"] = (f"property {quoted} is not accepted" if len(names) == 1
+                                  else f"properties {quoted} are not accepted")
+            finding["fix"] = (f"remove {'it' if len(names) == 1 else 'them'}; this object "
+                              "accepts only the properties in expected_shape (a trailing ? "
+                              "marks an optional one)")
             finding["expected_shape"] = finding.pop("expected_shape")
     return [{key: finding[key] for key in ("path", "problem", "fix", "expected_shape")}
             for finding in findings]
 
 
-def _argument_detail(findings: List[dict]) -> str:
+def _clip(name: str, limit: int = 64) -> str:
+    """A caller-supplied key name, shortened so a finding never carries an unbounded value."""
+    return name if len(name) <= limit else name[:limit] + "…"
+
+
+def _argument_detail(findings: List[dict], heading: str = "argument validation failed:") -> str:
     """One self-contained message: what failed where, how to fix it, the expected shape."""
-    lines = ["argument validation failed:"]
+    lines = [heading]
     for finding in findings:
         lines.append(f"- {finding['problem']} at {finding['path']}. Fix: {finding['fix']}. "
                      f"Expected input shape: "
@@ -485,13 +487,46 @@ def _with_warnings(payload: dict, steps) -> dict:
     return {**payload, "warnings": warnings} if warnings else payload
 
 
-def _invalid_arguments(detail: str, exc: Optional[ValidationError] = None) -> ToolRefusal:
-    if exc is None:
-        return _refuse("invalid-arguments", detail)
-    findings = _findings(exc)
-    first = f"{findings[0]['msg']} (at {findings[0]['loc'] or 'the plan'})" if findings else ""
-    return _refuse("invalid-arguments", f"{detail}: {first}" if first else detail,
+#: How to fix each plan-graph invariant the model enforces, keyed by its message fragment.
+_PLAN_FIXES = (
+    ("lists itself in depends_on", "remove the step's own id from its depends_on"),
+    ("depends on unknown step", "point depends_on at an existing step id, or remove the entry"),
+    ("contain a cycle", "remove one depends_on edge so the chain no longer loops"),
+    ("duplicate acceptance-criterion id", "give each acceptance criterion in the step a unique id"),
+    ("used more than once", "give every step a unique id"),
+)
+
+
+def _plan_finding(problem: str, path: str = "steps") -> dict:
+    """A plan-graph failure in the argument-finding shape, against the authored step shape."""
+    problem = problem.removeprefix("Value error, ")
+    fix = next((fix for fragment, fix in _PLAN_FIXES if fragment in problem),
+               "correct the steps so the plan validates")
+    return {"path": path, "problem": problem, "fix": fix,
+            "expected_shape": [_model_shape(StepDraft)]}
+
+
+def _plan_findings(exc: ValidationError,
+                   step_index: Optional[Mapping[str, int]] = None) -> List[dict]:
+    """Model-validation errors on the built plan, mapped back to authored ``steps[i]`` paths."""
+    findings = []
+    for error in exc.errors():
+        loc = tuple(error["loc"])
+        path = "steps"
+        if len(loc) >= 3 and loc[:2] == ("workflow", "steps") and step_index \
+                and loc[2] in step_index:
+            path = f"steps[{step_index[loc[2]]}]"
+        findings.append(_plan_finding(error["msg"], path))
+    return findings
+
+
+def _invalid_plan(findings: List[dict]) -> ToolRefusal:
+    return _refuse("invalid-arguments", _argument_detail(findings, "the plan failed validation:"),
                    {"findings": findings})
+
+
+def _invalid_arguments(detail: str) -> ToolRefusal:
+    return _refuse("invalid-arguments", detail)
 
 
 def _map_transition(refused: graph.TransitionRefused) -> ToolRefusal:
@@ -638,12 +673,10 @@ def _build_plan(args, *, created_at: str, schema_: Optional[str] = None):
     enforced by pydantic and reported as structured findings.
     """
     seen: Dict[str, bool] = {}
-    for draft in args.steps:
+    for index, draft in enumerate(args.steps):
         if draft.id in seen:
-            raise _refuse(
-                "invalid-arguments", f"duplicate step id {draft.id!r}",
-                {"findings": [{"loc": "steps", "type": "duplicate-step-id",
-                               "msg": f"duplicate step id {draft.id!r}"}]})
+            raise _invalid_plan([_plan_finding(
+                f"step id {draft.id!r} is used more than once", f"steps[{index}]")])
         seen[draft.id] = True
     steps: Dict[str, dict] = {}
     for draft in args.steps:
@@ -671,7 +704,8 @@ def _build_plan(args, *, created_at: str, schema_: Optional[str] = None):
     try:
         return model.TaskPlan.model_validate(document)
     except ValidationError as exc:
-        raise _invalid_arguments("the plan document failed validation", exc) from exc
+        index = {draft.id: position for position, draft in enumerate(args.steps)}
+        raise _invalid_plan(_plan_findings(exc, index)) from exc
 
 
 def _with_step(plan, step_id: str, new_step):
@@ -1267,8 +1301,8 @@ def invoke_tool(name: str, arguments: Mapping) -> dict:
         code, detail, details, retryable = _plan_store_error(exc)
         return _error_payload(name, code, detail, details, retryable=retryable)
     except ValidationError as exc:
-        return _error_payload(name, "invalid-arguments", "the plan document failed validation",
-                              {"findings": _findings(exc)})
+        refusal = _invalid_plan(_plan_findings(exc))
+        return _error_payload(name, refusal.code, refusal.detail, refusal.details)
 
 
 class ToolSpec(NamedTuple):
