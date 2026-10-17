@@ -5,9 +5,18 @@ That setting stops every hook, including plugin and managed ones, so none of ai-
 session-start context, tool guards, post-tool nudges or end-of-turn checkpoints run. Limited
 mode replaces what it can with things you or the agent run by hand.
 
-If the policy is `allowManagedHooksOnly` or `strictPluginOnlyCustomization` instead, hooks from
-a force-enabled or installed plugin still run, and limited mode is the wrong fix. The research
-record `docs/work/2026-10-17-hookless-limited-mode-research.md` (F1) explains the difference.
+Limited mode is the wrong fix for the two narrower policies. Under `allowManagedHooksOnly`,
+hooks still run from plugins your managed settings force-enable. Under
+`strictPluginOnlyCustomization` with `"hooks"`, hooks still run from every installed plugin.
+The research record `docs/work/2026-10-17-hookless-limited-mode-research.md` (F1) has the
+details.
+
+## Know what you are opting into
+
+`checkin` runs the same repository-controlled commands the policy stops Claude Code from
+running. The only thing between them and your shell is the Bash permission prompt for
+`limited_mode.py`, and `--hooks <file>` lets it run any file's commands. If your organisation
+disables hooks to stop exactly that, ask before turning limited mode on.
 
 ## Check which policy applies
 
@@ -33,8 +42,8 @@ The block tells the agent to:
 - run the check-in at session start, before opening a PR, and before finishing a task;
 - apply prompt markers itself, name a `model` on every dispatch, and search memory before
   repo text search, because no hook checks any of these;
-- edit `features/` sources rather than generated `.ai-badger/` output, and touch `.git/` only
-  through git commands.
+- change `.ai-badger/config.json` and re-scaffold rather than hand-editing generated
+  `.ai-badger/` output, and touch `.git/` only through git commands.
 
 ## Check in
 
@@ -43,18 +52,26 @@ python3 .ai-badger/skills/task/scripts/limited_mode.py checkin
 python3 .ai-badger/skills/task/scripts/limited_mode.py checkin --end
 ```
 
-`checkin` reads the project's `.ai-badger/hooks/hooks.json`, runs every `SessionStart` command
-in it with the payload Claude Code would have sent, and prints what each would have injected:
-unread bus mail, unfinished tracked tasks, git config warnings. `--end` runs the `Stop`
-commands instead, which checkpoint the tracked task and print its end-of-task reminders.
+Run it from the project root. `checkin` reads the project's `.ai-badger/hooks/hooks.json`,
+runs every `SessionStart` command in it with the payload Claude Code would have sent, and
+prints what each would have injected: unread bus mail, unfinished tracked tasks, git config
+warnings. `--end` runs the `Stop`
+commands instead, which checkpoint the tracked task and print its end-of-task reminders; a
+reminder the Stop hook would have used to block the turn prints as `BLOCK: <reason>`.
+
+`checkin` exits non-zero, and says why on stderr, when it could not check in: no session id
+(it reads `CLAUDE_CODE_SESSION_ID`, which Claude Code sets in Bash, or `--session`), a missing
+or malformed `hooks.json`, no commands registered for the event, or a command that failed or
+timed out.
 
 A subagent must not check in: it would read the parent session's mail. `checkin` refuses when
 `CLAUDE_CODE_CHILD_SESSION` is set.
 
 ## What limited mode cannot replace
 
-- **Per-turn delivery.** Mail and prompt-marker expansion arrive only when someone runs
-  `checkin`, not on every turn.
+- **Per-turn delivery.** Mail arrives only when someone runs `checkin`, not on every turn.
+- **Prompt markers.** Their expansion runs on each prompt, which `checkin` does not replay; the
+  agent applies them itself.
 - **State-dependent guards.** The dispatch gate, the memory-first gate and the multi-lane kill
   guard become written instructions. Nothing enforces them.
 - **Memory follow-through telemetry.** No replacement; the retrieval eval loses that input.
