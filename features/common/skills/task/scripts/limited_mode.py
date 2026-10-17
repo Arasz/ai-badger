@@ -17,6 +17,12 @@ LOCAL_FILE = "CLAUDE.local.md"
 TIMEOUT_SECONDS = 60
 STDERR_TAIL_LINES = 10
 
+# badger_lib.GIT_LOCATION_ENV, repeated because this ships into projects with no framework
+# checkout to import it from; tests/test_git_invocation.py pins every copy against the original.
+GIT_LOCATION_ENV = ("GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR", "GIT_INDEX_FILE",
+                    "GIT_OBJECT_DIRECTORY", "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+                    "GIT_PREFIX", "GIT_NAMESPACE", "GIT_CEILING_DIRECTORIES")
+
 BLOCK_TEXT = """## ai-badger limited mode (hooks disabled on this machine)
 
 Your organisation's policy disables Claude Code hooks here, so ai-badger's automatic context, guards and checkpoints do not run. Do them by hand:
@@ -44,6 +50,14 @@ class MarkerError(Exception):
     """CLAUDE.local.md holds limited-mode markers that do not pair up."""
 
 
+def git_env(env=None):
+    """`env` (default `os.environ`) minus every variable that pins git to another repository."""
+    out = dict(os.environ if env is None else env)
+    for name in GIT_LOCATION_ENV:
+        out.pop(name, None)
+    return out
+
+
 def find_root(explicit):
     """Return the project root: --root, else the git toplevel of cwd, else cwd."""
     if explicit:
@@ -51,7 +65,7 @@ def find_root(explicit):
     try:
         top = subprocess.run(
             ["git", "rev-parse", "--show-toplevel"], capture_output=True,
-            text=True, check=True, timeout=10).stdout.strip()
+            text=True, check=True, timeout=10, env=git_env()).stdout.strip()
         if top:
             return Path(top)
     except (OSError, subprocess.SubprocessError):
@@ -71,7 +85,8 @@ def main_checkout(explicit):
     try:
         common = subprocess.run(
             ["git", "rev-parse", "--path-format=absolute", "--git-common-dir"],
-            capture_output=True, text=True, check=True, timeout=10).stdout.strip()
+            capture_output=True, text=True, check=True, timeout=10,
+            env=git_env()).stdout.strip()
         if common and Path(common).name == ".git":
             return Path(common).parent
     except (OSError, subprocess.SubprocessError):
