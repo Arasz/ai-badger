@@ -41,30 +41,23 @@ def _entry(command: str) -> dict[str, Any]:
 
 
 def _merge(hooks: dict[str, Any], wanted: list[dict[str, Any]], is_ours) -> None:
-    """Keep wanted entries when they already end the event, else re-add them last.
+    """Drop every marked entry, then append the wanted ones last.
 
-    Last, so the rewriter never sits ahead of a guard; the hooks adjustment re-appends the
-    framework hooks on every scaffold, which pushes a wanted entry off the end.
+    Last, so the rewriter never sits ahead of a guard; the hooks adjustment inserts its groups
+    ahead of a marked group, so a rerun yields the same bytes. The tool's event keeps its key.
     """
-    missing = list(wanted)
-    current = hooks.get(EVENT) or []
-    at_end = bool(wanted) and current[-len(wanted):] == wanted
     for event, groups in list(hooks.items()):
         clean = []
         for group in groups:
-            if at_end and event == EVENT and group in missing:
-                missing.remove(group)
-                clean.append(group)
-                continue
             handlers = [h for h in group.get('hooks', []) if not is_ours(h.get('command'))]
             if handlers or not group.get('hooks'):
                 clean.append(group if handlers == group.get('hooks', []) else dict(group, hooks=handlers))
-        if clean or not groups:
+        if clean or not groups or (event == EVENT and wanted):
             hooks[event] = clean
         else:
             del hooks[event]
-    if missing:
-        hooks.setdefault(EVENT, []).extend(missing)
+    if wanted:
+        hooks.setdefault(EVENT, []).extend(wanted)
 
 
 def adjust(context: dict[str, Any]) -> dict[str, Any]:

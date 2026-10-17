@@ -122,7 +122,7 @@ Settled by the live check on 2026-10-17 (Claude Code 2.1.302, rtk 1.0.1); eviden
   the rewritten command, and it holds. Project `permissions.ask` is matched against the
   rewritten command only, so it is bypassed. That bypass is the reason for the 0.195.1 amendment.
 - UNVERIFIED, Codex: no codex binary was available. How Codex aggregates a guard's deny with rtk's
-  `allow` is untested. The arm keeps rtk's entry last so it never runs ahead of the guards.
+  `allow` is untested. As a precaution, the arm keeps rtk's entry last, after the guards.
 - UNVERIFIED, Copilot: no copilot binary was available. Offline, `rtk hook copilot` answers a
   Copilot CLI payload with `modifiedArgs` (a rewrite) and a VS Code payload with `updatedInput`,
   though rtk's install text calls Copilot CLI deny-with-suggestion. Whether a camelCase

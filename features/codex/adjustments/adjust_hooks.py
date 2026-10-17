@@ -37,6 +37,22 @@ def _ours(handler: dict[str, Any]) -> bool:
         script in command for script in SCRIPTS)
 
 
+def _is_tool(framework_root: Path):
+    """`tool_hooks.is_ours`: whether a command is a catalog tool's marked hook (ADR-0039)."""
+    scripts = Path(framework_root) / 'features/common/skills/welcome-ai-badger/scripts'
+    if str(scripts) not in sys.path:
+        sys.path.insert(0, str(scripts))
+    import tool_hooks  # pylint: disable=import-outside-toplevel
+    return tool_hooks.is_ours
+
+
+def _add(groups: list, entry: dict, is_tool) -> None:
+    """Insert a framework group ahead of the first tool group, so the tool hook stays last."""
+    at = next((i for i, group in enumerate(groups)
+               if any(is_tool(h.get('command')) for h in group.get('hooks', []))), len(groups))
+    groups.insert(at, entry)
+
+
 def adjust(context: dict[str, Any]) -> dict[str, Any]:
     """Merge compatible hooks, prune owned declines, and leave malformed config untouched."""
     selected = 'codex' in context['config'].get('agents', [])
@@ -65,6 +81,7 @@ def adjust(context: dict[str, Any]) -> dict[str, Any]:
                 clean.append(group if handlers == group.get('hooks', []) else dict(group, hooks=handlers))
         hooks[event] = clean
     declined = set(context['config'].get('exclude', {}).get('skills', []))
+    is_tool = _is_tool(context['framework_root'])
     for script, (event, matcher) in (SCRIPTS.items() if selected else []):
         if script.split('/', maxsplit=1)[0] in declined:
             continue
@@ -82,7 +99,7 @@ def adjust(context: dict[str, Any]) -> dict[str, Any]:
             entry = {'hooks': [delivered]}
             if matcher:
                 entry['matcher'] = matcher
-            hooks.setdefault(event, []).append(entry)
+            _add(hooks.setdefault(event, []), entry, is_tool)
             break
     new = json.dumps(existing, indent=2) + '\n'
     if not dst.exists() and not any(hooks.values()):

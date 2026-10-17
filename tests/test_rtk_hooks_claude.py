@@ -216,9 +216,15 @@ def _base_config(agents=("claude",), tools=None):
     return config
 
 
+@pytest.mark.parametrize("route", [
+    {},
+    {"tools": {}},
+    {"tools": {"rtk": {"hooks": []}}},
+    {"agents": ["codex"]},
+], ids=["still-opted-in", "tool-removed", "claude-not-in-hooks", "claude-deselected"])
 def test_a_scaffold_removes_the_handler_an_earlier_native_release_wired(
-        load_script, root, tmp_path, monkeypatch):
-    """rtk is propose-only for Claude, so a handler 0.194.0 wired is taken out on refresh."""
+        load_script, root, tmp_path, monkeypatch, route):
+    """rtk is propose-only for Claude, so a handler 0.194.0 wired goes on every refresh route."""
     before = _scaffold(load_script, root, tmp_path, monkeypatch, _base_config())
     before["model"] = "opus"
     before["hooks"].setdefault("Stop", []).append(
@@ -228,6 +234,7 @@ def test_a_scaffold_removes_the_handler_an_earlier_native_release_wired(
         {"matcher": "Bash", "hooks": [{"type": "command", "command": COMMAND, "timeout": 5}]})
     _write(tmp_path, wired)
     config = _base_config(tools={"rtk": {"hooks": ["claude"]}})
+    config.update(route)
 
     after = _scaffold(load_script, root, tmp_path, monkeypatch, config)
 

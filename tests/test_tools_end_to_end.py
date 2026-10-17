@@ -225,3 +225,20 @@ def test_a_hand_edited_rtk_block_is_reported_by_the_freshness_guard(fresh_with_r
     assert done.returncode == 1, done.stdout + done.stderr
     assert ".ai-badger/CLAUDE.md" in done.stdout
     assert ".ai-badger/CLAUDE.md  (content differs, regenerates differently)" in done.stdout
+
+
+def _backup_count(target: Path) -> int:
+    return sum(1 for p in target.rglob("*") if ".bak-" in p.name)
+
+
+def test_reruns_write_no_new_hook_backups(box):
+    """Framework hooks land ahead of a marked tool group, so a rerun has nothing to move."""
+    box.scaffold(ALL_HOOKS)
+    first = _backup_count(box.target)
+
+    box.scaffold(ALL_HOOKS)
+    box.scaffold(ALL_HOOKS)
+
+    assert _backup_count(box.target) == first
+    groups = json.loads((box.target / ".codex/hooks.json").read_text())["hooks"]["PreToolUse"]
+    assert MARKER in json.dumps(groups[-1]) and MARKER not in json.dumps(groups[:-1])

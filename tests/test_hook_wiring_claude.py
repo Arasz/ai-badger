@@ -537,3 +537,16 @@ def test_scaffold_wires_memory_grade_for_mcp_search_and_read(tmp_path, load_scri
         fired = [h["command"] for e in settings["hooks"]["PostToolUse"]
                  if claude_matches(e.get("matcher"), tool) for h in e["hooks"]]
         assert any("memory_grade_hook.py" in c for c in fired), tool
+
+
+def test_merge_hooks_puts_framework_groups_ahead_of_a_marked_tool_group(load_script, root):
+    """A catalog tool's marked hook stays last, so its arm has nothing to move on a rerun."""
+    hook_wiring = _load(load_script, root, "hook_wiring")
+    tool = {"matcher": "Bash", "hooks": [{"type": "command", "command":
+            "env AI_BADGER_TOOL=rtk RTK_TELEMETRY_DISABLED=1 sh -c 'rtk hook claude'"}]}
+    guard = {"matcher": "Bash", "hooks": [{"type": "command", "command": "echo guard"}]}
+    existing = {"PreToolUse": [tool]}
+
+    hook_wiring.merge_hooks(existing, {"PreToolUse": [guard]})
+
+    assert existing["PreToolUse"] == [guard, tool]

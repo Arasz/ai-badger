@@ -48,39 +48,31 @@ def _shape_error(settings: Dict[str, Any]) -> Optional[str]:
 
 def _merge(settings: Dict[str, Any], wanted: List[Dict[str, Any]],
            is_ours: Callable[[object], bool]) -> None:
-    """Keep wanted entries when they already end the event, else re-add them last.
+    """Drop every marked handler, then append the wanted ones last.
 
-    Last, so the rewriter never sits ahead of a guard; HookWiring re-appends its framework hooks
-    on every scaffold, which is what pushes a wanted entry off the end. Every other marked
-    handler is dropped.
+    Last, so the rewriter never sits ahead of a guard; HookWiring inserts its framework hooks
+    ahead of a marked group, so a rerun yields the same bytes and writes nothing.
 
     A group, event or ``hooks`` key emptied by a removal goes with it; one that was already
-    empty stays, because it was the operator's.
+    empty stays, because it was the operator's. The tool's own event keeps its key position.
     """
     hooks = settings.get("hooks", {})
     was_empty = not hooks
-    missing = list(wanted)
-    current = hooks.get(EVENT) or []
-    at_end = bool(wanted) and isinstance(current, list) and current[-len(wanted):] == wanted
     for event in list(hooks):
         kept = []
         for group in hooks[event]:
-            if at_end and event == EVENT and group in missing:
-                missing.remove(group)
-                kept.append(group)
-                continue
             handlers = group.get("hooks", [])
             remaining = [h for h in handlers if not is_ours(h.get("command"))]
             if len(remaining) == len(handlers):
                 kept.append(group)
             elif remaining:
                 kept.append(dict(group, hooks=remaining))
-        if kept or not hooks[event]:
+        if kept or not hooks[event] or (event == EVENT and wanted):
             hooks[event] = kept
         else:
             del hooks[event]
-    if missing:
-        hooks.setdefault(EVENT, []).extend(missing)
+    if wanted:
+        hooks.setdefault(EVENT, []).extend(wanted)
     if hooks or was_empty:
         settings["hooks"] = hooks
     else:
@@ -99,7 +91,7 @@ def adjust(context: Dict[str, Any]) -> Dict[str, Any]:
                  if (arm := (tool.get("agents") or {}).get("claude"))
                  and arm.get("mode") == "propose"]
     if proposals:
-        result["notes"] = " ".join([result["notes"], *proposals])
+        result["notes"] = "; ".join([result["notes"], *proposals])
     return result
 
 

@@ -48,7 +48,7 @@ why `pi/adjustments/adjust_skills.py` exists as a migration-only remover of the 
 | **Session start hook** | `SessionStart` event | `on_session_start` plugin hook | `sessionStart` event | `session_start` arms the bus timer; the `SessionStart` hooks themselves do not run |
 | **Context injection** | `UserPromptSubmit` event | `pre_llm_call` plugin hook | `userPromptSubmitted` event | `before_agent_start` carries bus mail only; the enrichment, marker and memory-context hooks do not run |
 | **Tool call hook** | `PostToolUse` / `PreToolUse` | `post_tool_call` / `pre_tool_call` | `postToolUse` / `preToolUse` | `tool_call` / `tool_result`, with the payload stamped `PreToolUse` / `PostToolUse` |
-| **Tool hook** (`config.tools.<tool>.hooks`, ADR-0039) | Marked `PreToolUse` `Bash` handler merged into `.claude/settings.json` | Proposal only: a printed note, nothing written | Owned `.github/hooks/<tool>-rewrite.json` | `<tool> init --agent pi` run in the project when install is on and the check passed |
+| **Tool hook** (`config.tools.<tool>.hooks`, ADR-0039) | A marked `PreToolUse` `Bash` handler merged into `.claude/settings.json` for a native tool; rtk is proposal only, because its rewrite escapes `permissions.ask` | Proposal only: a printed note, nothing written | Owned `.github/hooks/<tool>-rewrite.json` | `<tool> init --agent pi` run in the project when install is on and the check passed |
 | **Turn stop hook** | `Stop` event | `on_session_end` (session-scoped, not per-turn) | `agentStop` event | `turn_end` delivers bus mail as a steer |
 | **Session end hook** | `SessionEnd` event | `on_session_end` plugin hook | `sessionEnd` event | `session_shutdown` drops the bus cursor |
 | **Generated-file guard** (`generated_file_guard.py`, 0.96.0) | `PreToolUse` — denies `Edit`/`Write`/`MultiEdit`/`NotebookEdit` on a file `manifest.json` records as generated | N/A | N/A | `tool_call` — the same command, run from the project's `hooks.json` |
@@ -73,7 +73,8 @@ Linux sandbox and honours only `bash`, which is why `adjust_hooks.py` emits `bas
 Windows-only hook commands have no path into a scaffolded repo.
 
 Codex has no column above. Its tool hook is a marked entry merged into `.codex/hooks.json`
-beside the entries `adjust_hooks` writes, and a correct entry is left where it already sits.
+after the entries `adjust_hooks` writes, which inserts its own ahead of a marked entry so the
+tool's stays last.
 
 ## Instructions
 
