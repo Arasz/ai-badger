@@ -26,12 +26,12 @@ LAUNCH_SCRIPT = ".ai-badger/skills/task-decomposition/scripts/task_graph_server.
 # spawn MCP servers in the session's cwd, and Claude Code leaves ${CLAUDE_PROJECT_DIR} unexpanded
 # in `.mcp.json`, so the launch finds the project itself, with no shell and no git.
 WALK_UP_CODE = (
-    "import os,sys,signal,subprocess;from pathlib import Path;"
+    "import os,sys,shutil,signal,subprocess;from pathlib import Path;"
     f"r='{LAUNCH_SCRIPT}';"
     "c=Path.cwd();"
     "f=next((d/r for d in (c,*c.parents) if (d/r).is_file()),None);"
     "f or sys.exit('task-graph: '+r+' not found at or above '+str(c));"
-    "p=subprocess.Popen([os.environ.get('UV','uv'),'run','--script',str(f)]);signal.signal(signal.SIGTERM,lambda *a:p.terminate());sys.exit(p.wait())"
+    "u=os.environ.get('UV') or shutil.which('uv') or sys.exit('task-graph: uv not found: UV is unset and uv is not on PATH');p=subprocess.Popen([u,'run','--script',str(f)]);signal.signal(signal.SIGTERM,lambda *a:p.terminate());sys.exit(p.wait())"
 )
 WALK_UP_ARGS = ["run", "--no-project", "--python", "3", "python", "-c", WALK_UP_CODE]
 WALK_UP_LAUNCH = {"command": "uv", "args": WALK_UP_ARGS}
