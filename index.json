@@ -220,6 +220,10 @@
           "path": "features/codex/adjustments/adjust_skills.py"
         },
         {
+          "name": "adjust_tools",
+          "path": "features/codex/adjustments/adjust_tools.py"
+        },
+        {
           "name": "adjustment",
           "path": "features/codex/adjustments/adjustment.json"
         },
