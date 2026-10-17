@@ -163,3 +163,51 @@ def test_on_from_a_linked_worktree_writes_the_main_checkout(tmp_path):
 
     assert BEGIN in (main / "CLAUDE.local.md").read_text(encoding="utf-8")
     assert not (linked / "CLAUDE.local.md").exists()
+
+
+def _git_repo(path, fetch_refspec):
+    """A committed repo with an origin whose fetch refspec is present or unset."""
+    def git(*args):
+        subprocess.run(["git", *args], cwd=path, check=True, capture_output=True)
+    git("init", "-q")
+    git("config", "user.email", "t@t")
+    git("config", "user.name", "t")
+    git("commit", "-q", "--allow-empty", "-m", "init")
+    git("branch", "-M", "main")
+    git("remote", "add", "origin", "https://example.com/repo.git")
+    if not fetch_refspec:
+        git("config", "--unset", "remote.origin.fetch")
+
+
+def test_checkin_replays_the_scaffolded_git_config_health_hook(make_scaffolder, tmp_path,
+                                                               monkeypatch):
+    """End to end: a real scaffold's hooks.json and its real hook, broken repo vs healthy."""
+    from scaffold_helpers import _config
+
+    scratch = tmp_path / "gitcfg"
+    scratch.mkdir()
+    for name in ("GIT_CONFIG_GLOBAL", "GIT_CONFIG_SYSTEM"):
+        (scratch / name).write_text("", encoding="utf-8")
+        monkeypatch.setenv(name, str(scratch / name))
+    target = make_scaffolder.target
+    make_scaffolder(config=_config(agents=["claude"]), skills=["git-work"]).run(
+        generated_at="2026-10-17T00:00:00Z")
+    hooks = json.loads((target / ".ai-badger" / "hooks" / "hooks.json").read_text())
+    assert any("git_config_health_hook.py" in h["command"]
+               for e in hooks["hooks"]["SessionStart"] for h in e["hooks"])
+
+    outputs = {}
+    for healthy in (False, True):
+        repo = tmp_path / f"repo-{healthy}"
+        repo.mkdir()
+        _git_repo(repo, fetch_refspec=healthy)
+        result = subprocess.run(
+            [sys.executable, str(SCRIPT), "checkin", "--root", str(target)],
+            cwd=repo, capture_output=True, text=True, check=False,
+            env={**{k: v for k, v in os.environ.items() if k != "CLAUDE_CODE_CHILD_SESSION"},
+                 "HOME": str(tmp_path / "home")})
+        assert result.returncode == 0, result.stderr
+        outputs[healthy] = result.stdout
+
+    assert "remote.origin.fetch is unset" in outputs[False]
+    assert "remote.origin.fetch is unset" not in outputs[True]
