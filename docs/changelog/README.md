@@ -19,6 +19,7 @@ When cutting a release:
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
+| 0.194.0 | [task-graph: clear argument errors, tolerated runtime fields](0.194.0-task-graph-actionable-validation-errors.md) |
 | 0.193.0 | [limited mode for machines where hooks are disabled](0.193.0-limited-mode-without-hooks.md) |
 | 0.192.0 | [the prompt prefix stays byte-stable](0.192.0-prompt-cache-stable-prefix.md) |
 | 0.191.2 | [task-graph launch reuses the outer uv](0.191.2-task-graph-launch-reuses-outer-uv.md) |

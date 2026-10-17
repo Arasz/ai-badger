@@ -40,7 +40,8 @@ import sys
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Callable, Dict, Iterator, List, Literal, Mapping, NamedTuple, Optional, Tuple
+from typing import (Any, Callable, Dict, Iterator, List, Literal, Mapping, NamedTuple, Optional,
+                    Tuple, get_args, get_origin)
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
@@ -150,12 +151,20 @@ class EvidenceInput(ToolInput):
     recorded_at: Optional[str] = None
 
 
+#: Runtime fields an author may copy from a stored plan; accepted, ignored and warned about.
+IGNORED_AC_FIELDS = ("status", "evidence")
+_IGNORED_FIELD_NOTE = ("ignored: the server owns acceptance-criterion state; record verdicts "
+                       "with ac_check or step_complete")
+
+
 class AcceptanceCriterionDraft(ToolInput):
     """One checkable acceptance criterion inside an authored step."""
 
     id: str = Field(min_length=1)
     statement: str = Field(min_length=1)
     check: Optional[str] = None
+    status: Any = Field(default=None, description=_IGNORED_FIELD_NOTE)
+    evidence: Any = Field(default=None, description=_IGNORED_FIELD_NOTE)
 
 
 class StepDraft(ToolInput):
@@ -326,9 +335,163 @@ def _findings(exc: ValidationError) -> List[dict]:
              "msg": error["msg"]} for error in exc.errors()]
 
 
+_NoneType = type(None)
+_SCALAR_NAMES = {str: "string", int: "integer", float: "number", bool: "boolean"}
+
+
+def _unwrap_optional(annotation: Any) -> Tuple[Any, bool]:
+    """``Optional[X]`` → ``(X, True)``; anything else → ``(annotation, False)``."""
+    args = getattr(annotation, "__args__", ())
+    if _NoneType in args and get_origin(annotation) is not Literal:
+        rest = [arg for arg in args if arg is not _NoneType]
+        if len(rest) == 1:
+            return rest[0], True
+    return annotation, False
+
+
+def _is_model(annotation: Any) -> bool:
+    return isinstance(annotation, type) and issubclass(annotation, BaseModel)
+
+
+def _type_shape(annotation: Any) -> Any:
+    """A compact, human-readable rendering of one field type."""
+    inner, nullable = _unwrap_optional(annotation)
+    if _is_model(inner):
+        rendered: Any = _model_shape(inner)
+    elif get_origin(inner) is Literal:
+        rendered = " | ".join(repr(value) for value in get_args(inner))
+    elif get_origin(inner) in (list, List):
+        rendered = [_type_shape(get_args(inner)[0])]
+    elif get_origin(inner) in (dict, Dict):
+        rendered = {"<key>": _type_shape(get_args(inner)[1])}
+    elif inner is Any:
+        rendered = "any"
+    else:
+        rendered = _SCALAR_NAMES.get(inner, getattr(inner, "__name__", str(inner)))
+    if nullable and isinstance(rendered, str):
+        return f"{rendered} | null"
+    return rendered
+
+
+def _model_shape(model_cls: Any) -> dict:
+    """``{field: type}`` for a draft model, optional fields suffixed ``?``; ignored fields omitted."""
+    shape = {}
+    for name, field in model_cls.model_fields.items():
+        if model_cls is AcceptanceCriterionDraft and name in IGNORED_AC_FIELDS:
+            continue
+        key = (field.alias or name) + ("" if field.is_required() else "?")
+        shape[key] = _type_shape(field.annotation)
+    return shape
+
+
+def _format_path(parts) -> str:
+    """``("steps", 0, "acceptance_criteria", 1)`` → ``steps[0].acceptance_criteria[1]``."""
+    path = ""
+    for part in parts:
+        path += f"[{part}]" if isinstance(part, int) else (f".{part}" if path else str(part))
+    return path or "arguments"
+
+
+def _owner(root: Any, loc) -> Tuple[Any, int]:
+    """The deepest model along *loc* and how many loc parts lead to it."""
+    owner, depth, current = root, 0, root
+    for index, part in enumerate(loc):
+        current, _ = _unwrap_optional(current)
+        if _is_model(current) and isinstance(part, str) and part in current.model_fields:
+            current = current.model_fields[part].annotation
+        elif get_origin(current) in (list, List) and isinstance(part, int):
+            current = get_args(current)[0]
+        elif get_origin(current) in (dict, Dict) and isinstance(part, str):
+            current = get_args(current)[1]
+        else:
+            break
+        current, _ = _unwrap_optional(current)
+        if _is_model(current):
+            owner, depth = current, index + 1
+    return owner, depth
+
+
+def _argument_findings(root: Any, exc: ValidationError) -> List[dict]:
+    """Pydantic errors as path/problem/fix/expected_shape findings; never the received value.
+
+    Unknown properties on one object collapse into a single finding.
+    """
+    findings: List[dict] = []
+    unknown: Dict[str, dict] = {}
+    for error in exc.errors():
+        loc = tuple(error["loc"])
+        owner, depth = _owner(root, loc)
+        path = _format_path(loc[:depth])
+        field = loc[depth] if len(loc) > depth else None
+        shape = _model_shape(owner)
+        if error["type"] == "extra_forbidden":
+            if path not in unknown:
+                unknown[path] = {"path": path, "names": [], "expected_shape": shape}
+                findings.append(unknown[path])
+            unknown[path]["names"].append(str(field))
+            continue
+        if error["type"] == "missing":
+            problem = f'required property "{field}" is missing'
+            fix = f'add "{field}"; expected_shape lists every property this object takes'
+        elif isinstance(field, str):
+            problem = f'property "{field}" is invalid: {error["msg"]}'
+            wanted = owner.model_fields.get(field) if _is_model(owner) else None
+            wanted_type = _type_shape(wanted.annotation) if wanted is not None else "see expected_shape"
+            fix = f'set "{field}" to {json.dumps(wanted_type, ensure_ascii=False)}'
+        else:
+            problem = error["msg"]
+            fix = "send a value matching expected_shape"
+        findings.append({"path": path, "problem": problem, "fix": fix, "expected_shape": shape})
+    for finding in findings:
+        if "names" in finding:
+            names = ", ".join(f'"{name}"' for name in finding.pop("names"))
+            finding["problem"] = f"properties {names} are not accepted"
+            finding["fix"] = ("remove them; this object accepts only the properties in "
+                              "expected_shape (a trailing ? marks an optional one)")
+            finding["expected_shape"] = finding.pop("expected_shape")
+    return [{key: finding[key] for key in ("path", "problem", "fix", "expected_shape")}
+            for finding in findings]
+
+
+def _argument_detail(findings: List[dict]) -> str:
+    """One self-contained message: what failed where, how to fix it, the expected shape."""
+    lines = ["argument validation failed:"]
+    for finding in findings:
+        lines.append(f"- {finding['problem']} at {finding['path']}. Fix: {finding['fix']}. "
+                     f"Expected input shape: "
+                     f"{json.dumps(finding['expected_shape'], ensure_ascii=False)}")
+    return "\n".join(lines)
+
+
+def _ignored_field_warnings(steps) -> List[dict]:
+    """One warning per acceptance criterion that carried a server-owned runtime field."""
+    warnings = []
+    for step_index, draft in enumerate(steps):
+        for ac_index, criterion in enumerate(draft.acceptance_criteria):
+            supplied = [name for name in IGNORED_AC_FIELDS if name in criterion.model_fields_set]
+            if supplied:
+                warnings.append({
+                    "path": f"steps[{step_index}].acceptance_criteria[{ac_index}]",
+                    "fields": supplied,
+                    "message": (f"{', '.join(supplied)} {_IGNORED_FIELD_NOTE}; omit them "
+                                "when authoring a plan"),
+                    "expected_shape": _model_shape(AcceptanceCriterionDraft)})
+    return warnings
+
+
+def _with_warnings(payload: dict, steps) -> dict:
+    """*payload* plus a ``warnings`` key only when some draft carried an ignored field."""
+    warnings = _ignored_field_warnings(steps)
+    return {**payload, "warnings": warnings} if warnings else payload
+
+
 def _invalid_arguments(detail: str, exc: Optional[ValidationError] = None) -> ToolRefusal:
-    details = {"findings": _findings(exc)} if exc is not None else None
-    return _refuse("invalid-arguments", detail, details)
+    if exc is None:
+        return _refuse("invalid-arguments", detail)
+    findings = _findings(exc)
+    first = f"{findings[0]['msg']} (at {findings[0]['loc'] or 'the plan'})" if findings else ""
+    return _refuse("invalid-arguments", f"{detail}: {first}" if first else detail,
+                   {"findings": findings})
 
 
 def _map_transition(refused: graph.TransitionRefused) -> ToolRefusal:
@@ -591,7 +754,7 @@ def _tool_plan_create(args: PlanCreateInput) -> dict:
         if row is not None:
             current = task_plan_store.decode_plan(row["payload"])
             if model.content_hash(current) == digest:
-                return _create_payload(current, created=False)
+                return _with_warnings(_create_payload(current, created=False), args.steps)
             raise _refuse(
                 "already-exists",
                 f"plan {args.task_id!r} already exists with different content; use plan_get "
@@ -599,7 +762,7 @@ def _tool_plan_create(args: PlanCreateInput) -> dict:
                 {"current_revision": row["revision"]})
         stamped = task_plan_store.save_plan(incoming, expected_revision=None, store=store)
     _render(stamped)
-    return _create_payload(stamped, created=True)
+    return _with_warnings(_create_payload(stamped, created=True), args.steps)
 
 
 def _tool_plan_replace(args: PlanReplaceInput) -> dict:
@@ -612,7 +775,7 @@ def _tool_plan_replace(args: PlanReplaceInput) -> dict:
         current = task_plan_store.decode_plan(row["payload"])
         incoming = _build_plan(args, created_at=current.created_at, schema_=current.schema_)
         if model.content_hash(incoming) == model.content_hash(current):
-            return _replace_payload(current, replaced=False)
+            return _with_warnings(_replace_payload(current, replaced=False), args.steps)
         if row["revision"] != args.expected_revision:
             raise _conflict(args.task_id, row["revision"], args.expected_revision)
         blocking = [step_id for step_id in graph.topological_order(current)
@@ -627,7 +790,7 @@ def _tool_plan_replace(args: PlanReplaceInput) -> dict:
         stamped = task_plan_store.save_plan(incoming, expected_revision=args.expected_revision,
                                             store=store)
     _render(stamped)
-    return _replace_payload(stamped, replaced=True)
+    return _with_warnings(_replace_payload(stamped, replaced=True), args.steps)
 
 
 def _tool_plan_get(args: PlanGetInput) -> dict:
@@ -1088,8 +1251,9 @@ def invoke_tool(name: str, arguments: Mapping) -> dict:
     try:
         parsed = spec.model.model_validate(dict(arguments))
     except ValidationError as exc:
-        return _error_payload(name, "invalid-arguments", "invalid tool arguments",
-                              {"findings": _findings(exc)})
+        findings = _argument_findings(spec.model, exc)
+        return _error_payload(name, "invalid-arguments", _argument_detail(findings),
+                              {"findings": findings})
     try:
         return spec.handler(parsed)
     except ToolRefusal as refusal:

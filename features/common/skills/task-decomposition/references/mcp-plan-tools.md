@@ -48,7 +48,11 @@ Nested shapes:
   `files?` (default `[]`), `resources?` (default `[]`). Ids are lowercase
   (`^[a-z0-9][a-z0-9._-]*$`); runtime state (status, evidence, timestamps) is the server's,
   never the caller's.
-- acceptance criterion — `id`, `statement`, `check?`.
+- acceptance criterion — `id`, `statement`, `check?`. A `status` or `evidence` copied from a
+  stored plan is accepted and ignored: the criterion still starts `unchecked`, the content
+  hash does not change, and the `plan_create`/`plan_replace` reply carries
+  `warnings[]` — `{path, fields, message, expected_shape}` per criterion. Record verdicts with
+  `ac_check` or `step_complete`.
 - evidence — `kind` (`command`|`test`|`artifact`|`review`|`note`), `summary`, `ref?`,
   `recorded_at?` (defaults to server time).
 - `criterion_results` — an object mapping acceptance-criterion id to `passed`|`failed`.
@@ -154,6 +158,14 @@ Only these codes are emitted; anything else is a bug, not a shape to handle:
 `invalid-arguments`, `not-found`, `already-exists`, `conflict`, `invalid-transition`,
 `dependencies-incomplete`, `criteria-unmet`, `plan-in-progress`, `schema-version-unsupported`,
 `prerequisite-missing`, `config-error`, `store-error`.
+
+An argument that fails validation returns `invalid-arguments` with one finding per problem in
+`details.findings[]`: `path` (`steps[0].acceptance_criteria[0]`, or `arguments` for the top
+level), `problem` (unknown properties on one object are grouped: `properties "foo", "bar" are
+not accepted`), `fix`, and `expected_shape` — the failing object's fields, `?` marking optional
+ones. `detail` repeats all of it as text. The received value is never echoed back. A client that
+checks arguments against the published `inputSchema` itself (pi does) may refuse an unknown
+property before the server sees it, with that client's own message.
 
 The ones a planner meets first: `already-exists` (different content under a live `task_id` —
 revise with `plan_replace`), `conflict` (stale `expected_revision`), `plan-in-progress`
