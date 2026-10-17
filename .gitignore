@@ -38,6 +38,7 @@ mutants/
 # config_guard's safety copy before a merge or a retirement (config_guard.py); one of these
 # was committed by accident and shipped the same absolute path .mcp.json did (issue #173).
 .claude/*.bak-*
+.codex/*.bak-*
 .github/**/*.bak-*
 # mcp writer's safety copy of the ignored .mcp.json before a rewrite (mcp_tools.py)
 .mcp.json.bak-*

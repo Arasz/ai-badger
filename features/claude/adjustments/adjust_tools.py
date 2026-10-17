@@ -48,7 +48,11 @@ def _shape_error(settings: Dict[str, Any]) -> Optional[str]:
 
 def _merge(settings: Dict[str, Any], wanted: List[Dict[str, Any]],
            is_ours: Callable[[object], bool]) -> None:
-    """Keep wanted entries in place, drop every other marked handler, append what is missing.
+    """Keep wanted entries when they already end the event, else re-add them last.
+
+    Last, so the rewriter never sits ahead of a guard; HookWiring re-appends its framework hooks
+    on every scaffold, which is what pushes a wanted entry off the end. Every other marked
+    handler is dropped.
 
     A group, event or ``hooks`` key emptied by a removal goes with it; one that was already
     empty stays, because it was the operator's.
@@ -56,10 +60,12 @@ def _merge(settings: Dict[str, Any], wanted: List[Dict[str, Any]],
     hooks = settings.get("hooks", {})
     was_empty = not hooks
     missing = list(wanted)
+    current = hooks.get(EVENT) or []
+    at_end = bool(wanted) and isinstance(current, list) and current[-len(wanted):] == wanted
     for event in list(hooks):
         kept = []
         for group in hooks[event]:
-            if event == EVENT and group in missing:
+            if at_end and event == EVENT and group in missing:
                 missing.remove(group)
                 kept.append(group)
                 continue

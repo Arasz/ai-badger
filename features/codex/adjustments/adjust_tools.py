@@ -41,12 +41,18 @@ def _entry(command: str) -> dict[str, Any]:
 
 
 def _merge(hooks: dict[str, Any], wanted: list[dict[str, Any]], is_ours) -> None:
-    """Keep wanted entries in place, drop other marked handlers, append what is missing."""
+    """Keep wanted entries when they already end the event, else re-add them last.
+
+    Last, so the rewriter never sits ahead of a guard; the hooks adjustment re-appends the
+    framework hooks on every scaffold, which pushes a wanted entry off the end.
+    """
     missing = list(wanted)
+    current = hooks.get(EVENT) or []
+    at_end = bool(wanted) and current[-len(wanted):] == wanted
     for event, groups in list(hooks.items()):
         clean = []
         for group in groups:
-            if event == EVENT and group in missing:
+            if at_end and event == EVENT and group in missing:
                 missing.remove(group)
                 clean.append(group)
                 continue
