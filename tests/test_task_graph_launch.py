@@ -155,6 +155,56 @@ def test_the_launch_runs_when_uv_is_not_on_path(tmp_path, monkeypatch):
     _assert_ran_stub(done, script, start)
 
 
+def _wrapper_env(tmp_path: Path, uv_path: str | None) -> dict:
+    """An env with no uv on PATH and `UV` set to `uv_path` (or absent)."""
+    empty = tmp_path / "empty-bin"
+    empty.mkdir()
+    env = {k: v for k, v in os.environ.items() if k != "UV"}
+    env["PATH"] = str(empty)
+    if uv_path:
+        env["UV"] = uv_path
+    return env
+
+
+def _stub_uv(tmp_path: Path) -> Path:
+    """An executable `uv` stand-in that prints its argv[1:] and exits 0."""
+    stub = tmp_path / "stub-bin" / "uv"
+    stub.parent.mkdir()
+    stub.write_text(f"#!{sys.executable}\nimport sys\nprint('STUB-UV', *sys.argv[1:])\n",
+                    encoding="utf-8")
+    stub.chmod(0o755)
+    return stub
+
+
+@pytest.mark.skipif(os.name == "nt", reason="the stub uv is a POSIX shebang script")
+def test_the_inner_launch_reuses_the_uv_that_started_it_without_a_path_lookup(tmp_path):
+    """With `UV` naming the outer uv and no uv on PATH, the inner launch runs that exact uv."""
+    proj = tmp_path / "proj"
+    _project(proj)
+    stub = _stub_uv(tmp_path)
+    _, args = _launch(ROOT / ".github/mcp.json")
+
+    done = subprocess.run([sys.executable, "-c", args[-1]], cwd=proj, capture_output=True,
+                          text=True, timeout=60, check=False, env=_wrapper_env(tmp_path, str(stub)))
+
+    assert done.returncode == 0, done.stderr
+    assert done.stdout.startswith("STUB-UV run --script "), done.stdout
+
+
+def test_the_inner_launch_never_falls_back_to_a_bare_uv_name(tmp_path):
+    """With no `UV` and no uv on PATH, the launch fails with a message, not a FileNotFoundError."""
+    proj = tmp_path / "proj"
+    _project(proj)
+    _, args = _launch(ROOT / ".github/mcp.json")
+
+    done = subprocess.run([sys.executable, "-c", args[-1]], cwd=proj, capture_output=True,
+                          text=True, timeout=60, check=False, env=_wrapper_env(tmp_path, None))
+
+    assert done.returncode != 0
+    assert "FileNotFoundError" not in done.stderr, done.stderr
+    assert "uv" in done.stderr and "not found" in done.stderr, done.stderr
+
+
 @pytest.mark.skipif(os.name == "nt", reason="POSIX signals; Windows teardown is probed in CI separately")
 def test_sigterm_to_the_launch_stops_the_server_while_stdin_stays_open(tmp_path, monkeypatch):
     """Terminating the launch must take its server child down, not orphan it."""

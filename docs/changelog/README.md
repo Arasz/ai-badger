@@ -19,6 +19,7 @@ When cutting a release:
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
+| 0.191.2 | [task-graph launch reuses the outer uv](0.191.2-task-graph-launch-reuses-outer-uv.md) |
 | 0.191.1 | [pi test harness and two workflow actions refreshed](0.191.1-pi-harness-and-action-refresh.md) |
 | 0.191.0 | [0.191.0: Compact agent instruction files](0.191.0-compact-agent-instruction-files.md) |
 | 0.190.0 | [0.190.0: Codex harness support](0.190.0-codex-harness-support.md) |
