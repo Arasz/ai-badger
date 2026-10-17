@@ -1,6 +1,6 @@
 {
   "$schema": "./schemas/index.schema.json",
-  "frameworkVersion": "0.191.2",
+  "frameworkVersion": "0.192.0",
   "stacks": {
     "ai-raccoon": {
       "skills": [
@@ -135,6 +135,12 @@
         {
           "name": "auto-wm",
           "path": "features/claude/skills/auto-wm"
+        }
+      ],
+      "instructions": [
+        {
+          "name": "claude.instructions",
+          "path": "features/claude/instructions/claude.instructions.md"
         }
       ],
       "templates": [

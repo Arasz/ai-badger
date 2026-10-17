@@ -6,7 +6,7 @@ Agent-instruction framework distributed through a Claude Code plugin and native 
 
 > Domain: Developer tooling: agent instruction catalogs and repo scaffolding.
 > Stacks: python, js, github, claude, hermes, pi, ts, node, changelog, codex
-> Scaffolded by ai-badger 0.191.2. Source of truth for this file: `.ai-badger/AGENTS.md`.
+> Scaffolded by ai-badger 0.192.0. Source of truth for this file: `.ai-badger/AGENTS.md`.
 
 ## Commands
 
@@ -22,6 +22,7 @@ Before editing matching files, read the applicable scoped instruction file:
 - `**/*.py` → `.ai-badger/instructions/python.instructions.md`
 - `**/*.js,**/*.mjs,**/*.cjs` → `.ai-badger/instructions/javascript.instructions.md`
 - `**/.github/workflows/*.yml,**/.github/workflows/*.yaml` → `.ai-badger/instructions/github-actions.instructions.md`
+- `**/CLAUDE.md,.claude/**` → `.ai-badger/instructions/claude.instructions.md`
 - `skills/**/SKILL.md,**/*.hermes.md,**/HERMES.md,.hermes/**` → `.ai-badger/instructions/hermes.instructions.md`
 - `**/AGENTS.override.md,**/CLAUDE.md,.pi/**` → `.ai-badger/instructions/pi.instructions.md`
 - `**/*.ts,**/*.tsx,**/tsconfig.json` → `.ai-badger/instructions/typescript.instructions.md`

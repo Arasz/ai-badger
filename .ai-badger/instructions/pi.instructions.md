@@ -51,6 +51,12 @@ Measured against pi 0.99.1 for the MCP bullet and pi 0.84.3 elsewhere. Re-measur
   `session_shutdown`, `Stop` → `agent_settled`.
 - Providers: openrouter, anthropic, deepseek, github-copilot and more. Configure with
   `pi auth login --provider <name>`.
+- Prompt caching (measured on pi 1.3.0): pi places Anthropic `cache_control` breakpoints itself —
+  on the system prompt, the last tool and the last conversation message — for the `anthropic`
+  provider and for OpenRouter `anthropic/*` models, so no extension is needed. The default TTL
+  is 5 minutes; `PI_CACHE_RETENTION=long` asks for 1 hour where the model supports it (writes
+  cost 2x base input instead of 1.25x, so it pays only when turns or delegations idle past 5
+  minutes), and `none` turns caching off.
 - Detection: ai-badger detects pi by `.pi` in the repo or `~/.pi/agent` in user scope.
 - Token tracking: pi exposes no per-session usage API, but the session JSONL does carry it —
   `~/.pi/agent/sessions/--<path>--/<timestamp>_<uuid>.jsonl`, `usage` on assistant entries (pi
