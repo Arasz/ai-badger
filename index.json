@@ -171,6 +171,10 @@
           "path": "features/claude/adjustments/adjust_task.py"
         },
         {
+          "name": "adjust_tools",
+          "path": "features/claude/adjustments/adjust_tools.py"
+        },
+        {
           "name": "adjustment",
           "path": "features/claude/adjustments/adjustment.json"
         },
