@@ -25,6 +25,12 @@
       "feature": "agents",
       "description": "Deliver ai-badger personas to <project>/.pi/agents/*.md for the subagent extension",
       "script": "adjust_agents.py"
+    },
+    {
+      "feature": "tools",
+      "description": "Run `<tool> init --agent pi` in the project when install is on and the tool's check passed; uninstall on opt-out",
+      "script": "adjust_tools.py",
+      "cleanupOnDeselection": true
     }
   ]
 }
