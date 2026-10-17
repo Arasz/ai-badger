@@ -1,0 +1,131 @@
+"""Codex tool hook composition and opt-out contracts."""
+import json
+from pathlib import Path
+
+import pytest
+
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+def context(target, enabled=True):
+    return {'target': target, 'target_dir': target / '.ai-badger',
+            'framework_root': ROOT, 'config': {'agents': ['codex']},
+            'tools': {'rtk': {'agents': {'codex': {
+                'mode': 'native', 'arg': 'codex', 'command': 'env AI_BADGER_TOOL=rtk RTK_TELEMETRY_DISABLED=1 sh -c true'
+            }}}} if enabled else {}}
+
+
+def handlers(path):
+    return json.loads(path.read_text())['hooks']['PreToolUse']
+
+
+@pytest.mark.parametrize('order', [('hooks', 'tools', 'hooks'), ('tools', 'hooks', 'tools')])
+def test_marked_hook_composes_in_both_orders(load_script, tmp_path, order):
+    arms = {name: load_script(f'features/codex/adjustments/adjust_{name}.py')
+            for name in ('hooks', 'tools')}
+    dst = tmp_path / '.codex/hooks.json'
+    dst.parent.mkdir()
+    user = {'type': 'command', 'command': 'echo operator'}
+    dst.write_text(json.dumps({'hooks': {'PreToolUse': [{'matcher': 'Bash', 'hooks': [user]}]}}))
+    for name in order:
+        arms[name].adjust(context(tmp_path))
+    groups = handlers(dst)
+    commands = [h['command'] for group in groups for h in group['hooks']]
+    assert commands.count(user['command']) == 1
+    assert sum('AI_BADGER_TOOL=rtk' in command for command in commands) == 1
+    rtk = next(group for group in groups if any('AI_BADGER_TOOL=rtk' in h['command'] for h in group['hooks']))
+    assert rtk == {'matcher': 'Bash', 'hooks': [{
+        'type': 'command', 'command': context(tmp_path)['tools']['rtk']['agents']['codex']['command'],
+        'timeout': 5}]}
+    before = dst.read_bytes()
+    arms['tools'].adjust(context(tmp_path))
+    assert dst.read_bytes() == before
+    arms['tools'].adjust(context(tmp_path, enabled=False))
+    assert handlers(dst) == [{'matcher': 'Bash', 'hooks': [user]}]
+
+
+@pytest.mark.parametrize('content', ['{broken', '{"hooks": []}', '{"hooks": {"PreToolUse": [1]}}'])
+def test_malformed_hooks_preserved(load_script, tmp_path, content):
+    arm = load_script('features/codex/adjustments/adjust_tools.py')
+    dst = tmp_path / '.codex/hooks.json'
+    dst.parent.mkdir()
+    dst.write_text(content)
+    assert not arm.adjust(context(tmp_path))['applied']
+    assert dst.read_text() == content
+
+
+def test_symlinked_codex_preserved(load_script, tmp_path):
+    arm = load_script('features/codex/adjustments/adjust_tools.py')
+    elsewhere = tmp_path / 'elsewhere'
+    elsewhere.mkdir()
+    (tmp_path / '.codex').symlink_to(elsewhere, target_is_directory=True)
+    assert not arm.adjust(context(tmp_path))['applied']
+    assert list(elsewhere.iterdir()) == []
+
+
+def test_run_adjustments_cleans_only_marked_entry(load_script, root, tmp_path, monkeypatch):
+    import badger_lib as bl
+    from scaffold_helpers import _config, build_scaffolder
+    index = load_script('tooling/index_build.py').build_index(root)
+    monkeypatch.setattr(bl, 'read_index', lambda _: index)
+    module = load_script('features/common/skills/welcome-ai-badger/scripts/scaffold.py')
+    config = _config(stacks=['python'], agents=['codex'])
+    config['tools'] = {'rtk': {'hooks': ['codex']}}
+    build_scaffolder(module, root=root, target=tmp_path, config=config).run()
+    dst = tmp_path / '.codex/hooks.json'
+    assert 'AI_BADGER_TOOL=rtk' in dst.read_text()
+    doc = tmp_path / 'AGENTS.md'
+    assert '@RTK.md' not in doc.read_text()
+    assert not (tmp_path / 'RTK.md').exists()
+    existing = json.loads(dst.read_text())
+    existing['hooks'].setdefault('Stop', []).append({'hooks': [{'command': 'operator'}]})
+    dst.write_text(json.dumps(existing))
+    config['tools'] = {}
+    config['agents'] = ['claude']
+    build_scaffolder(module, root=root, target=tmp_path, config=config).run()
+    assert 'AI_BADGER_TOOL=rtk' not in dst.read_text()
+    assert json.loads(dst.read_text())['hooks']['Stop'] == [{'hooks': [{'command': 'operator'}]}]
+
+
+def test_codex_notice_and_no_config_change(load_script, tmp_path):
+    arm = load_script('features/codex/adjustments/adjust_tools.py')
+    config = tmp_path / '.codex/config.toml'
+    config.parent.mkdir()
+    config.write_text('model = "operator"\n')
+    note = arm.adjust(context(tmp_path))['notes']
+    for fragment in ('trust', '/hooks', 'allow', 'classifier', 'writable_roots'):
+        assert fragment in note
+    assert config.read_text() == 'model = "operator"\n'
+
+
+def test_every_tool_with_a_codex_arm_is_wired(load_script, tmp_path):
+    arm = load_script('features/codex/adjustments/adjust_tools.py')
+    ctx = context(tmp_path)
+    ctx['tools']['other'] = {'agents': {'codex': {
+        'mode': 'native', 'arg': 'codex', 'command': 'env AI_BADGER_TOOL=other sh -c true'}}}
+    ctx['tools']['hermes-only'] = {'agents': {'hermes': {'mode': 'propose', 'arg': 'hermes'}}}
+    assert arm.adjust(ctx)['applied']
+    commands = [h['command'] for group in handlers(tmp_path / '.codex/hooks.json')
+                for h in group['hooks']]
+    assert commands == [ctx['tools']['rtk']['agents']['codex']['command'],
+                        'env AI_BADGER_TOOL=other sh -c true']
+
+
+def test_no_tools_and_no_file_writes_nothing(load_script, tmp_path):
+    arm = load_script('features/codex/adjustments/adjust_tools.py')
+    assert not arm.adjust(context(tmp_path, enabled=False))['applied']
+    assert not (tmp_path / '.codex').exists()
+
+
+def test_wired_entry_stays_in_place_ahead_of_later_hooks(load_script, tmp_path):
+    arm = load_script('features/codex/adjustments/adjust_tools.py')
+    arm.adjust(context(tmp_path))
+    dst = tmp_path / '.codex/hooks.json'
+    doc = json.loads(dst.read_text())
+    doc['hooks']['PreToolUse'].append({'matcher': '^Bash$', 'hooks': [{'command': 'guard'}]})
+    dst.write_text(json.dumps(doc, indent=2) + '\n')
+    before = dst.read_bytes()
+    arm.adjust(context(tmp_path))
+    assert dst.read_bytes() == before
+    assert sorted(p.name for p in dst.parent.iterdir()) == ['hooks.json']

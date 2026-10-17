@@ -1,0 +1,33 @@
+### run1: rtk init --copilot --auto-patch
+[ok] Added Copilot instructions to ./.github/copilot-instructions.md
+
+GitHub Copilot integration installed (project-scoped).
+
+  Hook config:    ./.github/hooks/rtk-rewrite.json
+  Instructions:   ./.github/copilot-instructions.md
+
+  Works with VS Code Copilot Chat (transparent rewrite)
+  and Copilot CLI (deny-with-suggestion).
+
+  Restart your IDE or Copilot CLI session to activate.
+
+EXIT1=0
+### run2
+EXIT2=0
+### idempotency diff (home, repo):
+### files home:
+### files repo:
+./.github/copilot-instructions.md bc82615c680a
+./.github/hooks/rtk-rewrite.json 36c744d41b68
+./README.md eb8044185c57
+### uninstall: rtk init --copilot --auto-patch --uninstall
+RTK uninstalled (GitHub Copilot):
+  - Hook config: ./.github/hooks/rtk-rewrite.json
+  - copilot-instructions.md: removed rtk-instructions block
+
+Restart your IDE or Copilot CLI session to apply changes.
+EXITU=0
+### after-uninstall home:
+### after-uninstall repo:
+./.github/copilot-instructions.md adc83b19e793
+./README.md eb8044185c57

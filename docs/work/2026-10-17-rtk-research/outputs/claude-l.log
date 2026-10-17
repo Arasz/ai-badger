@@ -1,0 +1,30 @@
+### run1: rtk init --auto-patch
+[ok] Added rtk instructions to CLAUDE.md
+   Claude Code will use rtk in this project
+  filters:   .rtk/filters.toml (template, edit to add project filters)
+  hooks:     registered globally
+  proxy:     daemon running but nothing routed to it — `rtk init -g`
+
+EXIT1=0
+### run2
+EXIT2=0
+### idempotency diff (home, repo):
+1c1
+< ./Library/Application Support/rtk/history.db a174cb2b798c
+---
+> ./Library/Application Support/rtk/history.db 6095ce73bcdb
+### files home:
+./Library/Application Support/rtk/history.db a174cb2b798c
+### files repo:
+./.rtk/filters.toml 29a257d4a78b
+./CLAUDE.md 82d73f67ef3e
+./README.md eb8044185c57
+### uninstall: rtk init --auto-patch --uninstall
+rtk: Uninstall only works with --global flag. For local projects, manually remove RTK from CLAUDE.md
+EXITU=1
+### after-uninstall home:
+./Library/Application Support/rtk/history.db 6095ce73bcdb
+### after-uninstall repo:
+./.rtk/filters.toml 29a257d4a78b
+./CLAUDE.md 82d73f67ef3e
+./README.md eb8044185c57

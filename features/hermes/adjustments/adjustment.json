@@ -15,6 +15,11 @@
       "feature": "mcp",
       "description": "Propose the ~/.hermes/config.yaml mcp_servers snippet — Hermes has no project route, so ai-badger never writes it",
       "script": "adjust_mcp.py"
+    },
+    {
+      "feature": "tools",
+      "description": "Propose the user-wide `<tool> init -g --agent hermes` command; never run or write it",
+      "script": "adjust_tools.py"
     }
   ]
 }
