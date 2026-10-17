@@ -772,6 +772,10 @@
           "path": "features/copilot/adjustments/adjust_skills.py"
         },
         {
+          "name": "adjust_tools",
+          "path": "features/copilot/adjustments/adjust_tools.py"
+        },
+        {
           "name": "adjustment",
           "path": "features/copilot/adjustments/adjustment.json"
         }
@@ -942,6 +946,10 @@
         {
           "name": "adjust_task",
           "path": "features/hermes/adjustments/adjust_task.py"
+        },
+        {
+          "name": "adjust_tools",
+          "path": "features/hermes/adjustments/adjust_tools.py"
         },
         {
           "name": "adjustment",
