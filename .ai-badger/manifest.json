@@ -1,7 +1,7 @@
 {
   "$schema": "../schemas/manifest.schema.json",
   "frameworkVersion": "0.193.0",
-  "frameworkCommit": "b2c6fdcc9c3cc61d393455b518d96846b8c958de",
+  "frameworkCommit": "71ec76a80eb99def4dedf7bc6023c1531d5246c0",
   "frameworkDirty": true,
   "frameworkRoot": ".",
   "generatedAt": null,
@@ -29,7 +29,7 @@
     {
       "path": ".gitignore",
       "destination": ".gitignore",
-      "frameworkVersion": "0.192.0"
+      "frameworkVersion": "0.150.0"
     },
     {
       "path": ".mcp.json",
@@ -1551,14 +1551,14 @@
       "source": "features/common/skills/welcome-ai-badger",
       "target": ".ai-badger/skills/welcome-ai-badger",
       "frameworkVersion": "0.193.0",
-      "hash": "c82b6b39d03d61ab51c634db78596939461df45d3db4349000ff459d9eafe434",
+      "hash": "f8bc9f755b6c985ecd057fa53a8bb6989ad8a9ae048124b4495d97c82af8f496",
       "dirMeta": {
-        "file_count": 27,
+        "file_count": 28,
         "dir_count": 2
       },
-      "sourceHash": "c82b6b39d03d61ab51c634db78596939461df45d3db4349000ff459d9eafe434",
+      "sourceHash": "f8bc9f755b6c985ecd057fa53a8bb6989ad8a9ae048124b4495d97c82af8f496",
       "sourceMeta": {
-        "file_count": 27,
+        "file_count": 28,
         "dir_count": 2
       },
       "projectOwned": [
