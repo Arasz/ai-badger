@@ -34,8 +34,22 @@ def test_first_scaffold_writes_the_managed_block(make_scaffolder):
         ".ai-badger/task-tracking/tracking.db\n"
         ".ai-badger/task-tracking/*.db-wal\n"
         ".ai-badger/task-tracking/*.db-shm\n"
-        ".ai-badger.bckp/"
+        ".ai-badger.bckp/\n"
+        "CLAUDE.local.md"
     )
+
+
+def test_scaffolded_repo_ignores_the_per_machine_claude_local_md(make_scaffolder):
+    """Limited mode writes CLAUDE.local.md per machine; git must never offer it for commit."""
+    import subprocess
+    target = make_scaffolder.target
+    subprocess.run(["git", "init", "-q", str(target)], check=True)
+
+    make_scaffolder(skills=[]).run(generated_at="2026-07-19T00:00:00Z")
+
+    ignored = subprocess.run(["git", "-C", str(target), "check-ignore", "-q", "CLAUDE.local.md"],
+                             check=False)
+    assert ignored.returncode == 0
 
 
 def test_user_entries_outside_the_block_survive_the_merge(make_scaffolder):
@@ -78,7 +92,8 @@ def test_rescaffold_is_idempotent_and_replaces_a_stale_block_in_place(make_scaff
         ".ai-badger/task-tracking/tracking.db\n"
         ".ai-badger/task-tracking/*.db-wal\n"
         ".ai-badger/task-tracking/*.db-shm\n"
-        ".ai-badger.bckp/"
+        ".ai-badger.bckp/\n"
+        "CLAUDE.local.md"
     )
     assert text.startswith(USER_ENTRIES)
 

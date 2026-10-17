@@ -56,6 +56,7 @@ features/pi/node_modules/
 .ai-badger/task-tracking/*.db-wal
 .ai-badger/task-tracking/*.db-shm
 .ai-badger.bckp/
+CLAUDE.local.md
 # END ai-badger managed block
 ai-badger.db
 docs/work/*-owner-gate.html
