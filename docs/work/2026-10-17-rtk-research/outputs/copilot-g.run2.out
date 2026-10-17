@@ -1,0 +1,10 @@
+[ok] Copilot user-level instructions already up to date in /tmp/rtkhome-copilot-g/.copilot/copilot-instructions.md
+
+GitHub Copilot global integration installed (user-scoped).
+
+  Hook config:    /tmp/rtkhome-copilot-g/.copilot/hooks/rtk-rewrite.json
+  Instructions:   /tmp/rtkhome-copilot-g/.copilot/copilot-instructions.md
+
+  Applies to all Copilot CLI sessions on this machine.
+  Restart your Copilot CLI session to activate.
+

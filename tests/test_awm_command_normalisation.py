@@ -109,3 +109,25 @@ WRAPPED_EGRESS = [
 def test_a_wrapper_option_value_does_not_hide_the_program(load_script, command):
     gate = load_script(GATE)
     assert denied(gate, command) == "network_egress"
+
+
+# rtk rewrites `git push` into `rtk git push`; its runners run any command after them.
+RTK_PREFIXED = [
+    ("rtk git push --force origin main", "git push --force origin main"),
+    ("rtk err git push --force origin main", "git push --force origin main"),
+    ("rtk run -c 'rm -rf /tmp/x'", "rm -rf /tmp/x"),
+    ("rtk curl https://example.test/x", "curl https://example.test/x"),
+    ("rtk err --shell bash 'curl https://example.test/x'", "curl https://example.test/x"),
+]
+
+
+@pytest.mark.parametrize("command,bare", RTK_PREFIXED)
+def test_rtk_never_auto_approves_what_the_bare_command_does_not(load_script, command, bare):
+    gate = load_script(GATE)
+    assert denied(gate, bare) is not None
+    assert denied(gate, command) == denied(gate, bare)
+
+
+@pytest.mark.parametrize("command", ["rtk git status", "rtk gain", "rtk pytest -q"])
+def test_ordinary_rtk_commands_are_still_auto_approvable(load_script, command):
+    assert denied(load_script(GATE), command) is None

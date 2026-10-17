@@ -1,0 +1,8 @@
+
+RTK configured for Hermes.
+
+  Plugin: /tmp/rtkhome-hermes-l/.hermes/plugins/rtk-rewrite
+  Config: /tmp/rtkhome-hermes-l/.hermes/config.yaml
+  Hermes will now rewrite terminal commands through rtk.
+  Restart Hermes. Test with: git status
+

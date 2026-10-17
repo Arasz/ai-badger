@@ -1,6 +1,6 @@
 {
   "$schema": "./schemas/index.schema.json",
-  "frameworkVersion": "0.193.0",
+  "frameworkVersion": "0.194.0",
   "stacks": {
     "ai-raccoon": {
       "skills": [
@@ -171,6 +171,10 @@
           "path": "features/claude/adjustments/adjust_task.py"
         },
         {
+          "name": "adjust_tools",
+          "path": "features/claude/adjustments/adjust_tools.py"
+        },
+        {
           "name": "adjustment",
           "path": "features/claude/adjustments/adjustment.json"
         },
@@ -218,6 +222,10 @@
         {
           "name": "adjust_skills",
           "path": "features/codex/adjustments/adjust_skills.py"
+        },
+        {
+          "name": "adjust_tools",
+          "path": "features/codex/adjustments/adjust_tools.py"
         },
         {
           "name": "adjustment",
@@ -735,6 +743,12 @@
           "name": "task-graph",
           "path": "features/common/mcp/task-graph"
         }
+      ],
+      "tools": [
+        {
+          "name": "rtk",
+          "path": "features/common/tools/rtk"
+        }
       ]
     },
     "copilot": {
@@ -764,6 +778,10 @@
         {
           "name": "adjust_skills",
           "path": "features/copilot/adjustments/adjust_skills.py"
+        },
+        {
+          "name": "adjust_tools",
+          "path": "features/copilot/adjustments/adjust_tools.py"
         },
         {
           "name": "adjustment",
@@ -938,6 +956,10 @@
           "path": "features/hermes/adjustments/adjust_task.py"
         },
         {
+          "name": "adjust_tools",
+          "path": "features/hermes/adjustments/adjust_tools.py"
+        },
+        {
           "name": "adjustment",
           "path": "features/hermes/adjustments/adjustment.json"
         },
@@ -1068,6 +1090,10 @@
         {
           "name": "adjust_task",
           "path": "features/pi/adjustments/adjust_task.py"
+        },
+        {
+          "name": "adjust_tools",
+          "path": "features/pi/adjustments/adjust_tools.py"
         },
         {
           "name": "adjustment",

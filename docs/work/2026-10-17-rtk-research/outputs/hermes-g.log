@@ -1,0 +1,28 @@
+### run1: rtk init -g --agent hermes --auto-patch
+
+RTK configured for Hermes.
+
+  Plugin: /tmp/rtkhome-hermes-g/.hermes/plugins/rtk-rewrite
+  Config: /tmp/rtkhome-hermes-g/.hermes/config.yaml
+  Hermes will now rewrite terminal commands through rtk.
+  Restart Hermes. Test with: git status
+
+EXIT1=0
+### run2
+EXIT2=0
+### idempotency diff (home, repo):
+### files home:
+./.hermes/config.yaml b21ca64ca404
+./.hermes/plugins/rtk-rewrite/__init__.py 5698ca72f7bc
+./.hermes/plugins/rtk-rewrite/plugin.yaml bd34e031665b
+### files repo:
+./README.md eb8044185c57
+### uninstall: rtk init -g --agent hermes --auto-patch --uninstall
+RTK uninstalled for Hermes CLI:
+  - Hermes plugin: /tmp/rtkhome-hermes-g/.hermes/plugins/rtk-rewrite
+  - Hermes config: removed RTK plugin entry
+EXITU=0
+### after-uninstall home:
+./.hermes/config.yaml da27f0043b84
+### after-uninstall repo:
+./README.md eb8044185c57
