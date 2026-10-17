@@ -71,7 +71,11 @@ def test_scaffold_records_generated_file_and_cleans_on_deselection(load_script, 
     hooks = tmp_path / '.github/hooks'
     build_scaffolder(module, root=root, target=tmp_path, config=config).run()
     instructions = tmp_path / '.github/copilot-instructions.md'
-    without = {p.name: p.read_bytes() for p in (hooks / 'ai-badger-hooks.json', instructions)}
+    # Enabling a tool adds exactly its {{TOOLS_INSTRUCTIONS}} block (s5b) and nothing else.
+    block = (root / 'features/common/tools/rtk/tool.md').read_text().strip() + '\n\n'
+    assert instructions.read_text().count(block) == 1
+    without = {'ai-badger-hooks.json': (hooks / 'ai-badger-hooks.json').read_bytes(),
+               'copilot-instructions.md': instructions.read_text().replace(block, '').encode()}
     dst = hooks / 'rtk-rewrite.json'
     assert 'AI_BADGER_TOOL=rtk' in dst.read_text()
     manifest = json.loads((tmp_path / '.ai-badger/manifest.json').read_text())
