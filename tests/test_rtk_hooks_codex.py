@@ -118,14 +118,28 @@ def test_no_tools_and_no_file_writes_nothing(load_script, tmp_path):
     assert not (tmp_path / '.codex').exists()
 
 
-def test_wired_entry_stays_in_place_ahead_of_later_hooks(load_script, tmp_path):
+def test_wired_entry_already_last_is_left_untouched(load_script, tmp_path):
     arm = load_script('features/codex/adjustments/adjust_tools.py')
     arm.adjust(context(tmp_path))
     dst = tmp_path / '.codex/hooks.json'
-    doc = json.loads(dst.read_text())
-    doc['hooks']['PreToolUse'].append({'matcher': '^Bash$', 'hooks': [{'command': 'guard'}]})
-    dst.write_text(json.dumps(doc, indent=2) + '\n')
     before = dst.read_bytes()
     arm.adjust(context(tmp_path))
     assert dst.read_bytes() == before
     assert sorted(p.name for p in dst.parent.iterdir()) == ['hooks.json']
+
+
+def test_the_marked_group_is_moved_last_after_a_framework_group_is_appended(load_script, tmp_path):
+    arm = load_script('features/codex/adjustments/adjust_tools.py')
+    arm.adjust(context(tmp_path))
+    path = tmp_path / '.codex/hooks.json'
+    data = json.loads(path.read_text())
+    guard = {'matcher': 'Bash', 'hooks': [{'type': 'command', 'command': 'echo guard'}]}
+    data['hooks']['PreToolUse'].append(guard)
+    path.write_text(json.dumps(data))
+
+    arm.adjust(context(tmp_path))
+
+    groups = json.loads(path.read_text())['hooks']['PreToolUse']
+    assert groups[0] == guard
+    assert 'AI_BADGER_TOOL=rtk' in groups[-1]['hooks'][0]['command']
+    assert len(groups) == 2

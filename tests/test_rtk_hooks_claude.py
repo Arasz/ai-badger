@@ -66,10 +66,23 @@ def test_one_marked_bash_handler_is_added_beside_user_keys_and_hooks(arm, tmp_pa
     assert result["applied"] is True
     assert result["files"] == []
     assert data["model"] == "opus"
-    # First, not last: HookWiring re-appends framework hooks on every scaffold, so a handler
-    # added last would drift ahead of them on the next run.
-    assert data["hooks"]["PreToolUse"][-1] == user_hook
+    assert data["hooks"]["PreToolUse"][0] == user_hook
     assert _marked(data) == [("Bash", {"type": "command", "command": COMMAND, "timeout": 5})]
+
+
+def test_the_marked_group_is_moved_last_after_a_framework_group_is_appended(arm, tmp_path):
+    arm.adjust(_context(tmp_path))
+    data = json.loads(_settings(tmp_path).read_text())
+    framework = {"matcher": "Bash", "hooks": [{"type": "command", "command": "echo guard"}]}
+    data["hooks"]["PreToolUse"].append(framework)
+    _write(tmp_path, data)
+
+    arm.adjust(_context(tmp_path))
+
+    groups = json.loads(_settings(tmp_path).read_text())["hooks"]["PreToolUse"]
+    assert groups[0] == framework
+    assert [h["command"] for h in groups[-1]["hooks"]] == [COMMAND]
+    assert len(_marked(json.loads(_settings(tmp_path).read_text()))) == 1
 
 
 def test_a_rerun_changes_no_byte_and_leaves_no_backup(arm, tmp_path):
@@ -83,17 +96,14 @@ def test_a_rerun_changes_no_byte_and_leaves_no_backup(arm, tmp_path):
     assert _backups(tmp_path) == backups
 
 
-def test_a_correct_handler_stays_in_place_ahead_of_later_hooks(arm, tmp_path):
-    later = {"matcher": "Bash", "hooks": [{"type": "command", "command": "echo later"}]}
+def test_a_handler_already_last_is_left_untouched(arm, tmp_path):
     arm.adjust(_context(tmp_path))
-    data = json.loads(_settings(tmp_path).read_text())
-    data["hooks"]["PreToolUse"].append(later)
-    _write(tmp_path, data)
     before = _settings(tmp_path).read_bytes()
 
     arm.adjust(_context(tmp_path))
 
     assert _settings(tmp_path).read_bytes() == before
+    assert _backups(tmp_path) == []
 
 
 def test_a_stale_marked_command_is_replaced_not_duplicated(arm, tmp_path):

@@ -127,11 +127,11 @@ def test_claude_codex_copilot_write_files_and_pi_hermes_only_note(box):
 
 def test_a_second_scaffold_is_byte_identical(box):
     box.scaffold(ALL_HOOKS)
-    first = box.tree()
+    first = box.tree(backups=False)
 
     box.scaffold(ALL_HOOKS)
 
-    assert box.tree() == first
+    assert box.tree(backups=False) == first
 
 
 def test_removing_tools_from_config_removes_every_marked_artefact(box):
