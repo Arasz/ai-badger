@@ -1,0 +1,23 @@
+### run1: rtk init --agent pi --auto-patch
+RTK Pi extension installed:
+  Extension: .pi/extensions/rtk.ts
+
+Pi will load the extension automatically on next start.
+Verify: pi -e .pi/extensions/rtk.ts --no-session
+EXIT1=0
+### run2
+EXIT2=0
+### idempotency diff (home, repo):
+### files home:
+### files repo:
+./.pi/extensions/rtk.ts 93a105c13bc9
+./README.md eb8044185c57
+### uninstall: rtk init --agent pi --auto-patch --uninstall
+RTK uninstalled (Pi):
+  - Pi extension: .pi/extensions/rtk.ts
+
+Restart pi to apply changes.
+EXITU=0
+### after-uninstall home:
+### after-uninstall repo:
+./README.md eb8044185c57

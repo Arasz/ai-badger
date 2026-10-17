@@ -1,0 +1,31 @@
+### run1: rtk init -g --copilot --auto-patch
+[ok] Added Copilot user-level instructions to /tmp/rtkhome-copilot-g/.copilot/copilot-instructions.md
+
+GitHub Copilot global integration installed (user-scoped).
+
+  Hook config:    /tmp/rtkhome-copilot-g/.copilot/hooks/rtk-rewrite.json
+  Instructions:   /tmp/rtkhome-copilot-g/.copilot/copilot-instructions.md
+
+  Applies to all Copilot CLI sessions on this machine.
+  Restart your Copilot CLI session to activate.
+
+EXIT1=0
+### run2
+EXIT2=0
+### idempotency diff (home, repo):
+### files home:
+./.copilot/copilot-instructions.md bc82615c680a
+./.copilot/hooks/rtk-rewrite.json 36c744d41b68
+### files repo:
+./README.md eb8044185c57
+### uninstall: rtk init -g --copilot --auto-patch --uninstall
+RTK uninstalled (global GitHub Copilot):
+  - Hook config: /tmp/rtkhome-copilot-g/.copilot/hooks/rtk-rewrite.json
+  - copilot-instructions.md: removed rtk-instructions block
+
+Restart your Copilot CLI session to apply changes.
+EXITU=0
+### after-uninstall home:
+./.copilot/copilot-instructions.md adc83b19e793
+### after-uninstall repo:
+./README.md eb8044185c57

@@ -1,0 +1,5 @@
+RTK Pi extension already up to date:
+  Extension: /tmp/rtkhome-pi-g/.pi/agent/extensions/rtk.ts
+
+Pi will load the extension automatically on next start.
+Verify: pi -e /tmp/rtkhome-pi-g/.pi/agent/extensions/rtk.ts --no-session

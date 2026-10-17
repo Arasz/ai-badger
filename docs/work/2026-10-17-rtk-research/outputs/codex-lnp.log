@@ -1,0 +1,15 @@
+### run1: rtk init --codex --no-patch
+rtk: --codex cannot be combined with --no-patch
+EXIT1=1
+### run2
+EXIT2=1
+### idempotency diff (home, repo):
+### files home:
+### files repo:
+./README.md eb8044185c57
+### uninstall: rtk init --codex --no-patch --uninstall
+RTK was not installed for Codex CLI (nothing to remove)
+EXITU=0
+### after-uninstall home:
+### after-uninstall repo:
+./README.md eb8044185c57

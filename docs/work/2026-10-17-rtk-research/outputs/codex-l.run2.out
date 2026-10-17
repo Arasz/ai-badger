@@ -1,0 +1,24 @@
+
+RTK configured for Codex CLI.
+
+  RTK.md:    RTK.md
+  Hook:      .codex/hooks.json (already present)
+  AGENTS.md: @RTK.md reference already present
+
+  Codex project instructions path: AGENTS.md
+
+  Restart Codex. For a project hook, approve it when Codex asks you to trust it.
+
+  Optional: if history recording fails with SQLITE_CANTOPEN in the
+  workspace-write sandbox, grant write access to the tracking directory:
+
+sandbox_mode = "workspace-write"
+
+[sandbox_workspace_write]
+writable_roots = ["/private/tmp/rtkhome-codex-l/Library/Application Support/rtk"]
+
+  Merge this into Codex config.toml only if you want persistent history.
+  Keep existing writable_roots; do not add a duplicate table.
+  This grants access to the directory, including SQLite sidecar files.
+  No Codex permission settings have been changed.
+

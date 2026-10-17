@@ -1,0 +1,11 @@
+
+RTK hook registered (global).
+
+  Command:   rtk hook claude
+  RTK.md:    /tmp/rtkhome-claude-g/.claude/RTK.md (awareness: default)
+  CLAUDE.md: @RTK.md reference added
+
+  settings.json: hook already present
+  Restart Claude Code. Test with: git status
+
+

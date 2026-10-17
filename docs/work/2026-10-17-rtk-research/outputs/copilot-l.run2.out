@@ -1,0 +1,12 @@
+[ok] Copilot instructions already up to date in ./.github/copilot-instructions.md
+
+GitHub Copilot integration installed (project-scoped).
+
+  Hook config:    ./.github/hooks/rtk-rewrite.json
+  Instructions:   ./.github/copilot-instructions.md
+
+  Works with VS Code Copilot Chat (transparent rewrite)
+  and Copilot CLI (deny-with-suggestion).
+
+  Restart your IDE or Copilot CLI session to activate.
+

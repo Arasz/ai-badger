@@ -1,0 +1,4 @@
+[ok] rtk instructions already up to date in CLAUDE.md
+  hooks:     registered globally
+  proxy:     daemon running but nothing routed to it — `rtk init -g`
+
