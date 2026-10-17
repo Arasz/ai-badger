@@ -11,6 +11,9 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
 EVENT = "PreToolUse"
+PROPOSAL = ("{tool} is not wired for Claude: its hook rewrites the command before Claude matches "
+            "project permissions.ask rules, so a rewritten command runs without the prompt. "
+            "Wire it yourself with `{tool} init --agent {arg}` only if no ask rule matters.")
 
 
 def _modules(framework_root: Path):
@@ -79,11 +82,22 @@ def _merge(settings: Dict[str, Any], wanted: List[Dict[str, Any]],
 
 
 def adjust(context: Dict[str, Any]) -> Dict[str, Any]:
-    """Wire one marked handler per tool with a Claude arm; remove marked handlers without one.
+    """Wire one marked handler per native Claude arm, remove the rest, and note each proposal.
 
     Returns:
         {'applied': bool, 'files': [], 'notes': str} — settings.json is merged into, never owned.
     """
+    result = _wire(context)
+    proposals = [PROPOSAL.format(tool=name, arg=arm.get("arg", "claude"))
+                 for name, tool in (context.get("tools") or {}).items()
+                 if (arm := (tool.get("agents") or {}).get("claude"))
+                 and arm.get("mode") == "propose"]
+    if proposals:
+        result["notes"] = " ".join([result["notes"], *proposals])
+    return result
+
+
+def _wire(context: Dict[str, Any]) -> Dict[str, Any]:
     guard, tool_hooks = _modules(Path(context["framework_root"]))
     commands = [arm["command"] for tool in (context.get("tools") or {}).values()
                 if (arm := (tool.get("agents") or {}).get("claude"))

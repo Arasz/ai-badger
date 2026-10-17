@@ -10,7 +10,7 @@
     "install": "python3 features/common/tools/rtk/scripts/install.py --run"
   },
   "hooks": {
-    "claude": { "mode": "native", "arg": "claude" },
+    "claude": {"mode": "propose", "arg": "claude" },
     "codex": { "mode": "native", "arg": "codex" },
     "copilot": { "mode": "native", "arg": "copilot" },
     "pi": { "mode": "init", "arg": "pi" },

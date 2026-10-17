@@ -237,9 +237,10 @@ def test_no_which_native_arms_resolve_from_config_alone(
 
     agents = _catalog(tool_catalog, ctx).prepare()["rtk"]["agents"]
 
-    for agent in ("claude", "codex", "copilot"):
+    for agent in ("codex", "copilot"):
         assert agents[agent] == {"mode": "native", "arg": agent,
                                  "command": tool_hooks.guarded_command("rtk", agent)}
+    assert agents["claude"] == {"mode": "propose", "arg": "claude"}
     assert agents["hermes"] == {"mode": "propose", "arg": "hermes"}
 
 

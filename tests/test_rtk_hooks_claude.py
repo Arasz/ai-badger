@@ -204,38 +204,46 @@ def _base_config(agents=("claude",), tools=None):
     return config
 
 
-def test_two_full_scaffolds_keep_exactly_one_handler_beside_the_framework_hooks(
+def test_a_scaffold_removes_the_handler_an_earlier_native_release_wired(
         load_script, root, tmp_path, monkeypatch):
-    plain = _scaffold(load_script, root, tmp_path / "plain", monkeypatch, _base_config())
-    assert plain["hooks"].get("PreToolUse"), "no framework PreToolUse hook to compose with"
-    opted = _base_config(tools={"rtk": {"hooks": ["claude"]}})
-
-    _scaffold(load_script, root, tmp_path / "rtk", monkeypatch, opted)
-    data = _scaffold(load_script, root, tmp_path / "rtk", monkeypatch, opted)
-
-    assert len(_marked(data)) == 1
-    without_marked = {event: [g for g in groups
-                              if not any(MARKER in h.get("command", "") for h in g["hooks"])]
-                      for event, groups in data["hooks"].items()}
-    assert without_marked == plain["hooks"]
-
-
-@pytest.mark.parametrize("opt_out", [
-    {"tools": {}},
-    {"tools": {"rtk": {"hooks": []}}},
-    {"agents": ["codex"]},
-], ids=["tool-removed", "claude-not-in-hooks", "claude-deselected"])
-def test_every_opt_out_route_through_the_scaffold_restores_the_settings(
-        load_script, root, tmp_path, monkeypatch, opt_out):
+    """rtk is propose-only for Claude, so a handler 0.194.0 wired is taken out on refresh."""
     before = _scaffold(load_script, root, tmp_path, monkeypatch, _base_config())
     before["model"] = "opus"
     before["hooks"].setdefault("Stop", []).append(
         {"hooks": [{"type": "command", "command": "echo operator"}]})
-    _write(tmp_path, before)
+    wired = json.loads(json.dumps(before))
+    wired["hooks"].setdefault("PreToolUse", []).append(
+        {"matcher": "Bash", "hooks": [{"type": "command", "command": COMMAND, "timeout": 5}]})
+    _write(tmp_path, wired)
     config = _base_config(tools={"rtk": {"hooks": ["claude"]}})
-    assert len(_marked(_scaffold(load_script, root, tmp_path, monkeypatch, config))) == 1
 
-    config.update(opt_out)
-    _scaffold(load_script, root, tmp_path, monkeypatch, config)
+    after = _scaffold(load_script, root, tmp_path, monkeypatch, config)
 
-    assert json.loads(_settings(tmp_path).read_text()) == before
+    assert _marked(after) == []
+    assert after == before
+
+
+# -- propose mode: the rewrite escapes permissions.ask, so nothing is wired ------------------
+
+def test_a_propose_arm_removes_the_wired_handler_and_says_why(arm, tmp_path):
+    _write(tmp_path, {"hooks": {"PreToolUse": [
+        {"matcher": "Bash", "hooks": [{"type": "command", "command": COMMAND}]}]}})
+    context = _context(tmp_path)
+    context["tools"]["rtk"]["agents"]["claude"] = {"mode": "propose", "arg": "claude"}
+
+    result = arm.adjust(context)
+
+    assert _marked(json.loads(_settings(tmp_path).read_text())) == []
+    assert "permissions.ask" in result["notes"]
+    assert "rtk init" in result["notes"]
+
+
+def test_a_propose_arm_on_a_fresh_project_writes_no_settings_but_still_notes(arm, tmp_path):
+    context = _context(tmp_path, commands=())
+    context["tools"] = {"rtk": {"meta": {"name": "rtk"}, "check_ok": None, "agents": {
+        "claude": {"mode": "propose", "arg": "claude"}}}}
+
+    result = arm.adjust(context)
+
+    assert not _settings(tmp_path).exists()
+    assert "permissions.ask" in result["notes"]
