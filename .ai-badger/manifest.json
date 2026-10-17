@@ -1,7 +1,7 @@
 {
   "$schema": "../schemas/manifest.schema.json",
   "frameworkVersion": "0.194.0",
-  "frameworkCommit": "0b0cfaa8865259469463c7a816f164fb4af73d50",
+  "frameworkCommit": "13902557c1bfd720900cc219b71e3b883da674ee",
   "frameworkDirty": true,
   "frameworkRoot": ".",
   "generatedAt": null,
@@ -1551,12 +1551,12 @@
       "source": "features/common/skills/welcome-ai-badger",
       "target": ".ai-badger/skills/welcome-ai-badger",
       "frameworkVersion": "0.194.0",
-      "hash": "f4b7cf6e3e2907d05bb1c2f57e66c2c59b097821ac9f496b4ec2f858a6b75f46",
+      "hash": "b7032de3d592844cd76c6fafc42b9558bb27ba11702507c4b719d81c8dede9f4",
       "dirMeta": {
         "file_count": 29,
         "dir_count": 2
       },
-      "sourceHash": "f4b7cf6e3e2907d05bb1c2f57e66c2c59b097821ac9f496b4ec2f858a6b75f46",
+      "sourceHash": "b7032de3d592844cd76c6fafc42b9558bb27ba11702507c4b719d81c8dede9f4",
       "sourceMeta": {
         "file_count": 29,
         "dir_count": 2
@@ -1711,7 +1711,7 @@
       "source": "features/claude/templates/CLAUDE.md.tmpl",
       "target": "CLAUDE.md",
       "frameworkVersion": "0.194.0",
-      "hash": "57823103e5b628ed797574533e782c0435c33d441e19bb9d74c418c0f722536f",
+      "hash": "4b4678f01ec73ad239bc1fbc9f904f59edd466b1adfc65a0cd8f662240e58353",
       "outputHash": "45f9cdfca5a245016ac38a6fac5757694607bd62821bd61d506a50f6be8d6494",
       "seedOnce": false
     },
@@ -1722,7 +1722,7 @@
       "source": "features/copilot/templates/copilot-instructions.md.tmpl",
       "target": ".github/copilot-instructions.md",
       "frameworkVersion": "0.194.0",
-      "hash": "57823103e5b628ed797574533e782c0435c33d441e19bb9d74c418c0f722536f",
+      "hash": "4b4678f01ec73ad239bc1fbc9f904f59edd466b1adfc65a0cd8f662240e58353",
       "outputHash": "880b2aab663888bdc622b8b4bede66f0dbcdf30e69af666cb2df5bcc7b25c9bb",
       "seedOnce": false
     },
@@ -1733,7 +1733,7 @@
       "source": "features/hermes/templates/HERMES.md.tmpl",
       "target": "HERMES.md",
       "frameworkVersion": "0.194.0",
-      "hash": "630ad4d9e251e6096cb99302a06acd70cf94dd42c18e4c165e99561c611809e1",
+      "hash": "3c1f2816845f16ad527e3d85002ad310b6b291f8383f88ce0018fef9871026f0",
       "outputHash": "e2ed9cc97e707efedcf06930310ef3e9a8275aceef618619d57739627b723d8e",
       "seedOnce": false
     },
@@ -1744,7 +1744,7 @@
       "source": "features/pi/templates/AGENTS.override.md.tmpl",
       "target": "AGENTS.override.md",
       "frameworkVersion": "0.194.0",
-      "hash": "6306a5b63eb0fbae4a490067c710efdb1e6a3af251b282811000c8f583195b90",
+      "hash": "371d107d906553aecb682a4882d08fc9f9942bec62909443a5345692ef303a14",
       "outputHash": "8f7655641bdfc5dcc803de0ec8ba892b8094bb096d69ec94c8895c12de57a75d",
       "seedOnce": false
     },
@@ -1755,7 +1755,7 @@
       "source": "features/codex/templates/AGENTS.md.tmpl",
       "target": "AGENTS.md",
       "frameworkVersion": "0.194.0",
-      "hash": "f5908007b6a8d0769a5ac407f4a9089316a11f7f6df485681817a8f82d735d85",
+      "hash": "121ca4fb7fe205d9a0bb7c054d9ccb4ef51144ff4cf5b84c4a2dbfcadd0f6021",
       "outputHash": "6e06566c2a017ca842ddcf1ae716f8964533925c9716626b0a1b38230193d275",
       "seedOnce": false
     },

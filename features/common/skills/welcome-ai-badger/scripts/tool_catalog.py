@@ -24,6 +24,37 @@ CHECK_TIMEOUT = 30
 INSTALL_TIMEOUT = 900
 
 
+def find_tool(ctx: ScaffoldContext, name: str) -> Optional[tuple]:
+    """``(tool dir, meta)`` for a catalog tool in an active stack, or None."""
+    for stack in ctx.stacks:
+        for item in bl.feature_items(ctx.index, stack, "tools"):
+            if item.get("name") != name:
+                continue
+            path = ctx.root / item.get("path", "")
+            try:
+                return path, json.loads((path / "meta.json").read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                return None
+    return None
+
+
+def tool_instructions(ctx: ScaffoldContext) -> List[Dict[str, str]]:
+    """``[{"instructions": tool.md}]`` for each catalog tool ``config.tools`` names, in order.
+
+    Depends on config alone, never on PATH or the platform, so the agent files are the same
+    wherever they are scaffolded.
+    """
+    entries = []
+    for name in ctx.config.get("tools") or {}:
+        found = find_tool(ctx, name)
+        if found is None:
+            continue
+        doc = found[0] / "tool.md"
+        if doc.is_file():
+            entries.append({"instructions": doc.read_text(encoding="utf-8")})
+    return entries
+
+
 class ToolCatalog:
     """Collects enabled tools and the per-agent arm each adjustment consumes."""
 
@@ -54,17 +85,7 @@ class ToolCatalog:
         return self._tools
 
     def _find(self, name: str) -> Optional[tuple]:
-        """``(tool dir, meta)`` for a catalog tool in an active stack, or None."""
-        for stack in self.ctx.stacks:
-            for item in bl.feature_items(self.ctx.index, stack, "tools"):
-                if item.get("name") != name:
-                    continue
-                path = self.ctx.root / item.get("path", "")
-                try:
-                    return path, json.loads((path / "meta.json").read_text(encoding="utf-8"))
-                except (OSError, ValueError):
-                    return None
-        return None
+        return find_tool(self.ctx, name)
 
     def _absolute(self, command: str) -> List[str]:
         """*command* split, with each repo-relative ``features/`` token made absolute."""
