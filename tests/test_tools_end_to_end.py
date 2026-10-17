@@ -25,7 +25,7 @@ MARKER = "AI_BADGER_TOOL="
 STAMP = "2026-10-17T00:00:00Z"
 SKILLS = "git-work,commit-reminder"
 STUB = '#!/bin/sh\nprintf "%s\\n" "$*" >> "$STUB_LOG"\n'
-MARKED_FILES = (".claude/settings.json", ".codex/hooks.json", ".github/hooks/rtk-rewrite.json")
+MARKED_FILES = (".codex/hooks.json", ".github/hooks/rtk-rewrite.json")
 FORBIDDEN_NAMES = {"pipeline.toml", "RTK.md", ".rtk", "filters.toml"}
 
 
@@ -111,13 +111,15 @@ def backup_names(box: Sandbox) -> list:
 
 # -- a2: every arm lands, a rerun is a no-op, removal leaves nothing ----------------------
 
-def test_claude_codex_copilot_write_files_and_pi_hermes_only_note(box):
+def test_codex_copilot_write_files_and_claude_pi_hermes_only_note(box):
     stdout = box.scaffold(ALL_HOOKS)
 
     for rel in MARKED_FILES:
         assert MARKER + "rtk" in (box.target / rel).read_text(), rel
     by_agent = {agent: [n for n in tool_notes(stdout) if f"for '{agent}'" in n] for agent in AGENTS}
     assert all(len(notes) == 1 for notes in by_agent.values()), by_agent
+    assert MARKER not in (box.target / ".claude/settings.json").read_text()
+    assert "permissions.ask" in by_agent["claude"][0]
     assert "rtk init --agent pi" in by_agent["pi"][0]
     assert "rtk init -g --agent hermes --auto-patch" in by_agent["hermes"][0]
     assert not (box.target / ".pi/extensions/rtk.ts").exists()
