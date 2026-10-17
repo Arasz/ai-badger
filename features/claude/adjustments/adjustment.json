@@ -25,6 +25,12 @@
       "feature": "task",
       "description": "Install the claude session source into the scaffolded task skill scripts",
       "script": "adjust_task.py"
+    },
+    {
+      "feature": "tools",
+      "description": "Merge opted-in tools' marked PreToolUse Bash handlers into .claude/settings.json",
+      "script": "adjust_tools.py",
+      "cleanupOnDeselection": true
     }
   ]
 }
