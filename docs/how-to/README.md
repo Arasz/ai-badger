@@ -9,6 +9,10 @@ If they need to look a fact up rather than follow steps, they need `../reference
 
 ## Files
 
-Empty. `../getting-started.md` and `../authoring-a-feature.md` are how-tos still sitting at the
+| File | Goal |
+|---|---|
+| [run-without-hooks.md](run-without-hooks.md) | Keep ai-badger useful on a machine where managed policy sets `disableAllHooks` |
+
+`../getting-started.md` and `../authoring-a-feature.md` are how-tos still sitting at the
 docs root; re-placing them is a job for the `documentation` gateway's
 `migrate-documentation` member, with its own PR, because both paths are named in `README.md`.
