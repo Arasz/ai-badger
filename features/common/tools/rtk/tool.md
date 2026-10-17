@@ -6,8 +6,7 @@ means the same as the bare one. Verify it with `rtk gain` (savings counts), not 
 rtk does not recognise ai-badger's guarded hook. Running `rtk init` for an agent ai-badger already
 wires adds a duplicate hook, and an agent already wired user-level (`rtk init -g`, a global pi
 extension) should not be opted in here.
-- **Claude:** not wired by ai-badger. Claude matches `permissions.ask` against the rewritten
-  command, so an ask rule stops prompting once rtk rewrites it. `deny` still holds.
+- **Claude:** not wired; Claude checks `permissions.ask` against the rewrite, so ask rules lapse.
 - **Codex:** rtk's hook always answers `allow`, so a rewritten command skips Codex's approval
   prompt and its safe/dangerous classifier.
 - **Privacy:** rtk keeps every proxied command in a plaintext `history.db` for 90 days. Set
