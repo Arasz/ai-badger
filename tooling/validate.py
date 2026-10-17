@@ -158,8 +158,9 @@ REFERENCEABLE_FEATURES = ("personas", "invariants", "instructions", "skills")
 
 # Globs for the bodies copied into the generated agent files, so a link inside them is read from
 # the consumer's repo root rather than from where the file lives. MCP server bodies fill the
-# MCP_INSTRUCTIONS slot and sit one directory deeper than the rest.
-INLINED_BODY_GLOBS = ("*/invariants/*.md", "*/instructions/*.md", "*/mcp/*/*.md")
+# MCP_INSTRUCTIONS slot and tool bodies the TOOLS_INSTRUCTIONS slot; both sit one directory deeper.
+INLINED_BODY_GLOBS = ("*/invariants/*.md", "*/instructions/*.md", "*/mcp/*/*.md",
+                      "*/tools/*/*.md")
 
 # Schemas with no instance in this repo, and why. Listed so the completeness check stays
 # honest rather than silently shrinking.
