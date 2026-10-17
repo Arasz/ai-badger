@@ -45,7 +45,7 @@ def _shape_error(settings: Dict[str, Any]) -> Optional[str]:
 
 def _merge(settings: Dict[str, Any], wanted: List[Dict[str, Any]],
            is_ours: Callable[[object], bool]) -> None:
-    """Keep wanted entries in place, drop every other marked handler, append what is missing.
+    """Keep wanted entries in place, drop every other marked handler, put what is missing first.
 
     A group, event or ``hooks`` key emptied by a removal goes with it; one that was already
     empty stays, because it was the operator's.
@@ -71,7 +71,7 @@ def _merge(settings: Dict[str, Any], wanted: List[Dict[str, Any]],
         else:
             del hooks[event]
     if missing:
-        hooks.setdefault(EVENT, []).extend(missing)
+        hooks.setdefault(EVENT, [])[:0] = missing
     if hooks or was_empty:
         settings["hooks"] = hooks
     else:

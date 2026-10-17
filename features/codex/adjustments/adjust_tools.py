@@ -41,7 +41,7 @@ def _entry(command: str) -> dict[str, Any]:
 
 
 def _merge(hooks: dict[str, Any], wanted: list[dict[str, Any]], is_ours) -> None:
-    """Keep wanted entries in place, drop other marked handlers, append what is missing."""
+    """Keep wanted entries in place, drop other marked handlers, put what is missing first."""
     missing = list(wanted)
     for event, groups in list(hooks.items()):
         clean = []
@@ -58,7 +58,7 @@ def _merge(hooks: dict[str, Any], wanted: list[dict[str, Any]], is_ours) -> None
         else:
             del hooks[event]
     if missing:
-        hooks.setdefault(EVENT, []).extend(missing)
+        hooks.setdefault(EVENT, [])[:0] = missing
 
 
 def adjust(context: dict[str, Any]) -> dict[str, Any]:

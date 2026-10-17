@@ -66,7 +66,9 @@ def test_one_marked_bash_handler_is_added_beside_user_keys_and_hooks(arm, tmp_pa
     assert result["applied"] is True
     assert result["files"] == []
     assert data["model"] == "opus"
-    assert data["hooks"]["PreToolUse"][0] == user_hook
+    # First, not last: HookWiring re-appends framework hooks on every scaffold, so a handler
+    # added last would drift ahead of them on the next run.
+    assert data["hooks"]["PreToolUse"][-1] == user_hook
     assert _marked(data) == [("Bash", {"type": "command", "command": COMMAND, "timeout": 5})]
 
 
