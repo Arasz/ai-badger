@@ -465,3 +465,14 @@ def test_cli_refuses_an_unknown_verb_or_non_object_json(tmp_path):
     not_object = _cli(tmp_path, "plan_get", "--json", "[1, 2, 3]")
     assert not_object.returncode == 2
     assert "object" in not_object.stderr.lower()
+
+
+def test_cli_reports_actionable_argument_findings(tmp_path):
+    args = {**_create_args(), "steps": [{**_step(), "status": "pending"}]}
+    proc = _cli(tmp_path, "plan_create", "--json", json.dumps(args))
+    assert proc.returncode == 1, proc.stdout + proc.stderr
+    error = json.loads(proc.stdout)["error"]
+    assert error["code"] == "invalid-arguments"
+    assert error["details"]["findings"][0]["path"] == "steps[0]"
+    assert error["details"]["findings"][0]["problem"] == 'property "status" is not accepted'
+    assert "Expected input shape" in error["detail"]

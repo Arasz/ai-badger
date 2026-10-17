@@ -672,7 +672,7 @@ def test_plan_create_rejects_dag_findings_as_structured_invalid_arguments(mcp):
 
     duplicate = _create_args(steps=[_step("s1"), _step("s1", goal="again")])
     error = _error(server, "plan_create", duplicate, "invalid-arguments")
-    assert "duplicate" in json.dumps(error["details"]["findings"])
+    assert "more than once" in json.dumps(error["details"]["findings"])
 
     schema = _create_args(loop="turbo")
     error = _error(server, "plan_create", schema, "invalid-arguments")
@@ -1292,3 +1292,200 @@ def test_default_root_tripwire_is_armed(load_script, monkeypatch):
     monkeypatch.delenv(TRACKING_ROOT_ENV, raising=False)
     with pytest.raises(AssertionError, match="_default_badger_root"):
         module.task_plan_store.badger_store.tracking_db_path()
+
+
+# ------------------------------------------------- AC runtime fields and actionable errors
+
+AC_DRAFT_SHAPE = {"id": "string", "statement": "string", "check?": "string | null"}
+SENTINEL = "SENTINEL-VALUE-MUST-NOT-ECHO"
+
+
+def _ac_with_runtime_fields(ac_id="ac1"):
+    return {**_ac(ac_id), "status": "pending", "evidence": [{"kind": "note"}]}
+
+
+def test_ac_runtime_fields_are_accepted_ignored_and_warned(mcp):
+    server = mcp()
+    steps = [_step(acceptance_criteria=[_ac(), _ac_with_runtime_fields("ac2")])]
+
+    payload = _payload(server, "plan_create", _create_args(steps=steps))
+
+    assert payload["created"] is True
+    assert payload["warnings"] == [{
+        "path": "steps[0].acceptance_criteria[1]",
+        "fields": ["status", "evidence"],
+        "message": payload["warnings"][0]["message"],
+        "expected_shape": AC_DRAFT_SHAPE,
+    }]
+    message = payload["warnings"][0]["message"]
+    assert "ignored" in message and "ac_check" in message and "step_complete" in message
+    stored = _payload(server, "plan_export", {"task_id": TASK_ID})["document"]
+    criterion = stored["workflow"]["steps"]["s1"]["acceptance_criteria"][1]
+    assert criterion["status"] == "unchecked"
+    assert criterion["evidence"] == []
+
+
+def test_ac_runtime_fields_do_not_change_the_content_hash(mcp):
+    server = mcp()
+    plain = _payload(server, "plan_create", _create_args())
+    assert "warnings" not in plain
+
+    replay = _payload(server, "plan_create", _create_args(
+        steps=[_step(acceptance_criteria=[_ac_with_runtime_fields()])]))
+
+    assert replay["created"] is False
+    assert replay["content_hash"] == plain["content_hash"]
+    assert replay["warnings"][0]["path"] == "steps[0].acceptance_criteria[0]"
+
+
+def test_plan_replace_warns_about_ac_runtime_fields(mcp):
+    server = mcp()
+    _create(server)
+    steps = [_step(acceptance_criteria=[_ac_with_runtime_fields()])]
+
+    payload = _payload(server, "plan_replace", {
+        **_create_args(steps=steps), "expected_revision": 0})
+
+    assert payload["warnings"][0]["fields"] == ["status", "evidence"]
+    assert payload["warnings"][0]["expected_shape"] == AC_DRAFT_SHAPE
+
+
+def test_input_schema_lists_ac_runtime_fields_and_stays_closed(mcp):
+    server = mcp()
+    tools = server.call("tools/list", {})["result"]["tools"]
+    create = next(tool for tool in tools if tool["name"] == "plan_create")["inputSchema"]
+    ac_schema = create["$defs"]["AcceptanceCriterionDraft"]
+
+    assert {"status", "evidence"} <= set(ac_schema["properties"])
+    assert ac_schema["additionalProperties"] is False
+    assert "ignored" in ac_schema["properties"]["status"]["description"]
+
+
+def test_actionable_error_groups_unknown_properties_with_expected_shape(mcp):
+    server = mcp()
+    criterion = {**_ac(), "foo": SENTINEL, "bar": 1}
+
+    error = _error(server, "plan_create", _create_args(
+        steps=[_step(acceptance_criteria=[criterion])]), "invalid-arguments")
+
+    assert error["detail"].startswith("argument validation failed:")
+    findings = error["details"]["findings"]
+    assert findings == [{
+        "path": "steps[0].acceptance_criteria[0]",
+        "problem": 'properties "foo", "bar" are not accepted',
+        "fix": findings[0]["fix"],
+        "expected_shape": AC_DRAFT_SHAPE,
+    }]
+    assert "remove" in findings[0]["fix"]
+    assert 'properties "foo", "bar" are not accepted at steps[0].acceptance_criteria[0]' \
+        in error["detail"]
+    assert "Expected input shape" in error["detail"]
+
+
+def test_actionable_error_explains_missing_and_invalid_values(mcp):
+    server = mcp()
+    step = _step(effort=SENTINEL)
+    del step["goal"]
+
+    error = _error(server, "plan_create", _create_args(steps=[step]), "invalid-arguments")
+
+    by_problem = {finding["problem"]: finding for finding in error["details"]["findings"]}
+    missing = by_problem['required property "goal" is missing']
+    assert missing["path"] == "steps[0]"
+    assert missing["expected_shape"]["goal"] == "string"
+    assert missing["expected_shape"]["acceptance_criteria?"] == [AC_DRAFT_SHAPE]
+    invalid = next(finding for problem, finding in by_problem.items()
+                   if problem.startswith('property "effort" is invalid'))
+    assert "'low' | 'medium' | 'high'" in invalid["fix"]
+    assert SENTINEL not in json.dumps(error)
+
+
+def test_actionable_error_at_the_root_names_the_arguments(mcp):
+    server = mcp()
+    arguments = _create_args(extra_root=SENTINEL)
+
+    error = _error(server, "plan_create", arguments, "invalid-arguments")
+
+    finding = error["details"]["findings"][0]
+    assert finding["path"] == "arguments"
+    assert finding["problem"] == 'property "extra_root" is not accepted'
+    assert finding["expected_shape"]["task_id"] == "string"
+    assert SENTINEL not in json.dumps(error)
+
+
+def test_step_level_status_is_still_refused(mcp):
+    server = mcp()
+    error = _error(server, "plan_create", _create_args(
+        steps=[{**_step(), "status": "pending"}]), "invalid-arguments")
+    assert error["details"]["findings"][0]["path"] == "steps[0]"
+    assert error["details"]["findings"][0]["problem"] == 'property "status" is not accepted'
+
+
+def test_identical_plan_replace_still_warns_about_ac_runtime_fields(mcp):
+    server = mcp()
+    _create(server)
+    steps = [_step(acceptance_criteria=[_ac_with_runtime_fields()])]
+
+    payload = _payload(server, "plan_replace", {
+        **_create_args(steps=steps), "expected_revision": 0})
+
+    assert payload["replaced"] is False
+    assert payload["warnings"][0]["path"] == "steps[0].acceptance_criteria[0]"
+
+
+def test_plan_graph_failures_use_the_actionable_finding_shape(mcp):
+    server = mcp()
+    unknown = _create_args(steps=[_step(), _step("s2", depends_on=["ghost"])])
+
+    error = _error(server, "plan_create", unknown, "invalid-arguments")
+
+    assert error["detail"].startswith("the plan failed validation:")
+    finding = error["details"]["findings"][0]
+    assert set(finding) == {"path", "problem", "fix", "expected_shape"}
+    assert "depends on unknown step 'ghost'" in finding["problem"]
+    assert "existing step id" in finding["fix"]
+    assert finding["expected_shape"][0]["acceptance_criteria?"] == [AC_DRAFT_SHAPE]
+
+    duplicate_ac = _create_args(steps=[_step(acceptance_criteria=[_ac(), _ac()])])
+    finding = _error(server, "plan_create", duplicate_ac,
+                     "invalid-arguments")["details"]["findings"][0]
+    assert finding["path"] == "steps[0]"
+    assert "unique id" in finding["fix"]
+
+    duplicate_step = _create_args(steps=[_step(), _step("s1", goal="again")])
+    finding = _error(server, "plan_create", duplicate_step,
+                     "invalid-arguments")["details"]["findings"][0]
+    assert finding["path"] == "steps[1]"
+    assert finding["problem"] == "step id 's1' is used more than once"
+
+
+def test_actionable_errors_on_nested_step_complete_arguments(mcp):
+    server = mcp()
+    arguments = {"task_id": TASK_ID, "step_id": "s1", "expected_revision": SENTINEL,
+                 "criterion_results": {"ac1": SENTINEL},
+                 "evidence": [{"kind": "test", "summary": "ok", "extra": SENTINEL}]}
+
+    error = _error(server, "step_complete", arguments, "invalid-arguments")
+
+    by_path = {}
+    for finding in error["details"]["findings"]:
+        by_path.setdefault(finding["path"], []).append(finding)
+    assert by_path["evidence[0]"][0]["problem"] == 'property "extra" is not accepted'
+    assert by_path["evidence[0]"][0]["expected_shape"]["kind"] == \
+        "'command' | 'test' | 'artifact' | 'review' | 'note'"
+    root_problems = [finding["problem"] for finding in by_path["arguments"]]
+    assert any(problem.startswith('property "expected_revision" is invalid')
+               for problem in root_problems)
+    assert any(problem.startswith('property "criterion_results" is invalid')
+               for problem in root_problems)
+    assert SENTINEL not in json.dumps(error)
+
+
+def test_unknown_key_names_are_clipped(mcp):
+    server = mcp()
+    long_key = "K" * 500
+
+    error = _error(server, "plan_create", _create_args(**{long_key: 1}), "invalid-arguments")
+
+    assert long_key not in json.dumps(error)
+    assert "K" * 64 + "\u2026" in error["details"]["findings"][0]["problem"]

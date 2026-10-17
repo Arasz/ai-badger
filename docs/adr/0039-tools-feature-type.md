@@ -1,7 +1,7 @@
 # ADR-0039 — A `tools` feature type, and per-harness wiring for rtk
 
 **Date:** 2026-10-17
-**Status:** Accepted; amended 2026-10-17 (0.194.1, Claude arm to propose)
+**Status:** Accepted; amended 2026-10-17 (0.195.1, Claude arm to propose)
 
 ## Context
 
@@ -48,7 +48,7 @@ Three plan reviews (security, harness, structure) then tightened the guard and t
    adjustment declares `cleanupOnDeselection`, so dropping the agent or the tool removes only
    the marked entry.
 
-   **Amended 0.194.1: Claude is `propose`, not `native`.** The live check found that Claude
+   **Amended 0.195.1: Claude is `propose`, not `native`.** The live check found that Claude
    matches project `permissions.ask` rules against the hook's `updatedInput` only, so a
    `Bash(git push:*)` ask rule stopped prompting once rtk rewrote the command, and the push ran.
    rtk's meta now declares Claude `propose`. The Claude arm wires nothing, removes a handler
@@ -120,7 +120,7 @@ Settled by the live check on 2026-10-17 (Claude Code 2.1.302, rtk 1.0.1); eviden
 - VERIFIED, Claude: a parallel PreToolUse hook's deny blocks a call rtk rewrote, and that hook
   sees the original command. Project `permissions.deny` is matched against both the original and
   the rewritten command, and it holds. Project `permissions.ask` is matched against the
-  rewritten command only, so it is bypassed. That bypass is the reason for the 0.194.1 amendment.
+  rewritten command only, so it is bypassed. That bypass is the reason for the 0.195.1 amendment.
 - UNVERIFIED, Codex: no codex binary was available. How Codex aggregates a guard's deny with rtk's
   `allow` is untested. The arm keeps rtk's entry last so it never runs ahead of the guards.
 - UNVERIFIED, Copilot: no copilot binary was available. Offline, `rtk hook copilot` answers a

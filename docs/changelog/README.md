@@ -19,7 +19,8 @@ When cutting a release:
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
-| 0.194.1 | [0.194.1: rtk is propose-only for Claude](0.194.1-rtk-claude-propose.md) |
+| 0.195.1 | [0.195.1: rtk is propose-only for Claude](0.195.1-rtk-claude-propose.md) |
+| 0.195.0 | [task-graph: clear argument errors, tolerated runtime fields](0.195.0-task-graph-actionable-validation-errors.md) |
 | 0.194.0 | [0.194.0: rtk ships as the first `tools` feature](0.194.0-rtk-tools-feature.md) |
 | 0.193.0 | [limited mode for machines where hooks are disabled](0.193.0-limited-mode-without-hooks.md) |
 | 0.192.0 | [the prompt prefix stays byte-stable](0.192.0-prompt-cache-stable-prefix.md) |
