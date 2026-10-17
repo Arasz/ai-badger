@@ -735,6 +735,12 @@
           "name": "task-graph",
           "path": "features/common/mcp/task-graph"
         }
+      ],
+      "tools": [
+        {
+          "name": "rtk",
+          "path": "features/common/tools/rtk"
+        }
       ]
     },
     "copilot": {
