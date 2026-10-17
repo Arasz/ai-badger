@@ -1092,6 +1092,10 @@
           "path": "features/pi/adjustments/adjust_task.py"
         },
         {
+          "name": "adjust_tools",
+          "path": "features/pi/adjustments/adjust_tools.py"
+        },
+        {
           "name": "adjustment",
           "path": "features/pi/adjustments/adjustment.json"
         },
