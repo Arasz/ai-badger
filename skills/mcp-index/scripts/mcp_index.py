@@ -4,7 +4,10 @@
 Reads whichever host CLI still lists MCP servers (`host_listings.py` owns the chain and its
 measured output shapes) and produces .ai-badger/mcp-tools.json: the mcp catalog's curated tags
 and intents for every tool it describes, name heuristics for the rest, and a per-server
-`status` for the ones that reported no tools at all (ADR-0014 decision 7).
+`status` for the ones that reported no tools at all (ADR-0014 decision 7). `--discover` asks each
+server the listing left unenumerated for its own tools: `server_configs.py` finds its command or
+URL in Claude Code's config files, `mcp_client.py` speaks MCP to it, `hermes mcp test` covers the
+rest.
 
 Commands:
   init     — create index from MCP tool list
@@ -25,6 +28,7 @@ import json
 import os
 import sys
 import tempfile
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
@@ -38,11 +42,13 @@ YAML_MISSING_HINT = (
     "mcp-index needs PyYAML: pip install pyyaml (it is in engine/requirements.txt)"
 )
 
-# host_listings.py, legacy_yaml_subset.py and tool_descriptions.py sit beside this file in every
-# deployment shape (sync_plugin_skills.py and the scaffold's skill installer both copy a skill's
-# scripts/ whole).
+# host_listings.py, mcp_client.py, server_configs.py, legacy_yaml_subset.py and
+# tool_descriptions.py sit beside this file in every deployment shape (sync_plugin_skills.py and
+# the scaffold's skill installer both copy a skill's scripts/ whole).
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import host_listings as hl  # noqa: E402  pylint: disable=wrong-import-position,import-error
+import mcp_client as mc  # noqa: E402  pylint: disable=wrong-import-position,import-error
+import server_configs as sc  # noqa: E402  pylint: disable=wrong-import-position,import-error
 import tool_descriptions as td  # noqa: E402  pylint: disable=wrong-import-position,import-error
 from legacy_yaml_subset import parse_legacy_yaml_subset as _parse_legacy_yaml_subset  # noqa: E402  pylint: disable=wrong-import-position,import-error
 
@@ -202,12 +208,72 @@ def _report_quiet_sources(index: dict[str, Any]) -> None:
 
 # ── MCP tool discovery ──────────────────────────────────────────────────────
 
-def _discover_tools(servers: list[dict[str, Any]]) -> None:
-    """Enrich a names-only listing with `hermes mcp test`, one subprocess per server."""
-    print(f"Asking `hermes mcp test` for the tools of {len(servers)} server(s) — "
-          "one connection each.", file=sys.stderr)
-    for note in hl.enrich_with_hermes_test(servers):
-        print(f"  ({note})", file=sys.stderr)
+DISCOVER_TIMEOUT = 20.0
+DISCOVER_WORKERS = 8
+PENDING_APPROVAL_PHRASE = "pending approval"
+
+
+def _ask_server(spec: dict[str, Any], target: str, timeout: float) -> tuple[Optional[list], str]:
+    """(tools, outcome line) from one server; tools is None when it did not fully answer."""
+    try:
+        tools = mc.list_tools(spec, timeout, cwd=target)
+    except mc.Unauthorized:
+        return None, "needs authorization"
+    except mc.Timeout:
+        return None, "timed out"
+    except mc.McpClientError as exc:
+        return None, f"failed: {exc}"
+    return tools, f"enumerated {len(tools)} tool(s)"
+
+
+def _discover_tools(servers: list[dict[str, Any]], target: str,
+                    timeout: float = DISCOVER_TIMEOUT) -> None:
+    """Ask every unenumerated server for its own tools, then `hermes mcp test` for the rest.
+
+    Configs come from Claude Code's own files (`server_configs`), the asking from `mcp_client`.
+    A server that answered every tools/list page becomes `tools_known` True and its failing
+    health phrase is dropped; any other outcome leaves it exactly as the listing had it.
+    """
+    pending = [s for s in servers if not s.get("tools_known", True)]
+    if not pending:
+        return
+    configs = sc.load(Path(target), Path.home())
+    print(f"Asking {len(pending)} server(s) for their tools directly — each configured "
+          f"command is run, as `claude mcp list` does ({timeout:g}s each).", file=sys.stderr)
+    jobs: dict[str, dict[str, Any]] = {}
+    outcomes: dict[str, str] = {}
+    unresolved = []
+    for server in pending:
+        name = server.get("name", "")
+        spec, reason = sc.lookup(configs, name)
+        if str(server.get("host_status") or "").strip().lower() == PENDING_APPROVAL_PHRASE:
+            outcomes[name] = "not run: pending approval in Claude Code"
+        elif spec is not None:
+            jobs[name] = spec
+        elif reason == sc.HOST_MANAGED:
+            outcomes[name] = f"not enumerated: {reason}"
+        else:
+            outcomes[name] = reason
+            unresolved.append(server)
+    answers: dict[str, Optional[list]] = {}
+    if jobs:
+        with ThreadPoolExecutor(max_workers=min(DISCOVER_WORKERS, len(jobs))) as pool:
+            futures = {name: pool.submit(_ask_server, spec, target, timeout)
+                       for name, spec in jobs.items()}
+            for name, future in futures.items():
+                answers[name], outcomes[name] = future.result()
+    for server in pending:
+        name = server.get("name", "")
+        tools = answers.get(name)
+        if tools is not None:
+            server["tools"] = tools
+            server["tools_known"] = True
+            server.pop("host_status", None)
+            server["discovered_via"] = "mcp-client"
+        print(f"  {name}: {outcomes[name]}", file=sys.stderr)
+    if unresolved:
+        for note in hl.enrich_with_hermes_test(unresolved):
+            print(f"  ({note})", file=sys.stderr)
 
 
 def _fetch_mcp_tools(from_json: Optional[str] = None,
@@ -450,11 +516,12 @@ def _note_missing_catalog(catalog: dict[str, dict[str, dict[str, Any]]]) -> None
 
 
 def cmd_init(target: str, from_json: Optional[str] = None,
-             host: Optional[str] = None, discover: bool = False) -> int:
+             host: Optional[str] = None, discover: bool = False, *,
+             discover_timeout: float = DISCOVER_TIMEOUT) -> int:
     """Create a new index from the current MCP tool list."""
     servers = _fetch_mcp_tools(from_json, host)
     if discover:
-        _discover_tools(servers)
+        _discover_tools(servers, target, discover_timeout)
     catalog = load_catalog(FRAMEWORK_ROOT)
     _note_missing_catalog(catalog)
 
@@ -613,7 +680,8 @@ def _update_source(source: dict[str, Any], server: Optional[dict[str, Any]],
 
 
 def cmd_update(target: str, from_json: Optional[str] = None,
-               host: Optional[str] = None, discover: bool = False) -> int:
+               host: Optional[str] = None, discover: bool = False, *,
+               discover_timeout: float = DISCOVER_TIMEOUT) -> int:
     """Update index: add new tools, mark removed ones, restate status, preserve manual tags."""
     index, err = _read_index_safe(target)
     if err:
@@ -621,11 +689,11 @@ def cmd_update(target: str, from_json: Optional[str] = None,
         return 1
     if index is None:
         print("No existing index. Running init instead.", file=sys.stderr)
-        return cmd_init(target, from_json, host, discover)
+        return cmd_init(target, from_json, host, discover, discover_timeout=discover_timeout)
 
     servers = _fetch_mcp_tools(from_json, host)
     if discover:
-        _discover_tools(servers)
+        _discover_tools(servers, target, discover_timeout)
     catalog = load_catalog(FRAMEWORK_ROOT)
     _note_missing_catalog(catalog)
     listed = {s.get("name", ""): s for s in servers}
@@ -897,14 +965,14 @@ def _parse_target_and_remaining(
 
 
 def _extract_clean_args(args: list[str]) -> list[str]:
-    """Remove --target and its value from args list."""
+    """Remove --target / --discover-timeout and their values from args list."""
     clean: list[str] = []
     skip = False
     for a in args:
         if skip:
             skip = False
             continue
-        if a == "--target":
+        if a in ("--target", "--discover-timeout"):
             skip = True
             continue
         clean.append(a)
@@ -925,6 +993,17 @@ def _requested_host(args: list[str]) -> tuple[Optional[str], bool]:
     if host is None:
         return None, "--host" not in args
     return host, host in hl.HOSTS
+
+
+def _discover_timeout(args: list[str]) -> Optional[float]:
+    """Seconds per server for `--discover`; the default when absent, None when unusable."""
+    if "--discover-timeout" not in args:
+        return DISCOVER_TIMEOUT
+    try:
+        value = float(_flag_value(args, "--discover-timeout") or "")
+    except ValueError:
+        return None
+    return value if value > 0 else None
 
 
 def main(argv: Optional[list[str]] = None) -> int:
@@ -949,8 +1028,14 @@ def main(argv: Optional[list[str]] = None) -> int:
                   f"{', '.join(sorted(hl.HOSTS))}.", file=sys.stderr)
             return 2
         from_json = _flag_value(remaining, "--from-json")
+        timeout = _discover_timeout(remaining)
+        if timeout is None:
+            print("ERROR: --discover-timeout takes a positive number of seconds.",
+                  file=sys.stderr)
+            return 2
         run = cmd_init if cmd == "init" else cmd_update
-        return run(target, from_json, host, "--discover" in remaining)
+        return run(target, from_json, host, "--discover" in remaining,
+                   discover_timeout=timeout)
 
     if cmd == "validate":
         return cmd_validate(target)

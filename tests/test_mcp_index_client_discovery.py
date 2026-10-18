@@ -1,0 +1,165 @@
+"""`init|update --discover` asks each unenumerated server directly, through mcp_client.
+
+The configs come from the target's `.mcp.json` (HOME is a scratch dir for the whole suite), the
+servers are tests/mcp_fake_server.py, and each test pins one rule of the plan: the enumerated
+list is the truth (R1), a partial answer changes nothing (R2), a real answer outranks a failing
+health phrase (R3), the deadline holds, and what cannot be run is named.
+"""
+
+from __future__ import annotations
+
+import json
+import sys
+import time
+from pathlib import Path
+
+SCRIPT = "features/common/skills/mcp-index/scripts/mcp_index.py"
+FAKE = str(Path(__file__).resolve().parent / "mcp_fake_server.py")
+
+
+def _mcp_json(target: Path, **modes):
+    servers = {name: {"command": sys.executable, "args": [FAKE, mode]}
+               for name, mode in modes.items()}
+    (target / ".mcp.json").write_text(json.dumps({"mcpServers": servers}), encoding="utf-8")
+
+
+def _names_only(*names):
+    return json.dumps({"servers": [
+        {"name": n, "enabled": True, "tools": [], "tools_known": False} for n in names]})
+
+
+def _index(target: Path):
+    return json.loads((target / ".ai-badger" / "mcp-tools.json").read_text(encoding="utf-8"))
+
+
+def _source(target: Path, name: str):
+    return next(s for s in _index(target)["sources"] if s["name"] == name)
+
+
+def _no_hermes(mod, monkeypatch):
+    asked = []
+    monkeypatch.setattr(mod.hl, "enrich_with_hermes_test",
+                        lambda servers, run=None: asked.extend(s["name"] for s in servers) or [])
+    return asked
+
+
+def test_init_discover_fills_tools_from_the_project_mcp_json(tmp_path, load_script, monkeypatch,
+                                                             capsys):
+    mod = load_script(SCRIPT)
+    asked = _no_hermes(mod, monkeypatch)
+    _mcp_json(tmp_path, fake="ok")
+
+    assert mod.main(["init", "--target", str(tmp_path), "--discover",
+                     "--from-json", _names_only("fake")]) == 0
+
+    source = _source(tmp_path, "fake")
+    assert sorted(source["tools"]) == ["alpha", "beta"]
+    assert source["status"] == "ok"
+    assert asked == []
+    assert "fake: enumerated 2 tool(s)" in capsys.readouterr().err
+
+
+def test_update_discover_keeps_manual_curation_and_removes_unlisted_seeds(tmp_path, load_script,
+                                                                          monkeypatch):
+    """R1: once the server answers, a catalog-seeded tool it did not list goes `removed`."""
+    mod = load_script(SCRIPT)
+    _no_hermes(mod, monkeypatch)
+    _mcp_json(tmp_path, fake="solo")
+    assert mod.main(["init", "--target", str(tmp_path),
+                     "--from-json", _names_only("fake")]) == 0
+    index = _index(tmp_path)
+    index["sources"][0]["tools"] = {
+        "solo": {"tags": ["search"], "intent": "Hand-curated intent text.", "origin": "manual"},
+        "ghost": {"tags": ["read"], "intent": "Seeded from the catalog.", "origin": "catalog"},
+    }
+    (tmp_path / ".ai-badger" / "mcp-tools.json").write_text(json.dumps(index), encoding="utf-8")
+
+    assert mod.main(["update", "--target", str(tmp_path), "--discover",
+                     "--from-json", _names_only("fake")]) == 0
+
+    tools = _source(tmp_path, "fake")["tools"]
+    assert tools["solo"]["origin"] == "manual" and tools["solo"]["tags"] == ["search"]
+    assert tools["solo"].get("status") != "removed"
+    assert tools["ghost"]["status"] == "removed"
+
+
+def test_an_error_mid_pagination_leaves_the_server_unenumerated(tmp_path, load_script,
+                                                                monkeypatch, capsys):
+    """R2: `tools_known` flips only after the last page."""
+    mod = load_script(SCRIPT)
+    _no_hermes(mod, monkeypatch)
+    _mcp_json(tmp_path, flaky="page-error")
+
+    assert mod.main(["init", "--target", str(tmp_path), "--discover",
+                     "--from-json", _names_only("flaky")]) == 0
+
+    source = _source(tmp_path, "flaky")
+    assert source["tools"] == {} and source["status"] == "unknown"
+    assert "flaky: failed: tools/list failed: backend went away" in capsys.readouterr().err
+
+
+def test_a_successful_enumeration_clears_a_failing_health_phrase(tmp_path, load_script,
+                                                                 monkeypatch):
+    """R3: `claude mcp list` said failed to connect, but the server answered — status is ok."""
+    mod = load_script(SCRIPT)
+    _no_hermes(mod, monkeypatch)
+    _mcp_json(tmp_path, fake="solo")
+    servers = [{"name": "fake", "tools": [], "tools_known": False,
+                "host_status": "Failed to connect"}]
+
+    mod._discover_tools(servers, str(tmp_path))  # pylint: disable=protected-access
+
+    assert mod.td.server_status(servers[0]) == "ok"
+    assert servers[0]["discovered_via"] == "mcp-client"
+
+
+def test_hung_servers_time_out_in_parallel_within_the_deadline(tmp_path, load_script,
+                                                               monkeypatch, capsys):
+    mod = load_script(SCRIPT)
+    _no_hermes(mod, monkeypatch)
+    _mcp_json(tmp_path, a="hang", b="hang", c="hang")
+
+    started = time.monotonic()
+    assert mod.main(["init", "--target", str(tmp_path), "--discover", "--discover-timeout", "1",
+                     "--from-json", _names_only("a", "b", "c")]) == 0
+
+    assert time.monotonic() - started < 6
+    err = capsys.readouterr().err
+    assert all(f"{n}: timed out" in err for n in "abc")
+
+
+def test_unresolved_servers_are_named_and_only_they_reach_hermes(tmp_path, load_script,
+                                                                 monkeypatch, capsys):
+    mod = load_script(SCRIPT)
+    asked = _no_hermes(mod, monkeypatch)
+    _mcp_json(tmp_path, fake="solo")
+    listing = json.dumps({"servers": [
+        {"name": n, "tools": [], "tools_known": False}
+        for n in ("fake", "missing", "claude.ai Gmail")]})
+
+    assert mod.main(["init", "--target", str(tmp_path), "--discover",
+                     "--from-json", listing]) == 0
+
+    err = capsys.readouterr().err
+    assert "missing: no config" in err
+    assert "claude.ai Gmail: not enumerated: host-managed connector (OAuth)" in err
+    assert asked == ["missing"]
+
+
+def test_a_server_pending_approval_is_not_run(tmp_path, load_script, monkeypatch):
+    mod = load_script(SCRIPT)
+    _no_hermes(mod, monkeypatch)
+    _mcp_json(tmp_path, fake="solo")
+    servers = [{"name": "fake", "tools": [], "tools_known": False,
+                "host_status": "Pending approval"}]
+
+    mod._discover_tools(servers, str(tmp_path))  # pylint: disable=protected-access
+
+    assert servers[0]["tools_known"] is False
+
+
+def test_a_bad_discover_timeout_is_a_usage_error(tmp_path, load_script):
+    mod = load_script(SCRIPT)
+
+    assert mod.main(["init", "--target", str(tmp_path), "--discover", "--discover-timeout",
+                     "soon", "--from-json", _names_only("x")]) == 2
