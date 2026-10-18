@@ -101,7 +101,7 @@
     },
     {
       "name": "session-start-tracking",
-      "description": "Record the session id and transcript, surface unfinished tracked tasks, and start the usage-limit poller",
+      "description": "Record the session id and transcript and surface unfinished tracked tasks",
       "agents": {
         "claude": {
           "type": "hooks-json",

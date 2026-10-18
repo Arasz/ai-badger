@@ -10,7 +10,6 @@ import importlib.util
 import json
 import os
 import shutil
-import signal
 import subprocess
 import sys
 import tempfile
@@ -36,15 +35,9 @@ REAL_HOME = Path.home()
 # a session fixture alone was measured still leaking 76 records into the real log.
 DEBUG_DIR_ENV = "AI_BADGER_DEBUG_DIR"
 
-# tracker_lib.spawn_detached appends a breadcrumb here when set, so a detached child started by
-# a *child interpreter* can be traced back to the test that reached it (#232). The literal is
-# repeated rather than imported — conftest does not import production modules — and
-# test_spawn_breadcrumb.py asserts both sides still spell it the same.
-SPAWN_LOG_ENV = "AI_BADGER_SPAWN_LOG"
-
 # tracker_lib.save_json marks a tracking write that lands outside the scratch project here, so
-# the guard below can tell the suite's writes from a leftover daemon's. Same repeated-literal
-# arrangement as SPAWN_LOG_ENV, and test_real_write_attribution.py pins both spellings.
+# the guard below can tell the suite's writes from a leftover daemon's. The literal is
+# repeated rather than imported, and test_real_write_attribution.py pins both spellings.
 REAL_WRITE_LOG_ENV = "AI_BADGER_REAL_WRITE_LOG"
 # The reference the marker compares against. NOT CLAUDE_PROJECT_DIR: tests monkeypatch that
 # freely, so comparing to it marked every legitimate write into the scratch project and into
@@ -117,59 +110,6 @@ SCRATCH_PROJECT = Path(tempfile.mkdtemp(prefix="ai-badger-project-"))
 # marker and falls back to `script_dir.parents[3]`, landing in `<repo>/features` (#222).
 _test_write(SCRATCH_PROJECT / ".ai-badger" / "config.json", "{}")
 os.environ[PROJECT_DIR_ENV] = str(SCRATCH_PROJECT)
-
-# session_start_hook and poll_limit detach children with start_new_session=True, so they
-# outlive pytest — a run was measured leaving poll_limit.py orphaned at PPID 1, still writing
-# and still trying to resume fixture sessions. Production routes both through
-# tracker_lib.spawn_detached, but the floor wraps `subprocess.Popen` itself: that is the one
-# true singleton, where the module copies `load_script` hands out are fresh objects a
-# module-level patch would not reach.
-_DETACHED_CHILDREN: list = []
-
-
-class _TrackedPopen(subprocess.Popen):
-    """A Popen that remembers detached children, so the run can reap them."""
-
-    _tracks_detached_children = True
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        if kwargs.get("start_new_session"):
-            _DETACHED_CHILDREN.append(self)
-
-
-# Installed once. A second conftest import would otherwise subclass the installed wrapper,
-# and a detached child would be recorded in both generations' lists.
-if not getattr(subprocess.Popen, "_tracks_detached_children", False):
-    subprocess.Popen = _TrackedPopen
-
-
-def detached_children() -> list:
-    """Every `start_new_session` child spawned so far this run."""
-    return list(_DETACHED_CHILDREN)
-
-
-def reap_detached_children() -> list:
-    """Kill every detached child still running; return the ones that had to be killed.
-
-    Kills the process *group*, not the leader. `start_new_session` makes each child a group
-    leader, and poll_limit shells out to `claude` — signalling only the leader leaves that
-    grandchild to reparent to PID 1 and survive, which is the leak this exists to stop (#222).
-    """
-    killed = []
-    for child in _DETACHED_CHILDREN:
-        if child.poll() is None:
-            try:
-                os.killpg(os.getpgid(child.pid), signal.SIGKILL)
-            except (ProcessLookupError, PermissionError):  # pragma: no cover - race with exit
-                child.kill()
-            try:
-                child.wait(timeout=5)
-            except subprocess.TimeoutExpired:  # pragma: no cover - kill(2) does not negotiate
-                pass
-            killed.append(child)
-    return killed
-
 
 @pytest.fixture(scope="session", autouse=True)
 def _home_off_limits(tmp_path_factory):
@@ -283,8 +223,8 @@ def real_tracking_files() -> dict:
 def suite_attributed_writes(log: Path) -> list:
     """Tracking writes outside the scratch project that a suite process marked as its own.
 
-    Defensive for the same reason `foreign_spawn_offenders` is: this runs at teardown, several
-    processes append to the file, and a crash here would hide the offenders it exists to name.
+    Defensive: this runs at teardown, several processes append to the file, and a crash
+    here would hide the offenders it exists to name.
     """
     if not log.exists():
         return []
@@ -311,8 +251,8 @@ def _real_tracking_state_is_untouched():
     spawned child was still writing into `features/.ai-badger/` — a path `.gitignore`'s
     unanchored `task-tracking/` rule hides from `git status`.
 
-    The mtime diff alone cannot say *who* wrote. A leftover `poll_limit.py` daemon or a
-    `*/30` resume cron writes into that same directory, and this fixture blamed the suite for
+    The mtime diff alone cannot say *who* wrote. A leftover background daemon or a
+    cron job writes into that same directory, and this fixture blamed the suite for
     it four times on 2026-08-01, on runs that were clean. So the assertion now fires on writes
     a suite process **marked as its own** (`tracker_lib.save_json`, which an external daemon
     never has the environment for), and unattributed changes are reported without failing —
@@ -334,8 +274,8 @@ def _real_tracking_state_is_untouched():
     if (added or changed) and not attributed:
         print(
             f"\nNOTE: task-tracking state changed during the run but no suite process claimed "
-            f"it — added={added} changed={changed}. An external writer (a poll_limit daemon or "
-            f"the resume cron) is the likely author; the suite is not being blamed for it."
+            f"it — added={added} changed={changed}. An external writer (a leftover daemon or "
+            f"a cron job) is the likely author; the suite is not being blamed for it."
         )
 
     assert not attributed, (
@@ -379,7 +319,7 @@ def _no_write_lands_in_the_real_checkout():
     The gate (`_test_write`) refuses real-repo paths at the call site, so a change here
     means a write that did not pass through it. Attributed writes fail (a suite process
     claimed them); unattributed ones are reported without failing, because a leftover
-    daemon or the resume cron can write into the same tree — the exact split the tracking
+    daemon or a cron job can write into the same tree — the exact split the tracking
     guard draws, over the whole checkout instead of one directory.
     """
 
@@ -408,75 +348,11 @@ def _no_write_lands_in_the_real_checkout():
             + f"\n(fs observer corroboration: added={added} changed={changed} removed={removed})")
 
 
-def foreign_spawn_offenders(log: Path) -> list:
-    """Breadcrumbs written by a process other than this one, as reportable strings.
-
-    Defensive on every axis, because this runs at session teardown and a crash here would
-    mask the offenders it exists to name. Several processes append to this file
-    concurrently, so a torn or partial line is possible, and `argv` elements are stringified
-    on the way in but a hand-written or older record may not be.
-
-    A spawn whose `by` is this pid was already tracked and reaped by the Popen wrapper
-    (#222). One from any other pid came from a child interpreter — the gap #232 records.
-    """
-    if not log.exists():
-        return []
-
-    offenders = set()
-    for line in log.read_text(encoding="utf-8").splitlines():
-        if not line.strip():
-            continue
-        try:
-            record = json.loads(line)
-        except ValueError:
-            continue  # torn mid-write by a concurrent appender
-        if not isinstance(record, dict) or record.get("by") == os.getpid():
-            continue
-        argv = record.get("argv") or []
-        rendered = " ".join(str(part) for part in argv) if isinstance(argv, list) else str(argv)
-        offenders.add(f"{record.get('test') or '<no test recorded>'} -> {rendered[:90]}")
-    return sorted(offenders)
-
-
 @pytest.fixture(scope="session", autouse=True)
-def _no_test_reaches_a_detached_spawn(tmp_path_factory):
-    """Name every test that reached `spawn_detached`, and fail the session if any did (#232).
-
-    `_no_process_outlives_the_run` reaps what *this* process detached. It cannot see what a
-    hook run in a child interpreter detaches — the Popen wrapper is a class replaced in one
-    process's `subprocess` module, and a subprocess gets a clean one. That is how #222 could
-    pass while orphaned `poll_limit.py` daemons accumulated with PPID 1 and a cwd inside the
-    checkout.
-
-    So this stops policing the outcome and names the call site instead. `spawn_detached`
-    appends a breadcrumb when `AI_BADGER_SPAWN_LOG` is set; the variable is inert outside the
-    suite, and it is inherited by child interpreters, which is the whole point — it reaches
-    where the wrapper cannot.
-    """
-    log = tmp_path_factory.mktemp("spawn-breadcrumb") / "spawns.jsonl"
-    os.environ[SPAWN_LOG_ENV] = str(log)
-    yield log
-    os.environ.pop(SPAWN_LOG_ENV, None)
-
-    offenders = foreign_spawn_offenders(log)
-
-    assert not offenders, (
-            "these tests reached a detached spawn from a child interpreter, where the Popen "
-            "wrapper cannot reap it — point the hook at a scratch project or stub spawn_detached "
-            "(see tests/test_debug_log.py):\n  " + "\n  ".join(offenders))
-
-
-@pytest.fixture(scope="session", autouse=True)
-def _no_process_outlives_the_run():
-    """Reap detached children, then drop the scratch project root the suite wrote into."""
+def _scratch_project_is_removed():
+    """Drop the scratch project root the suite wrote into once the run is over."""
     yield SCRATCH_PROJECT
-    killed = reap_detached_children()
     shutil.rmtree(SCRATCH_PROJECT, ignore_errors=True)
-
-    assert not killed, (
-        f"{len(killed)} detached process(es) outlived the suite and had to be killed. "
-        "A test that reaches a spawn site must patch tracker_lib.spawn_detached; the reaper "
-        "is the floor, not the plan.")
 
 
 @pytest.fixture

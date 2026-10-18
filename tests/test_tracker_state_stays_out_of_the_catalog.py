@@ -1,6 +1,6 @@
 """Tracker state belongs to the project, never to the `features/` catalog it was copied from.
 
-A checkout carried `features/.ai-badger/task-tracking/poll_limit.pid` and `poll_limit.log`:
+A checkout carried `features/.ai-badger/task-tracking/` pid and log files from a background script:
 untracked, unignored, and enough to turn `validate.py --all` red (0.93.1 fixed the symptom).
 `collapse_worktree()` (0.88.6) did not prevent it because the two live on different branches
 of `resolve_project_root`: the collapse only ever runs on the *cwd walk*, and this leak comes
@@ -107,12 +107,13 @@ def test_the_store_is_the_same_from_the_checkout_a_worktree_and_the_catalog_dire
     assert set(roots.values()) == {repo}, f"three cwds, {len(set(roots.values()))} stores: {roots}"
 
 
-def test_writing_a_poller_pid_from_an_unmarked_cwd_leaves_the_catalog_untouched(replica):
-    """`poll_limit.pid` and `poll_limit.log` are the two files the leak actually deposited."""
+def test_writing_tracker_state_from_an_unmarked_cwd_leaves_the_catalog_untouched(replica):
+    """The two files the leak deposited were a pid file and a log, both in `DATA_DIR`."""
     repo, scripts, outside = replica
-    code = ("import poll_limit\n"
-            "poll_limit.write_pid()\n"
-            "poll_limit.log('probe')\n")
+    code = ("import tracker_lib\n"
+            "tracker_lib.ensure_data_dir()\n"
+            "(tracker_lib.DATA_DIR / 'probe.pid').write_text('1')\n"
+            "(tracker_lib.DATA_DIR / 'probe.log').write_text('probe')\n")
 
     subprocess.run([sys.executable, "-c", code], cwd=str(outside),
                    env={**_child_env(), "PYTHONPATH": str(scripts)},
@@ -120,8 +121,8 @@ def test_writing_a_poller_pid_from_an_unmarked_cwd_leaves_the_catalog_untouched(
 
     strays = sorted(str(p.relative_to(repo)) for p in (repo / "features").rglob("*")
                     if p.is_file() and ".ai-badger" in p.parts)
-    assert not strays, f"the poller wrote into the catalog: {strays}"
-    assert (repo / ".ai-badger" / "task-tracking" / "poll_limit.pid").is_file(), \
+    assert not strays, f"tracker state landed in the catalog: {strays}"
+    assert (repo / ".ai-badger" / "task-tracking" / "probe.pid").is_file(), \
         "the pid file has to land somewhere — this test is about where, not whether"
 
 

@@ -103,8 +103,8 @@ python3 "$AI_BADGER/features/common/skills/feed-badger/scripts/open_pr.py" --dry
 ## task / prompt-markers skill scripts
 
 These run inside a scaffolded project as hooks and CLIs (`task_tracker.py`, `resume_cron.py`,
-`poll_limit.py`, `statusline_capture.py`, hook entry points). They are documented by
-their owning skills; `poll_limit.py --once` and `--interval-seconds` support manual/testing runs.
+`statusline_capture.py`, hook entry points). They are documented by
+their owning skills.
 (`auto-wm` scripts live at `features/claude/skills/auto-wm/` — Claude Code-specific.)
 
 `statusline_capture.py` captures session state and then, **only if `CLAUDE_USER_STATUSLINE`

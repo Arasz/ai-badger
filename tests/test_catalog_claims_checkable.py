@@ -102,7 +102,7 @@ def test_a_dot_directory_under_features_is_not_a_candidate_stack(tmp_path, root,
     validate = load_script("tooling/validate.py")
     stray = tmp_path / "features" / ".ai-badger" / "task-tracking"
     stray.mkdir(parents=True)
-    _test_write(stray / "poll_limit.pid", "1234", encoding="utf-8")
+    _test_write(stray / "stray.pid", "1234", encoding="utf-8")
 
     assert validate.catalog_stack_gaps(tmp_path) == []
 

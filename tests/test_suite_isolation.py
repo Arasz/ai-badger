@@ -1,15 +1,12 @@
-"""The suite must not touch the developer's real state, nor outlive itself.
+"""The suite must not touch the developer's real state.
 
-Both properties are floors under the explicit isolation individual tests already do, in the
+These are floors under the explicit isolation individual tests already do, in the
 shape `test_debug_log.py::TestTheSuiteCannotWriteToTheRealLog` established for `$HOME`. A test
 that forgets to redirect must still be harmless (#222).
 """
 from __future__ import annotations
 
 import os
-import subprocess
-import sys
-import time
 from pathlib import Path
 
 # Self-derived, never imported from conftest: these two tests assert a property of the
@@ -19,14 +16,6 @@ REAL_PROJECT_ROOT = Path(__file__).resolve().parents[1]
 # Evaluated at collection, which is before the session fixture redirects `$HOME` — so this is
 # the operator's real home, derived here rather than imported from the fixture it checks.
 REAL_HOME = Path.home()
-
-
-def _alive(pid: int) -> bool:
-    try:
-        os.kill(pid, 0)
-    except OSError:
-        return False
-    return True
 
 
 class TestTheSuiteCannotWriteToTheRealTrackingDir:
@@ -208,70 +197,3 @@ class TestTheRealHookErrorLogIsSurfaced:
         from conftest import hook_error_lines  # pylint: disable=import-outside-toplevel
 
         assert hook_error_lines(tmp_path / "never-written.log") == []
-
-
-class TestNoProcessOutlivesTheRun:
-    """session_start_hook spawns poll_limit.py detached; it must not survive the suite."""
-
-    def test_a_detached_child_is_registered_for_reaping(self):
-        """Popen is wrapped at conftest import, before any hook module can be loaded."""
-        from conftest import detached_children  # pylint: disable=import-outside-toplevel
-
-        before = len(detached_children())
-        child = subprocess.Popen(  # pylint: disable=consider-using-with
-            [sys.executable, "-c", "import time; time.sleep(30)"], start_new_session=True)
-        try:
-            assert len(detached_children()) == before + 1, \
-                "a start_new_session child was not tracked, so nothing will reap it"
-            assert child in detached_children()
-        finally:
-            child.kill()
-            child.wait(timeout=5)
-
-    def test_an_undetached_child_is_left_alone(self):
-        """Ordinary subprocesses die with pytest already; tracking them would just leak memory."""
-        from conftest import detached_children  # pylint: disable=import-outside-toplevel
-
-        before = len(detached_children())
-        subprocess.run([sys.executable, "-c", "pass"], check=True)
-
-        assert len(detached_children()) == before
-
-    def test_reaping_kills_a_grandchild_too(self, tmp_path):
-        """poll_limit shells out to `claude`; killing only the leader reparents it to PID 1."""
-        from conftest import reap_detached_children  # pylint: disable=import-outside-toplevel
-
-        pidfile = tmp_path / "grandchild.pid"
-        code = ("import pathlib, subprocess, sys, time\n"
-                "g = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(60)'])\n"
-                f"pathlib.Path({str(pidfile)!r}).write_text(str(g.pid))\n"
-                "time.sleep(60)\n")
-        child = subprocess.Popen(  # pylint: disable=consider-using-with
-            [sys.executable, "-c", code], start_new_session=True)
-        deadline = time.time() + 10
-        while not pidfile.exists() and time.time() < deadline:
-            time.sleep(0.05)
-        assert pidfile.exists(), "the child never reported its grandchild"
-        grandchild = int(pidfile.read_text())
-
-        reap_detached_children()
-
-        deadline = time.time() + 5
-        while _alive(grandchild) and time.time() < deadline:
-            time.sleep(0.05)
-        assert not _alive(grandchild), "the grandchild outlived the reaper"
-
-    def test_reaping_kills_a_survivor(self):
-        """What the session teardown does, asserted directly rather than trusted."""
-        from conftest import reap_detached_children  # pylint: disable=import-outside-toplevel
-
-        child = subprocess.Popen(  # pylint: disable=consider-using-with
-            [sys.executable, "-c", "import time; time.sleep(30)"], start_new_session=True)
-        assert child.poll() is None, "the child should still be running"
-
-        reap_detached_children()
-
-        deadline = time.time() + 5
-        while child.poll() is None and time.time() < deadline:
-            time.sleep(0.05)
-        assert child.poll() is not None, "the reaper left a process running past the suite"
