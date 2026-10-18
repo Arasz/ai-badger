@@ -1,7 +1,7 @@
 # Development dependencies for ai-badger contributors.
 # Install alongside runtime deps:
 #   python3 -m pip install -r engine/requirements.txt -r engine/requirements-dev.txt
-pylint>=4.1.2
+pylint>=4.1.3
 # pylint's own ceiling, restated so a direct `pip install -U astroid` cannot cross it.
 # pylint 4.1.x requires astroid>=4.3.3,<=4.4; an astroid past pylint's range crashes every run
 # (seen as NodeNG.infer() got an unexpected keyword argument 'asname' on pylint 4.0.x).
