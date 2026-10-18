@@ -496,3 +496,24 @@ def test_a_single_overlong_pattern_is_recorded_after_its_truncated_search(env):
 
     assert len(query) == env.gate.QUERY_MAX_CHARS
     assert queried == [long_pattern]
+
+
+@pytest.mark.parametrize("command", [
+    "git ls-files | grep gate",
+    "git -C sub ls-files | grep gate",
+    "git grep foo | grep bar",
+    "git ls-tree -r HEAD | grep gate",
+    "ls -R | grep gate",
+    "ls -laR src | grep gate",
+    "ls --recursive | grep gate",
+])
+def test_a_file_listing_upstream_is_not_exempt(env, command):
+    """Mutation: drop the file-listing check -> any git/ls upstream exempts -> red."""
+    assert env.gate.search_patterns("Bash", {"command": command})
+
+
+@pytest.mark.parametrize("command", ["git log | grep fix", "git -C sub status | grep x",
+                                     "ls -la | grep x"])
+def test_live_output_upstreams_stay_exempt(env, command):
+    """Mutation: treat every git/ls upstream as file listing -> red."""
+    assert env.gate.search_patterns("Bash", {"command": command}) is None

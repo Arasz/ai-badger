@@ -110,6 +110,7 @@ passed untouched. The gate now keys on the search pattern, not the session.
   listed. Never exempt: a file operand (every operand under `-e`/`-f`), `-r`/`-R`/
   `--recursive`/`-d recurse`, `rg --files`, find, an input redirect (`< f`, `<<<`), a grep run
   by `xargs`, a grep nested in `bash -c` (its stdin is not proven), and the shlex fallback.
+  Exception: a listed program that prints repo files is not exempt — `git ls-files`, `git ls-tree`, `git grep` (subcommand found past `-C`/`-c`/`--git-dir`/`--work-tree`) and `ls -R`/`--recursive`; a grep over their output stays gated.
 - **Untrusted hits.** The search hits quoted in a deny reason are bank content, untrusted data
   exactly as in the prompt hook's injected context.
 - **Removed.** `MAX_DENIALS` and the denial counter (`deny_count`, `increment_denials`),

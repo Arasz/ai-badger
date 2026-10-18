@@ -180,6 +180,7 @@ history, docker, kubectl, pip, npm, lsof, brew, dotnet is not repo search:
 Only the program immediately before the grep counts (`git log | head -50 | grep fix` is gated:
 `head` is not listed). A grep with a file operand, `-r`/`-R`/`-d recurse`, `rg --files`, an
 input redirect, or run by `xargs` stays gated, as does any file grep elsewhere in the command.
+Exception: a listed program that prints repo files is not exempt — `git ls-files`, `git ls-tree`, `git grep` (subcommand found past `-C`/`-c`/`--git-dir`/`--work-tree`) and `ls -R`/`--recursive`; a grep over their output stays gated.
 
 **Search log.** Each enriched prompt, and each planned query, is a real `memory_search` and
 lands in ai-raccoon's search log like any other search.

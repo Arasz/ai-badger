@@ -114,6 +114,9 @@ _FIND_PATTERN_FLAGS = ("-name", "-iname", "-path", "-ipath", "-regex", "-iregex"
 # memory cannot answer: the segment is not repo search. Only the immediate upstream counts.
 EXCLUDED_UPSTREAM = ("git", "gh", "ps", "ls", "env", "printenv", "history", "docker", "kubectl",
                      "pip", "npm", "lsof", "brew", "dotnet")
+# Listed programs whose output is a repo file listing or search, so a grep over it stays gated.
+_FILE_LISTING_GIT = ("ls-files", "ls-tree", "grep")
+_GIT_VALUE_OPTIONS = ("-C", "-c", "--git-dir", "--work-tree")
 
 _MCP_PREFIX = "mcp__"
 _DOUBLE_UNDERSCORE = "__"
@@ -255,7 +258,26 @@ def _reads_excluded_pipe(command: Any, files: List[str], walks: bool) -> bool:
         return False
     if any(word.rsplit("/", 1)[-1] == "xargs" for word in command.words[:command.start]):
         return False
-    return _feeding_program(upstream) in EXCLUDED_UPSTREAM
+    program = _feeding_program(upstream)
+    return program in EXCLUDED_UPSTREAM and not _lists_files(program, upstream)
+
+
+def _lists_files(program: str, upstream: Any) -> bool:
+    """True when an excluded program prints repo files: `git ls-files|ls-tree|grep`, `ls -R`."""
+    args = list(upstream.words[upstream.start + 1:]) if upstream.program else []
+    if program == "ls":
+        return any(a == "--recursive" or (a.startswith("-") and not a.startswith("--")
+                                          and "R" in a) for a in args)
+    if program == "git":
+        skip = False
+        for arg in args:
+            if skip:
+                skip = False
+            elif arg in _GIT_VALUE_OPTIONS:
+                skip = True
+            elif not arg.startswith("-"):
+                return arg in _FILE_LISTING_GIT
+    return False
 
 
 def _find_patterns(args: Tuple[str, ...]) -> List[str]:
