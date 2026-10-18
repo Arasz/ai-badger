@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import sys
 
+import badger_store
 import pytest
 
 
@@ -31,17 +32,20 @@ def hooks(load_script):
 @pytest.fixture
 def fake_gate(hooks, monkeypatch, load_script, tmp_path):
     """The real gate module, injected under the hooks' module-name constant."""
+    monkeypatch.setenv(badger_store.DEBUG_DIR_ENV, str(tmp_path / "debug"))
+    monkeypatch.setenv(badger_store.USER_ROOT_ENV, str(tmp_path / "user-root"))
     real = load_script(
         "features/common/skills/ai-raccoon-memory/scripts/memory_first_gate.py")
     monkeypatch.setattr(real, "MARKER_DIR", tmp_path / "memory-first")
+    monkeypatch.setattr(real, "SEARCHED_DIR", tmp_path / "memory-first-searched", raising=False)
+    monkeypatch.setattr(real, "memory_hits", lambda *_a, **_k: None, raising=False)
     monkeypatch.setitem(sys.modules, hooks.MEMORY_FIRST_GATE_MODULE_NAME, real)
     return real
 
 
 @pytest.fixture
-def fresh(hooks):
-    """Reset the per-session gate state before each test."""
-    hooks.reset_gate_state()
+def fresh():
+    """Searched patterns persist per project; the redirected store is the only reset."""
 
 
 def _real_post_tool_payload(**overrides):
@@ -67,7 +71,7 @@ def test_post_tool_observer_real_payload_unlocks_the_gate_without_file_logging(
     hooks.post_tool_observer(**_real_post_tool_payload())
 
     assert hooks.pre_tool_call_memory_gate(
-        tool_name="search_files", args={"pattern": "x"}, task_id="t1") is None
+        tool_name="search_files", args={"pattern": "q"}, task_id="t1") is None
     grade_dir = tmp_path / ".ai-badger" / "memory-grade"
     assert not grade_dir.exists()
 
@@ -85,7 +89,7 @@ def test_post_tool_observer_legacy_spelling_unlocks_the_gate(
     )
 
     assert hooks.pre_tool_call_memory_gate(
-        tool_name="search_files", args={"pattern": "x"}, task_id="t1") is None
+        tool_name="search_files", args={"pattern": "q"}, task_id="t1") is None
 
 
 def test_post_tool_observer_non_search_tool_writes_nothing_and_keeps_gate(
@@ -94,7 +98,7 @@ def test_post_tool_observer_non_search_tool_writes_nothing_and_keeps_gate(
     hooks.post_tool_observer(**_real_post_tool_payload(function_name="memory_write"))
 
     out = hooks.pre_tool_call_memory_gate(
-        tool_name="search_files", args={"pattern": "x"}, task_id="t1")
+        tool_name="search_files", args={"pattern": "q"}, task_id="t1")
     assert out is not None and out.get("action") == "block"
     grade_dir = tmp_path / ".ai-badger" / "memory-grade"
     assert not grade_dir.exists()
