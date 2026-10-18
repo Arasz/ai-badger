@@ -216,15 +216,8 @@ def _base_config(agents=("claude",), tools=None):
     return config
 
 
-@pytest.mark.parametrize("route", [
-    {},
-    {"tools": {}},
-    {"tools": {"rtk": {"hooks": []}}},
-    {"agents": ["codex"]},
-], ids=["still-opted-in", "tool-removed", "claude-not-in-hooks", "claude-deselected"])
-def test_a_scaffold_removes_the_handler_an_earlier_native_release_wired(
-        load_script, root, tmp_path, monkeypatch, route):
-    """rtk is propose-only for Claude, so a handler 0.194.0 wired goes on every refresh route."""
+def _stale_wired(load_script, root, tmp_path, monkeypatch) -> dict:
+    """A scaffolded project with operator keys and the bare-`rtk hook` handler 0.194.0 wired."""
     before = _scaffold(load_script, root, tmp_path, monkeypatch, _base_config())
     before["model"] = "opus"
     before["hooks"].setdefault("Stop", []).append(
@@ -233,12 +226,40 @@ def test_a_scaffold_removes_the_handler_an_earlier_native_release_wired(
     wired["hooks"].setdefault("PreToolUse", []).append(
         {"matcher": "Bash", "hooks": [{"type": "command", "command": COMMAND, "timeout": 5}]})
     _write(tmp_path, wired)
+    return before
+
+
+@pytest.mark.parametrize("route", [
+    {"tools": {}},
+    {"tools": {"rtk": {"hooks": []}}},
+    {"agents": ["codex"]},
+], ids=["tool-removed", "claude-not-in-hooks", "claude-deselected"])
+def test_a_scaffold_removes_the_handler_an_earlier_native_release_wired(
+        load_script, root, tmp_path, monkeypatch, route):
+    """Every opt-out route drops a handler 0.194.0 wired and leaves the rest as it was."""
+    before = _stale_wired(load_script, root, tmp_path, monkeypatch)
     config = _base_config(tools={"rtk": {"hooks": ["claude"]}})
     config.update(route)
 
     after = _scaffold(load_script, root, tmp_path, monkeypatch, config)
 
     assert _marked(after) == []
+    assert after == before
+
+
+def test_a_scaffold_replaces_the_bare_rtk_hook_with_the_guard(load_script, root, tmp_path,
+                                                              monkeypatch):
+    """Still opted in: the 0.194.0 `rtk hook claude` handler becomes the one guard handler."""
+    before = _stale_wired(load_script, root, tmp_path, monkeypatch)
+
+    after = _scaffold(load_script, root, tmp_path, monkeypatch,
+                      _base_config(tools={"rtk": {"hooks": ["claude"]}}))
+
+    [(matcher, handler)] = _marked(after)
+    assert matcher == "Bash" and handler["timeout"] == 5
+    assert "rtk hook" not in handler["command"] and "rtk rewrite" in handler["command"]
+    assert after["hooks"]["PreToolUse"][-1]["hooks"] == [handler]
+    after["hooks"]["PreToolUse"].pop()
     assert after == before
 
 

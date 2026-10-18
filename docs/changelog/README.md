@@ -19,6 +19,7 @@ When cutting a release:
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
+| 0.197.0 | [0.197.0: an rtk guard hook keeps Claude and Codex rules on the original command](0.197.0-rtk-guard-hook.md) |
 | 0.196.1 | [manual checklist: drop the chmod 000 decoy from the watch catch-up item](0.196.1-manual-checklist-chmod-decoy.md) |
 | 0.196.0 | [memory-first gate: each grep pattern is memory-searched first](0.196.0-grep-memory-checked-gate.md) |
 | 0.195.1 | [0.195.1: rtk is propose-only for Claude and Codex](0.195.1-rtk-claude-propose.md) |

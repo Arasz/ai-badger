@@ -237,11 +237,26 @@ def test_no_which_native_arms_resolve_from_config_alone(
 
     agents = _catalog(tool_catalog, ctx).prepare()["rtk"]["agents"]
 
+    guard = (root / RTK / "scripts" / "rtk_guard.py").read_text(encoding="utf-8")
     assert agents["copilot"] == {"mode": "native", "arg": "copilot",
                                  "command": tool_hooks.guarded_command("rtk", "copilot")}
-    for agent in ("claude", "codex"):
-        assert agents[agent] == {"mode": "propose", "arg": agent}
+    assert agents["claude"] == {"mode": "native", "arg": "claude",
+                                "command": tool_hooks.guarded_command("rtk", "claude", guard)}
+    assert agents["codex"] == {"mode": "propose", "arg": "codex"}
     assert agents["hermes"] == {"mode": "propose", "arg": "hermes"}
+
+
+def test_flipping_codex_to_native_wires_the_same_guard_as_claude(tool_catalog, root):
+    """Codex stays propose until a live run; its spec already names the guard, so a flip is one word."""
+    import json
+    tool_hooks = sys.modules.get("tool_hooks") or __import__("tool_hooks")
+    meta = json.loads((root / RTK / "meta.json").read_text(encoding="utf-8"))
+    spec = dict(meta["hooks"]["codex"], mode="native")
+
+    arm = tool_catalog.ToolCatalog._arm("rtk", root / RTK, spec, None)  # pylint: disable=protected-access
+
+    guard = (root / RTK / "scripts" / "rtk_guard.py").read_text(encoding="utf-8")
+    assert arm["command"] == tool_hooks.guarded_command("rtk", "codex", guard)
 
 
 @pytest.mark.parametrize("check_codes, expected", [([0], True), ([1, 1], False)])
