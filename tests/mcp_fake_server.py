@@ -101,7 +101,8 @@ def main():
             answer(request, {"tools": [{"name": f"t{page}"}], "nextCursor": f"c{page}"})
             continue
         answer(request, {"tools": [{"name": os.environ.get("FAKE_SOLO_NAME", "solo"),
-                                    "description": "Only tool."}]})
+                                    "description": os.environ.get("FAKE_SOLO_DESC",
+                                                                  "Only tool.")}]})
 
 
 if __name__ == "__main__":

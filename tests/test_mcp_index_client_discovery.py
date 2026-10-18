@@ -17,8 +17,8 @@ SCRIPT = "features/common/skills/mcp-index/scripts/mcp_index.py"
 FAKE = str(Path(__file__).resolve().parent / "mcp_fake_server.py")
 
 
-def _mcp_json(target: Path, **modes):
-    servers = {name: {"command": sys.executable, "args": [FAKE, mode]}
+def _mcp_json(target: Path, env=None, **modes):
+    servers = {name: {"command": sys.executable, "args": [FAKE, mode], "env": env or {}}
                for name, mode in modes.items()}
     (target / ".mcp.json").write_text(json.dumps({"mcpServers": servers}), encoding="utf-8")
 
@@ -163,3 +163,19 @@ def test_a_bad_discover_timeout_is_a_usage_error(tmp_path, load_script):
 
     assert mod.main(["init", "--target", str(tmp_path), "--discover", "--discover-timeout",
                      "soon", "--from-json", _names_only("x")]) == 2
+
+
+def test_a_server_description_outside_the_intent_bounds_still_indexes(tmp_path, load_script,
+                                                                     monkeypatch):
+    """Live smoke 2026-10-18: real servers describe tools in 300-700 chars, and the schema caps
+    `intent` at 200 — the whole write was refused. A too-short one (<10) fails the same way."""
+    mod = load_script(SCRIPT)
+    _no_hermes(mod, monkeypatch)
+    for description in ("word " * 120, "Ping."):
+        _mcp_json(tmp_path, env={"FAKE_SOLO_DESC": description}, fake="solo")
+
+        assert mod.main(["init", "--target", str(tmp_path), "--discover",
+                         "--from-json", _names_only("fake")]) == 0
+
+        intent = _source(tmp_path, "fake")["tools"]["solo"]["intent"]
+        assert 10 <= len(intent) <= 200
