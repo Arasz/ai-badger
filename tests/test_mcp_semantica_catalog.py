@@ -73,10 +73,10 @@ def test_tools_json_validates_against_schema():
     jsonschema.validate(tools, schema)
 
 
-def test_tools_json_has_11_tools():
-    """tools.json lists exactly 11 tools: the live server's 12 minus the broken get_graph_analytics."""
+def test_tools_json_has_12_tools():
+    """tools.json lists all 12 tools the live semantica 0.6.6 server offers."""
     tools = json.loads(_catalog_file("tools.json").read_text(encoding="utf-8"))
-    assert len(tools["tools"]) == 11
+    assert len(tools["tools"]) == 12
 
 
 def test_tool_names_are_unique():
@@ -120,15 +120,16 @@ def test_tools_json_has_core_tools():
     assert not missing, f"Missing required tools: {missing}"
 
 
-def test_broken_tool_not_present():
-    """get_graph_analytics is broken (0.6.5, and 0.6.6 on 2026-10-18) and must not be listed.
+def test_broken_tool_intent_warns_and_points_elsewhere():
+    """get_graph_analytics is listed but its intent says it fails and names the working tool.
 
-    Measured live on semantica 0.6.6: the call returns
-    `PageRank calculation failed: 'dict' object is not callable`.
+    Measured live on semantica 0.6.6 (2026-10-18): the call returns
+    `PageRank calculation failed: 'dict' object is not callable`. Leaving it out of the catalog
+    made a consumer's `mcp-index validate` fail on its heuristic `general` tag instead.
     """
     tools = json.loads(_catalog_file("tools.json").read_text(encoding="utf-8"))
-    names = {t["name"] for t in tools["tools"]}
-    assert "get_graph_analytics" not in names
+    intent = next(t["intent"] for t in tools["tools"] if t["name"] == "get_graph_analytics")
+    assert "fails" in intent and "get_graph_summary" in intent
 
 
 # ── server.md ────────────────────────────────────────────────────────────────
