@@ -38,7 +38,7 @@ def env(load_script, monkeypatch, tmp_path):
     calls = []
     state = SimpleNamespace(reply=HITS)
 
-    def fake_hits(query, project_id, session_id, cwd):
+    def fake_hits(query, project_id, *_rest):
         calls.append((query, project_id))
         if isinstance(state.reply, Exception):
             raise state.reply
@@ -196,6 +196,12 @@ def test_pattern_extraction(env):
     assert gate.search_patterns("Bash", {"command": "sed -n 1,2p f; cat g"}) is None
     assert gate.search_patterns("Grep", {"pattern": "x\\.y"}) == ["x\\.y"]
     assert gate.search_patterns("search_files", {"query": "q1"}) == ["q1"]
+    # alternation: `\|` always, bare `|` only under rg / -E / egrep (BRE `|` is a literal)
+    assert gate.search_patterns("Bash", {"command": USER_EXAMPLE}) == [
+        "def merge_hooks", "def _prune", "append", "extend"]
+    assert gate.search_patterns("Bash", {"command": "rg 'c3|d4' src"}) == ["c3", "d4"]
+    assert gate.search_patterns("Bash", {"command": "grep -E 'c3|d4' f"}) == ["c3", "d4"]
+    assert gate.search_patterns("Bash", {"command": "grep 'c3|d4' f"}) == ["c3|d4"]
 
 
 def test_regex_escapes_are_normalized(env, monkeypatch, capsys):
