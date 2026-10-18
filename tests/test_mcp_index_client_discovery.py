@@ -237,3 +237,21 @@ def test_enumeration_does_not_make_unnamed_sources_absent(tmp_path, load_script,
 
     assert _source(tmp_path, "x") == before
     assert "solo" in _source(tmp_path, "y")["tools"]
+
+
+def test_an_unexpected_client_error_fails_one_server_not_the_run(tmp_path, load_script,
+                                                                 monkeypatch, capsys):
+    """`${MCP_URL}` unset gives urllib an empty URL and a ValueError, not an McpClientError."""
+    mod = load_script(SCRIPT)
+    _no_hermes(mod, monkeypatch)
+    monkeypatch.delenv("FAKE_UNSET_MCP_URL", raising=False)
+    _mcp_json(tmp_path, fake="solo")
+    config = json.loads((tmp_path / ".mcp.json").read_text(encoding="utf-8"))
+    config["mcpServers"]["broken"] = {"type": "http", "url": "${FAKE_UNSET_MCP_URL}"}
+    (tmp_path / ".mcp.json").write_text(json.dumps(config), encoding="utf-8")
+
+    assert mod.main(["init", "--target", str(tmp_path), "--discover",
+                     "--from-json", _names_only("broken", "fake")]) == 0
+
+    assert "broken: failed: " in capsys.readouterr().err
+    assert "solo" in _source(tmp_path, "fake")["tools"]

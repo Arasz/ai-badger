@@ -36,6 +36,10 @@ def ask_server(spec: Server, cwd: str, timeout: float) -> Tuple[Optional[List[Se
         return None, "timed out"
     except mc.McpClientError as exc:
         return None, f"failed: {exc}"
+    except Exception as exc:  # pylint: disable=broad-exception-caught
+        # A bad URL, a malformed header or a dropped connection is this server's failure,
+        # never the whole run's: future.result() would re-raise it into --discover.
+        return None, f"failed: {type(exc).__name__}: {' '.join(str(exc).split())[:200]}"
     return tools, f"enumerated {len(tools)} tool(s)"
 
 
