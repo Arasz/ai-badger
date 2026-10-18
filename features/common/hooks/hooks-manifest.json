@@ -200,6 +200,42 @@
       }
     },
     {
+      "name": "memory-broker-start",
+      "description": "Start the session's detached memory broker: one ai-raccoon proxy per session that the memory hooks search through instead of spawning a proxy per call (searches fall back to a per-call spawn when no broker is there); Hermes and pi have no arm",
+      "agents": {
+        "claude": {
+          "type": "hooks-json",
+          "entry": "hooks.json",
+          "event": "SessionStart",
+          "script": "memory_broker_hook.py"
+        },
+        "copilot": {
+          "type": "hooks-json",
+          "entry": "hooks.json",
+          "event": "sessionStart",
+          "script": "memory_broker_hook.py"
+        }
+      }
+    },
+    {
+      "name": "memory-broker-stop",
+      "description": "Stop the session's memory broker and remove its socket when the session ends (the broker also exits after 30 idle minutes)",
+      "agents": {
+        "claude": {
+          "type": "hooks-json",
+          "entry": "hooks.json",
+          "event": "SessionEnd",
+          "script": "memory_broker_hook.py"
+        },
+        "copilot": {
+          "type": "hooks-json",
+          "entry": "hooks.json",
+          "event": "sessionEnd",
+          "script": "memory_broker_hook.py"
+        }
+      }
+    },
+    {
       "name": "dispatch-gate",
       "description": "Deny a subagent dispatch that names no model and whose subagent type has no model lane, so no delegation silently inherits the session model",
       "agents": {
