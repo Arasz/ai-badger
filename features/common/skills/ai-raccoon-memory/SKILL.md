@@ -181,6 +181,7 @@ Only the program immediately before the grep counts (`git log | head -50 | grep 
 `head` is not listed). A grep with a file operand, `-r`/`-R`/`-d recurse`, `rg --files`, an
 input redirect, or run by `xargs` stays gated, as does any file grep elsewhere in the command.
 Exception: a listed program that prints repo files is not exempt — `git ls-files`, `git ls-tree`, `git grep` (subcommand found past `-C`/`-c`/`--git-dir`/`--work-tree`) and `ls -R`/`--recursive`; a grep over their output stays gated.
+A `memory_search` credits its query only when the call succeeded (not Claude's `PostToolUseFailure`, a Copilot `resultType` other than `success`, or a Hermes status other than ok) and its `projectId` equals the project the gate resolved; a search of another project, or one with no `projectId`, unlocks nothing. A `grep -f`/`rg -f`/`--file` search takes its patterns from a file the gate cannot read, so it is keyed on its own words.
 
 **Search log.** Each enriched prompt, and each planned query, is a real `memory_search` and
 lands in ai-raccoon's search log like any other search.

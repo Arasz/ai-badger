@@ -1,8 +1,8 @@
 {
   "$schema": "../schemas/manifest.schema.json",
   "frameworkVersion": "0.196.0",
-  "frameworkCommit": "c4c58c3c2698380d317b01a8cd3ae5acef5a4987",
-  "frameworkDirty": false,
+  "frameworkCommit": "b604f3f5631be64b8d30e6cbd38fd81ebdc5385d",
+  "frameworkDirty": true,
   "frameworkRoot": ".",
   "generatedAt": null,
   "agents": [
@@ -560,12 +560,12 @@
       "source": "features/common/skills/ai-raccoon-memory",
       "target": ".ai-badger/skills/ai-raccoon-memory",
       "frameworkVersion": "0.196.0",
-      "hash": "121d677c0c63b5b65bfae96f1fc148ef27810687139b1a5009523575d665b5ff",
+      "hash": "3c39474c2ff37ceeeefde7384eb70c331c174b9158206160e87d4b569534ae4f",
       "dirMeta": {
         "file_count": 11,
         "dir_count": 1
       },
-      "sourceHash": "121d677c0c63b5b65bfae96f1fc148ef27810687139b1a5009523575d665b5ff",
+      "sourceHash": "3c39474c2ff37ceeeefde7384eb70c331c174b9158206160e87d4b569534ae4f",
       "sourceMeta": {
         "file_count": 11,
         "dir_count": 1
@@ -2826,7 +2826,7 @@
       "target": ".ai-badger/hooks/ai_badger_hooks.py",
       "frameworkVersion": "0.196.0",
       "hash": "c3af0003f21768f8e415b8e7e8adc908f75ab5ff4b51fd4fc04b980c93528f0f",
-      "outputHash": "b4e2d6756177a5428349294f50892eea77648817c9eea2e81282313eb7413fa1"
+      "outputHash": "d25f3ec2a302feab7a37d199b3cba94e3ba7c8ed815fcb3c9d257234aa4bd647"
     },
     {
       "feature": "adjustments",
@@ -2916,7 +2916,7 @@
       "target": ".ai-badger/hooks/memory_first_gate.py",
       "frameworkVersion": "0.196.0",
       "hash": "c3af0003f21768f8e415b8e7e8adc908f75ab5ff4b51fd4fc04b980c93528f0f",
-      "outputHash": "5ed5af1e43863ebc37a5ec6ccd26cb7c80957be5bb8f74c9947d4d435abadca2"
+      "outputHash": "18605fe5031c9ac9d4377f7c7ecbe8f260d47acaae8f14e7cb264fa1b19d83a7"
     },
     {
       "feature": "adjustments",
@@ -3036,7 +3036,7 @@
       "target": ".ai-badger/hooks/ai_badger_hooks.py",
       "frameworkVersion": "0.196.0",
       "hash": "a306dd37c27ea55ad6d321e9b4dd05a0ca2e2fab3b4aa5e429140b5e2e2babbd",
-      "outputHash": "b4e2d6756177a5428349294f50892eea77648817c9eea2e81282313eb7413fa1"
+      "outputHash": "d25f3ec2a302feab7a37d199b3cba94e3ba7c8ed815fcb3c9d257234aa4bd647"
     },
     {
       "feature": "adjustments",

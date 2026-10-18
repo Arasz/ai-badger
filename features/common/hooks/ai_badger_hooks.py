@@ -351,15 +351,20 @@ def _is_memory_search(tool_name: Any) -> bool:
     return name == "memory_search"
 
 
+# Hermes post_tool_call statuses that mean the tool ran; anything else is a failed call.
+_OK_STATUSES = ("ok", "success", "")
+
+
 def _maybe_record_memory_consult(tool_name: str, args: Dict[str, Any], cwd: str,
-                                 session_id: Optional[str] = None) -> None:
+                                 session_id: Optional[str] = None, status: str = "ok") -> None:
     """After a memory_search call, record its query as searched for the project."""
     if not _is_memory_search(tool_name):
         return
     gate = _load_memory_first_gate()
     if gate is not None:
         gate.record_search(session_id)
-        gate.record_query(gate.project_id(_project_cwd(cwd)), (args or {}).get("query"))
+        gate.credit_search(gate.project_id(_project_cwd(cwd)), args or {},
+                           failed=str(status).lower() not in _OK_STATUSES)
 
 
 def pre_tool_call_memory_gate(tool_name: str = "", args: Optional[Dict[str, Any]] = None,
@@ -1177,7 +1182,8 @@ def post_tool_observer(tool_name: str = "", result: str = "",
         logger.warning("grounded feedback stash failed", exc_info=True)
 
     try:
-        _maybe_record_memory_consult(tool_name, args, cwd, session_id)
+        _maybe_record_memory_consult(tool_name, args, cwd, session_id,
+                                     str(kwargs.get("status", "ok")))
     except Exception:  # pylint: disable=broad-exception-caught
         logger.warning("memory-first gate record failed", exc_info=True)
 

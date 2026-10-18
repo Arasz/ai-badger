@@ -233,7 +233,9 @@ def _grep_parse(program: str, args: Tuple[str, ...]) -> Tuple[List[str], List[st
             continue
         operands.append(arg)
     files = operands if (explicit or from_file) else operands[1:]
-    patterns = [part for raw in (explicit or operands[:1]) for part in _split(raw, extended)]
+    # under -f the patterns live in a file the gate cannot read, so no operand is a pattern
+    sources = explicit or ([] if from_file else operands[:1])
+    patterns = [part for raw in sources for part in _split(raw, extended)]
     return patterns, files, walks
 
 
@@ -443,6 +445,14 @@ def unsearched(project: str, patterns: Iterable[str]) -> List[str]:
         if PATTERN_KIND + key not in known and not any(_in_query(key, q) for q in queries):
             out.append(pattern)
     return out
+
+
+def credit_search(project: str, args: Any, failed: bool = False) -> bool:
+    """Record a memory_search's query as searched for *project*; only a call that succeeded
+    and named that same projectId counts."""
+    if failed or not isinstance(args, dict) or args.get("projectId") != project:
+        return False
+    return record_query(project, args.get("query"))
 
 
 def record_query(project: str, query: Any) -> bool:

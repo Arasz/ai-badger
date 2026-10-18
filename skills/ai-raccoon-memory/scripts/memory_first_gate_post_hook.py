@@ -29,6 +29,15 @@ def _args(payload: Dict[str, Any]) -> Dict[str, Any]:
     return args if isinstance(args, dict) else {}
 
 
+def _failed(payload: Dict[str, Any]) -> bool:
+    """True when the host reports the call failed: Claude's PostToolUseFailure event, or a
+    Copilot toolResult whose resultType is not success."""
+    if (payload.get("hook_event_name") or payload.get("hookEventName")) == "PostToolUseFailure":
+        return True
+    result = payload.get("toolResult")
+    return isinstance(result, dict) and result.get("resultType", "success") != "success"
+
+
 def main(argv: Optional[list] = None) -> int:
     """Read the hook payload from stdin; record a memory_search's query; exit 0."""
     del argv
@@ -42,7 +51,8 @@ def main(argv: Optional[list] = None) -> int:
     if not gate.is_memory_search(tool_name):
         return 0
     gate.record_search(payload.get("session_id") or payload.get("sessionId"))
-    gate.record_query(gate.project_id(str(payload.get("cwd") or "")), _args(payload).get("query"))
+    gate.credit_search(gate.project_id(str(payload.get("cwd") or "")), _args(payload),
+                       failed=_failed(payload))
     return 0
 
 

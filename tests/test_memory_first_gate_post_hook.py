@@ -48,7 +48,7 @@ def _searched(gate, query):
 
 def test_plain_memory_search_records_marker(hook, gate, monkeypatch, tmp_path):
     rc = _run(hook, monkeypatch, {"tool_name": "memory_search", "session_id": "t1",
-                                  "tool_input": {"query": "alpha"}})
+                                  "tool_input": {"projectId": "post-proj", "query": "alpha"}})
 
     assert rc == 0
     assert _searched(gate, "alpha")
@@ -57,7 +57,7 @@ def test_plain_memory_search_records_marker(hook, gate, monkeypatch, tmp_path):
 def test_mcp_prefixed_spelling_records_marker(hook, gate, monkeypatch):
     rc = _run(hook, monkeypatch, {
         "toolName": "mcp__ai_raccoon__memory_search", "sessionId": "t2",
-        "toolArgs": '{"query": "beta"}'})
+        "toolArgs": '{"projectId": "post-proj", "query": "beta"}'})
 
     assert rc == 0
     assert _searched(gate, "beta")
@@ -65,7 +65,7 @@ def test_mcp_prefixed_spelling_records_marker(hook, gate, monkeypatch):
 
 def test_colon_spelling_records_marker(hook, gate, monkeypatch):
     rc = _run(hook, monkeypatch, {"tool_name": "ai-raccoon:memory_search",
-                                  "session_id": "t3", "tool_input": {"query": "gamma"}})
+                                  "session_id": "t3", "tool_input": {"projectId": "post-proj", "query": "gamma"}})
 
     assert rc == 0
     assert _searched(gate, "gamma")

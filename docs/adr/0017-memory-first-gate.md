@@ -111,6 +111,7 @@ passed untouched. The gate now keys on the search pattern, not the session.
   `--recursive`/`-d recurse`, `rg --files`, find, an input redirect (`< f`, `<<<`), a grep run
   by `xargs`, a grep nested in `bash -c` (its stdin is not proven), and the shlex fallback.
   Exception: a listed program that prints repo files is not exempt — `git ls-files`, `git ls-tree`, `git grep` (subcommand found past `-C`/`-c`/`--git-dir`/`--work-tree`) and `ls -R`/`--recursive`; a grep over their output stays gated.
+  A `memory_search` credits its query only when the call succeeded (not Claude's `PostToolUseFailure`, a Copilot `resultType` other than `success`, or a Hermes status other than ok) and its `projectId` equals the project the gate resolved; a search of another project, or one with no `projectId`, unlocks nothing. A `grep -f`/`rg -f`/`--file` search takes its patterns from a file the gate cannot read, so it is keyed on its own words.
 - **Untrusted hits.** The search hits quoted in a deny reason are bank content, untrusted data
   exactly as in the prompt hook's injected context.
 - **Removed.** `MAX_DENIALS` and the denial counter (`deny_count`, `increment_denials`),

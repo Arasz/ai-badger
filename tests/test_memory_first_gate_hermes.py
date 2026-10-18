@@ -8,6 +8,7 @@ the Claude/Copilot hooks use; session start clears nothing.
 # pylint: disable=redefined-outer-name  # module-local fixture reuse; see pyproject.toml
 from __future__ import annotations
 
+import os
 import sys
 
 import badger_store
@@ -59,11 +60,13 @@ def _block(out):
     return out is not None and out.get("action") == "block"
 
 
-def _search(hooks, query):
+def _search(hooks, query, **extra):
+    """A memory_search for the project the cwd resolves to, as Hermes reports it."""
+    gate = sys.modules[hooks.MEMORY_FIRST_GATE_MODULE_NAME]
     hooks.post_tool_observer(
         function_name="mcp__ai_raccoon__memory_search",
-        function_args={"projectId": "probe", "query": query},
-        result='{"results": []}', session_id="sess-1")
+        function_args={"projectId": gate.project_id(os.getcwd()), "query": query},
+        result='{"results": []}', session_id="sess-1", **extra)
 
 
 def test_register_wires_pre_tool_call(hooks):
@@ -98,7 +101,8 @@ def test_memory_search_with_the_pattern_unblocks_search_files(
 def test_colon_spelling_of_memory_search_also_records(
         hooks, fake_gate, proj_a, monkeypatch):
     monkeypatch.chdir(proj_a)
-    hooks.post_tool_observer(tool_name="ai-raccoon:memory_search", args={"query": "x"},
+    hooks.post_tool_observer(tool_name="ai-raccoon:memory_search",
+                             args={"projectId": fake_gate.project_id(os.getcwd()), "query": "x"},
                              result="")
 
     assert hooks.pre_tool_call_memory_gate(
@@ -167,3 +171,25 @@ def test_searched_state_is_keyed_per_project(
     out = hooks.pre_tool_call_memory_gate(
         tool_name="search_files", args={"pattern": "x"}, task_id="t2")
     assert _block(out)
+
+
+def test_a_failed_memory_search_credits_nothing(hooks, fake_gate, proj_a, monkeypatch):
+    """Mutation: record the query whatever Hermes' status says -> red."""
+    monkeypatch.chdir(proj_a)
+    _search(hooks, "MemorySearch", status="error")
+
+    assert _block(hooks.pre_tool_call_memory_gate(
+        tool_name="search_files", args={"pattern": "MemorySearch"}, task_id="t1"))
+
+
+def test_a_memory_search_for_another_project_credits_nothing(
+        hooks, fake_gate, proj_a, monkeypatch):
+    """Mutation: ignore the call's projectId -> red."""
+    monkeypatch.chdir(proj_a)
+    hooks.post_tool_observer(
+        function_name="mcp__ai_raccoon__memory_search",
+        function_args={"projectId": "other-project", "query": "MemorySearch"},
+        result='{"results": []}', session_id="sess-1")
+
+    assert _block(hooks.pre_tool_call_memory_gate(
+        tool_name="search_files", args={"pattern": "MemorySearch"}, task_id="t1"))

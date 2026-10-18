@@ -294,7 +294,7 @@ def test_copilot_string_tool_args_on_both_hooks(env, monkeypatch, capsys):
 
     _feed(monkeypatch, {"hookEventName": "postToolUse", "sessionId": "c1",
                         "cwd": str(env.tmp), "toolName": "memory_search",
-                        "toolArgs": json.dumps({"query": "gizmo"})})
+                        "toolArgs": json.dumps({"projectId": PROJECT, "query": "gizmo"})})
     assert env.post.main([]) == 0
 
     _feed(monkeypatch, {"hookEventName": "preToolUse", "sessionId": "c1",
@@ -517,3 +517,65 @@ def test_a_file_listing_upstream_is_not_exempt(env, command):
 def test_live_output_upstreams_stay_exempt(env, command):
     """Mutation: treat every git/ls upstream as file listing -> red."""
     assert env.gate.search_patterns("Bash", {"command": command}) is None
+
+
+# ------------------------------------------------------------------ crediting a memory_search
+def _post(env, monkeypatch, payload):
+    _feed(monkeypatch, payload)
+    assert env.post.main([]) == 0
+
+
+def test_a_memory_search_for_another_project_credits_nothing(env, monkeypatch, capsys):
+    """Mutation: ignore the call's projectId -> project B's search unlocks A's grep -> red."""
+    env.state.reply = None
+    _post(env, monkeypatch, {"hook_event_name": "PostToolUse", "cwd": str(env.tmp),
+                             "tool_name": "mcp__ai-raccoon__memory_search",
+                             "tool_input": {"projectId": "other-project", "query": "widgetFactory"}})
+
+    assert _bash(env, monkeypatch, capsys, "grep -n widgetFactory f.py" + MARK) is not None
+
+
+def test_a_memory_search_without_a_project_id_credits_nothing(env, monkeypatch, capsys):
+    """Mutation: treat a missing projectId as a match -> red."""
+    env.state.reply = None
+    _post(env, monkeypatch, {"hook_event_name": "PostToolUse", "cwd": str(env.tmp),
+                             "tool_name": "mcp__ai-raccoon__memory_search",
+                             "tool_input": {"query": "widgetFactory"}})
+
+    assert _bash(env, monkeypatch, capsys, "grep -n widgetFactory f.py" + MARK) is not None
+
+
+@pytest.mark.parametrize("payload", [
+    {"hookEventName": "postToolUse", "toolName": "memory_search",
+     "toolArgs": json.dumps({"projectId": PROJECT, "query": "widgetFactory"}),
+     "toolResult": {"resultType": "failure", "textResultForLlm": "boom"}},
+    {"hook_event_name": "PostToolUseFailure", "tool_name": "mcp__ai-raccoon__memory_search",
+     "tool_input": {"projectId": PROJECT, "query": "widgetFactory"}, "error": "boom"},
+])
+def test_a_failed_memory_search_credits_nothing(env, monkeypatch, capsys, payload):
+    """Mutation: record the query whatever the result -> a failed search unlocks grep -> red."""
+    env.state.reply = None
+    _post(env, monkeypatch, dict(payload, cwd=str(env.tmp)))
+
+    assert _bash(env, monkeypatch, capsys, "grep -n widgetFactory f.py" + MARK) is not None
+
+
+def test_a_successful_copilot_memory_search_credits_its_query(env, monkeypatch, capsys):
+    """Guards the failure check against rejecting every Copilot result."""
+    env.state.reply = None
+    _post(env, monkeypatch, {"hookEventName": "postToolUse", "cwd": str(env.tmp),
+                             "toolName": "memory_search",
+                             "toolArgs": json.dumps({"projectId": PROJECT, "query": "widgetFactory"}),
+                             "toolResult": {"resultType": "success"}})
+
+    assert _bash(env, monkeypatch, capsys, "grep -n widgetFactory f.py" + MARK) is None
+
+
+@pytest.mark.parametrize("command", ["grep -f patterns.txt target.py",
+                                     "rg -f patterns.txt target.py",
+                                     "grep --file=patterns.txt target.py"])
+def test_a_pattern_file_search_is_keyed_on_its_words_not_its_target(env, command):
+    """Mutation: take the first operand as the pattern under -f -> keyed on target.py -> red."""
+    found = env.gate.search_patterns("Bash", {"command": command})
+
+    assert found == [command]

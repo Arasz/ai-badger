@@ -34,6 +34,7 @@ def fake_gate(hooks, monkeypatch, load_script, tmp_path):
     """The real gate module, injected under the hooks' module-name constant."""
     monkeypatch.setenv(badger_store.DEBUG_DIR_ENV, str(tmp_path / "debug"))
     monkeypatch.setenv(badger_store.USER_ROOT_ENV, str(tmp_path / "user-root"))
+    monkeypatch.setenv("AI_BADGER_PROJECT_ID", "probe")  # the payloads' projectId
     real = load_script(
         "features/common/skills/ai-raccoon-memory/scripts/memory_first_gate.py")
     monkeypatch.setattr(real, "MARKER_DIR", tmp_path / "memory-first")
