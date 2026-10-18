@@ -23,8 +23,8 @@ contents are not assumed compatible solely because Codex can read a marketplace;
 hooks, and MCP configuration must use a Codex-supported interface.
 
 The memory-first gate runs synchronously on `PreToolUse` for shell search calls. Its denial
-uses Codex's native `hookSpecificOutput` response. No post-call observer is registered because
-it cannot prevent the search from running.
+uses Codex's native `hookSpecificOutput` response. A `PostToolUse` observer credits a memory
+search only after it succeeds; this observer records compliance but cannot prevent a search.
 
 ## Consequences
 
