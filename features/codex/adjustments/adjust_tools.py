@@ -10,6 +10,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from codex_paths import symlink_parent  # pylint: disable=wrong-import-position
 
 EVENT = 'PreToolUse'
+PROPOSAL = ('{tool} is not wired for Codex: its hook answers permissionDecision allow, so a '
+            'rewritten command skips the Codex approval prompt and its safe/dangerous classifiers. '
+            'Wire it yourself with `{tool} init --{arg}` only if that approval does not matter.')
 NOTE = ('Codex tool hooks need project trust and /hooks approval; rtk-wrapped commands are '
         'auto-allowed (permissionDecision allow) and bypass the Codex approval prompt and its '
         'safe/dangerous classifiers; optional: if rtk history fails with SQLITE_CANTOPEN in the '
@@ -61,7 +64,17 @@ def _merge(hooks: dict[str, Any], wanted: list[dict[str, Any]], is_ours) -> None
 
 
 def adjust(context: dict[str, Any]) -> dict[str, Any]:
-    """Add one marked Bash entry per tool with a Codex arm; remove marked entries without one."""
+    """Add one marked entry per native Codex arm, remove the rest, and note each proposal."""
+    result = _wire(context)
+    proposals = [PROPOSAL.format(tool=name, arg=arm.get('arg', 'codex'))
+                 for name, tool in (context.get('tools') or {}).items()
+                 if (arm := (tool.get('agents') or {}).get('codex')) and arm.get('mode') == 'propose']
+    if proposals:
+        result['notes'] = '; '.join([result['notes'], *proposals])
+    return result
+
+
+def _wire(context: dict[str, Any]) -> dict[str, Any]:
     _scripts(Path(context['framework_root']))
     import config_guard  # pylint: disable=import-outside-toplevel
     from tool_hooks import is_ours  # pylint: disable=import-outside-toplevel

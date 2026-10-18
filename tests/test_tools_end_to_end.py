@@ -25,7 +25,7 @@ MARKER = "AI_BADGER_TOOL="
 STAMP = "2026-10-17T00:00:00Z"
 SKILLS = "git-work,commit-reminder"
 STUB = '#!/bin/sh\nprintf "%s\\n" "$*" >> "$STUB_LOG"\n'
-MARKED_FILES = (".codex/hooks.json", ".github/hooks/rtk-rewrite.json")
+MARKED_FILES = (".github/hooks/rtk-rewrite.json",)
 FORBIDDEN_NAMES = {"pipeline.toml", "RTK.md", ".rtk", "filters.toml"}
 
 
@@ -111,7 +111,7 @@ def backup_names(box: Sandbox) -> list:
 
 # -- a2: every arm lands, a rerun is a no-op, removal leaves nothing ----------------------
 
-def test_codex_copilot_write_files_and_claude_pi_hermes_only_note(box):
+def test_copilot_writes_a_file_and_claude_codex_pi_hermes_only_note(box):
     stdout = box.scaffold(ALL_HOOKS)
 
     for rel in MARKED_FILES:
@@ -120,6 +120,8 @@ def test_codex_copilot_write_files_and_claude_pi_hermes_only_note(box):
     assert all(len(notes) == 1 for notes in by_agent.values()), by_agent
     assert MARKER not in (box.target / ".claude/settings.json").read_text()
     assert "permissions.ask" in by_agent["claude"][0]
+    assert MARKER not in (box.target / ".codex/hooks.json").read_text()
+    assert "approval" in by_agent["codex"][0]
     assert "rtk init --agent pi" in by_agent["pi"][0]
     assert "rtk init -g --agent hermes --auto-patch" in by_agent["hermes"][0]
     assert not (box.target / ".pi/extensions/rtk.ts").exists()
@@ -232,7 +234,7 @@ def _backup_count(target: Path) -> int:
 
 
 def test_reruns_write_no_new_hook_backups(box):
-    """Framework hooks land ahead of a marked tool group, so a rerun has nothing to move."""
+    """A rerun of an unchanged config writes no hooks file, so it leaves no new backup."""
     box.scaffold(ALL_HOOKS)
     first = _backup_count(box.target)
 
@@ -240,5 +242,3 @@ def test_reruns_write_no_new_hook_backups(box):
     box.scaffold(ALL_HOOKS)
 
     assert _backup_count(box.target) == first
-    groups = json.loads((box.target / ".codex/hooks.json").read_text())["hooks"]["PreToolUse"]
-    assert MARKER in json.dumps(groups[-1]) and MARKER not in json.dumps(groups[:-1])

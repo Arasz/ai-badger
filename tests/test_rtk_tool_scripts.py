@@ -171,8 +171,9 @@ def test_meta_declares_the_hook_mode_for_every_agent(root):
     modes = {agent: spec["mode"] for agent, spec in meta["hooks"].items()}
 
     assert meta["name"] == "rtk"
-    # Claude is propose-only: its rewritten command escapes permissions.ask (s13 evidence).
-    assert modes == {"claude": "propose", "codex": "native", "copilot": "native",
+    # Claude and Codex are propose-only: a rewritten command escapes permissions.ask on Claude
+    # (s13 evidence) and is auto-allowed past the approval prompt on Codex.
+    assert modes == {"claude": "propose", "codex": "propose", "copilot": "native",
                      "pi": "init", "hermes": "propose"}
     assert "1.0.1" in meta["prerequisite"]["summary"]
     assert "scripts/check.py" in meta["prerequisite"]["check"]

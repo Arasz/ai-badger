@@ -64,28 +64,37 @@ def test_symlinked_codex_preserved(load_script, tmp_path):
     assert list(elsewhere.iterdir()) == []
 
 
-def test_run_adjustments_cleans_only_marked_entry(load_script, root, tmp_path, monkeypatch):
+@pytest.mark.parametrize('route', [{}, {'tools': {}}, {'agents': ['claude']}],
+                         ids=['still-opted-in', 'tool-removed', 'codex-deselected'])
+def test_a_scaffold_removes_the_entry_an_earlier_native_release_wired(
+        load_script, root, tmp_path, monkeypatch, route):
+    """rtk is propose-only for Codex, so an entry 0.195.0 wired goes; the operator's stays."""
     import badger_lib as bl
     from scaffold_helpers import _config, build_scaffolder
     index = load_script('tooling/index_build.py').build_index(root)
     monkeypatch.setattr(bl, 'read_index', lambda _: index)
     module = load_script('features/common/skills/welcome-ai-badger/scripts/scaffold.py')
     config = _config(stacks=['python'], agents=['codex'])
-    config['tools'] = {'rtk': {'hooks': ['codex']}}
-    build_scaffolder(module, root=root, target=tmp_path, config=config).run()
+    build_scaffolder(module, root=root, target=tmp_path, config=config,
+                     skills=['git-work', 'commit-reminder']).run()
     dst = tmp_path / '.codex/hooks.json'
-    assert 'AI_BADGER_TOOL=rtk' in dst.read_text()
-    doc = tmp_path / 'AGENTS.md'
-    assert '@RTK.md' not in doc.read_text()
-    assert not (tmp_path / 'RTK.md').exists()
     existing = json.loads(dst.read_text())
     existing['hooks'].setdefault('Stop', []).append({'hooks': [{'command': 'operator'}]})
+    existing['hooks'].setdefault('PreToolUse', []).append({'matcher': 'Bash', 'hooks': [
+        {'type': 'command', 'command': 'env AI_BADGER_TOOL=rtk RTK_TELEMETRY_DISABLED=1 sh -c true',
+         'timeout': 5}]})
     dst.write_text(json.dumps(existing))
-    config['tools'] = {}
-    config['agents'] = ['claude']
-    build_scaffolder(module, root=root, target=tmp_path, config=config).run()
+    config['tools'] = {'rtk': {'hooks': ['codex']}}
+    config.update(route)
+
+    build_scaffolder(module, root=root, target=tmp_path, config=config,
+                     skills=['git-work', 'commit-reminder']).run()
+
     assert 'AI_BADGER_TOOL=rtk' not in dst.read_text()
     assert json.loads(dst.read_text())['hooks']['Stop'] == [{'hooks': [{'command': 'operator'}]}]
+    assert not (tmp_path / 'RTK.md').exists()
+    doc = tmp_path / 'AGENTS.md'
+    assert not doc.exists() or '@RTK.md' not in doc.read_text()
 
 
 def test_codex_notice_and_no_config_change(load_script, tmp_path):
@@ -143,3 +152,34 @@ def test_the_marked_group_is_moved_last_after_a_framework_group_is_appended(load
     assert groups[0] == guard
     assert 'AI_BADGER_TOOL=rtk' in groups[-1]['hooks'][0]['command']
     assert len(groups) == 2
+
+
+def test_adjust_hooks_inserts_framework_groups_ahead_of_a_marked_tool_group(load_script, tmp_path):
+    guard = tmp_path / '.ai-badger/skills/git-work/scripts/git_internals_guard.py'
+    guard.parent.mkdir(parents=True)
+    guard.write_text('')
+    dst = tmp_path / '.codex/hooks.json'
+    dst.parent.mkdir()
+    tool = {'matcher': 'Bash', 'hooks': [{'type': 'command', 'timeout': 5, 'command':
+                                          'env AI_BADGER_TOOL=rtk RTK_TELEMETRY_DISABLED=1 sh -c true'}]}
+    dst.write_text(json.dumps({'hooks': {'PreToolUse': [tool]}}))
+
+    load_script('features/codex/adjustments/adjust_hooks.py').adjust(context(tmp_path, enabled=False))
+
+    groups = handlers(dst)
+    assert groups[-1] == tool
+    assert any('git_internals_guard' in h['command'] for h in groups[0]['hooks'])
+
+
+def test_a_propose_arm_removes_the_wired_entry_and_says_why(load_script, tmp_path):
+    dst = tmp_path / '.codex/hooks.json'
+    dst.parent.mkdir()
+    dst.write_text(json.dumps({'hooks': {'PreToolUse': [{'matcher': 'Bash', 'hooks': [
+        {'type': 'command', 'command': 'env AI_BADGER_TOOL=rtk RTK_TELEMETRY_DISABLED=1 sh -c true'}]}]}}))
+    ctx = context(tmp_path)
+    ctx['tools']['rtk']['agents']['codex'] = {'mode': 'propose', 'arg': 'codex'}
+
+    result = load_script('features/codex/adjustments/adjust_tools.py').adjust(ctx)
+
+    assert 'AI_BADGER_TOOL' not in dst.read_text()
+    assert 'approval' in result['notes'] and 'rtk init --codex' in result['notes']

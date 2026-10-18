@@ -11,7 +11,7 @@
   },
   "hooks": {
     "claude": {"mode": "propose", "arg": "claude" },
-    "codex": { "mode": "native", "arg": "codex" },
+    "codex": {"mode": "propose", "arg": "codex" },
     "copilot": { "mode": "native", "arg": "copilot" },
     "pi": { "mode": "init", "arg": "pi" },
     "hermes": { "mode": "propose", "arg": "hermes" }

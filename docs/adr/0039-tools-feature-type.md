@@ -54,6 +54,13 @@ Three plan reviews (security, harness, structure) then tightened the guard and t
    rtk's meta now declares Claude `propose`. The Claude arm wires nothing, removes a handler
    0.194.0 wired, and prints the reason. The native Claude merge stays in the arm for a tool
    whose rewrite preserves ask rules.
+
+   **Codex is `propose` as well, by the same rule.** ai-badger does not wire a hook that weakens
+   the harness's own approval. rtk's Codex hook always answers `allow`, so a rewritten command
+   skips the approval prompt and the safe/dangerous classifiers (the Codex approval bypass
+   below). That was disclosed rather than silent, but it is the same class of bypass. The Codex
+   arm removes an entry 0.195.0 or earlier wired and prints `rtk init --codex` for an operator
+   who accepts it. Copilot stays native: its hook rewrites without granting approval.
 4. **pi: rtk writes its own extension.** The pi arm runs `rtk init --agent pi` with the target
    repo as cwd, stdin from `/dev/null`, and `RTK_TELEMETRY_DISABLED=1`. It never passes
    `--auto-patch` or `-g`. It runs only when install is enabled and `check.py` passed; otherwise
@@ -122,7 +129,8 @@ Settled by the live check on 2026-10-17 (Claude Code 2.1.302, rtk 1.0.1); eviden
   the rewritten command, and it holds. Project `permissions.ask` is matched against the
   rewritten command only, so it is bypassed. That bypass is the reason for the 0.195.1 amendment.
 - UNVERIFIED, Codex: no codex binary was available. How Codex aggregates a guard's deny with rtk's
-  `allow` is untested. As a precaution, the arm keeps rtk's entry last, after the guards.
+  `allow` is untested. Codex is propose-only from 0.195.1, so the question no longer gates a
+  merge; the arm still keeps a native tool's entry last, after the guards, as a precaution.
 - UNVERIFIED, Copilot: no copilot binary was available. Offline, `rtk hook copilot` answers a
   Copilot CLI payload with `modifiedArgs` (a rewrite) and a VS Code payload with `updatedInput`,
   though rtk's install text calls Copilot CLI deny-with-suggestion. Whether a camelCase

@@ -72,9 +72,9 @@ A Copilot hook entry accepts both `bash` and `powershell`, but Copilot's cloud a
 Linux sandbox and honours only `bash`, which is why `adjust_hooks.py` emits `bash` alone and
 Windows-only hook commands have no path into a scaffolded repo.
 
-Codex has no column above. Its tool hook is a marked entry merged into `.codex/hooks.json`
-after the entries `adjust_hooks` writes, which inserts its own ahead of a marked entry so the
-tool's stays last.
+Codex has no column above. A native tool's hook is a marked entry merged into
+`.codex/hooks.json` after the entries `adjust_hooks` writes, which inserts its own ahead of a
+marked entry so the tool's stays last. rtk is proposal only on Codex: its hook answers `allow`.
 
 ## Instructions
 
