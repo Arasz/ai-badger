@@ -1,0 +1,8 @@
+{
+  "$schema": "../../../../schemas/mcp-server-tools.schema.json",
+  "server": "plugin:context7:context7",
+  "tools": [
+    {"name": "query-docs", "intent": "Fetch current documentation and code examples for a library by its Context7 id; call after resolve-library-id, scoped to one topic per query.", "tags": ["search", "read"]},
+    {"name": "resolve-library-id", "intent": "Map a library or package name to a Context7-compatible library id with version and reputation info; required before query-docs unless an id is given.", "tags": ["search"]}
+  ]
+}

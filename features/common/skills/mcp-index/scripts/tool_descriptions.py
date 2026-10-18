@@ -123,25 +123,30 @@ Catalog = Dict[str, Dict[str, Dict[str, Any]]]
 
 
 def load_catalog(fw_root: Optional[Path]) -> Catalog:
-    """Curated tool entries per server name, from every features/*/mcp/<server>/tools.json.
+    """Curated tool entries per server name.
 
-    Stacks in directory order, last writer wins on a duplicate tool. An unreachable framework
-    yields `{}` and the name heuristics carry the whole index.
+    From every installable `features/*/mcp/<server>/tools.json` (with its `meta.json`), then
+    every describe-only `features/*/mcp-catalog/<slug>/tools.json`: servers a host exposes but
+    ai-badger never installs, so nothing that offers or delivers servers reads that dir. Stacks
+    in directory order, last writer wins on a duplicate tool, and an installable entry outranks a
+    describe-only one. An unreachable framework yields `{}` and the heuristics carry the index.
     """
     if fw_root is None:
         return {}
     catalog: Catalog = {}
-    for path in sorted(Path(fw_root).glob("features/*/mcp/*/tools.json")):
-        if not (path.parent / "meta.json").is_file():
-            continue
-        try:
-            data = json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, ValueError):
-            continue
-        tools = catalog.setdefault(data.get("server") or path.parent.name, {})
-        for tool in data.get("tools", []):
-            if tool.get("name"):
-                tools[tool["name"]] = tool
+    for pattern, overwrite in (("features/*/mcp/*/tools.json", True),
+                               ("features/*/mcp-catalog/*/tools.json", False)):
+        for path in sorted(Path(fw_root).glob(pattern)):
+            if overwrite and not (path.parent / "meta.json").is_file():
+                continue
+            try:
+                data = json.loads(path.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                continue
+            tools = catalog.setdefault(data.get("server") or path.parent.name, {})
+            for tool in data.get("tools", []):
+                if tool.get("name") and (overwrite or tool["name"] not in tools):
+                    tools[tool["name"]] = tool
     return catalog
 
 

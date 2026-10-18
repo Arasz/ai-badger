@@ -1,0 +1,9 @@
+{
+  "$schema": "../../../../schemas/mcp-server-tools.schema.json",
+  "server": "claude.ai Exa",
+  "tools": [
+    {"name": "agent_run", "intent": "Start or resume a long-running multi-step Exa research or list-building run with structured output; prefer over repeated searches for cross-source verification.", "tags": ["search", "slow"]},
+    {"name": "web_fetch_exa", "intent": "Read the full content of known URLs as clean markdown, batching several in one call; use after search when highlights are insufficient.", "tags": ["read", "batch"]},
+    {"name": "web_search_exa", "intent": "Semantic web search that takes a description of the ideal page and returns clean content; the first step for finding current information.", "tags": ["search"]}
+  ]
+}
