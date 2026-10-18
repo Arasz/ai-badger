@@ -857,10 +857,12 @@ def test_write_index_gives_a_new_file_the_umask_default_mode(tmp_path, load_scri
     assert stat.S_IMODE(path.stat().st_mode) == 0o644
 
 
-def test_write_index_refuses_invalid_data_on_init(tmp_path, load_script):
+def test_write_index_refuses_invalid_data_on_init(tmp_path, load_script, monkeypatch):
     """init/update hard-refuse rather than persist a schema-invalid index."""
     mod = load_script("features/common/skills/mcp-index/scripts/mcp_index.py")
-    # An intent under 10 chars fails schemas/mcp-tools.schema.json.
+    # An intent under 10 chars fails schemas/mcp-tools.schema.json. heuristic_intent now keeps a
+    # server's own description inside the bounds, so force the invalid intent past it.
+    monkeypatch.setattr(mod.td, "heuristic_intent", lambda name, description: description)
     bad_json = json.dumps({"servers": [{"name": "s", "tools": [
         {"name": "t", "description": "short"}]}]})
     rc = mod.main(["init", "--target", str(tmp_path), "--from-json", bad_json])

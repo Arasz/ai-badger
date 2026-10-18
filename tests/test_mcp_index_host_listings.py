@@ -53,7 +53,7 @@ HERMES_NO_JSON_FLAG = (
 
 def _fake_runner(answers):
     """A `run_cli` stand-in: argv tuple -> (exit code or None, stdout, note)."""
-    def _run(argv):
+    def _run(argv, cwd=None):  # pylint: disable=unused-argument
         return answers.get(tuple(argv), (None, "", "not installed"))
     return _run
 

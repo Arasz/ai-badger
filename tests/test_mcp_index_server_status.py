@@ -104,7 +104,7 @@ def test_init_over_a_text_listing_records_unknown_not_empty(tmp_path, load_scrip
     mod = load_script(SCRIPT)
     listings = load_script(LISTINGS)
     monkeypatch.setattr(mod, "_fetch_mcp_tools",
-                        lambda from_json=None, host=None:
+                        lambda from_json=None, host=None, target=None:
                         listings.parse_hermes_text_listing(TEXT_LISTING))
 
     assert mod.main(["init", "--target", str(tmp_path)]) == 0
@@ -121,7 +121,7 @@ def test_update_over_a_text_listing_does_not_mark_every_tool_removed(
     mod = load_script(SCRIPT)
     listings = load_script(LISTINGS)
     monkeypatch.setattr(mod, "_fetch_mcp_tools",
-                        lambda from_json=None, host=None:
+                        lambda from_json=None, host=None, target=None:
                         listings.parse_hermes_text_listing(TEXT_LISTING))
 
     assert mod.main(["update", "--target", str(tmp_path)]) == 0
@@ -138,7 +138,7 @@ def test_a_server_needing_authentication_is_not_merely_unknown(tmp_path, load_sc
     mod = load_script(SCRIPT)
     listings = load_script(LISTINGS)
     monkeypatch.setattr(mod, "_fetch_mcp_tools",
-                        lambda from_json=None, host=None:
+                        lambda from_json=None, host=None, target=None:
                         listings.parse_claude_listing(CLAUDE_LISTING))
 
     assert mod.main(["init", "--target", str(tmp_path)]) == 0
@@ -173,7 +173,7 @@ def test_a_tool_less_listing_leaves_a_server_it_never_names_alone(
     mod = load_script(SCRIPT)
     listings = load_script(LISTINGS)
     monkeypatch.setattr(mod, "_fetch_mcp_tools",
-                        lambda from_json=None, host=None:
+                        lambda from_json=None, host=None, target=None:
                         listings.parse_claude_listing(
                             "plugin:github:github: https://x/mcp (HTTP) - ✔ Connected\n"))
 
