@@ -159,7 +159,6 @@ hermes cron create "0 9 * * *" \
 **Claude** (`session_start_hook.py`):
 - Reads SessionStart payload from stdin
 - Records session_id + transcript path into the `sessions` table of the tracking DB
-- Launches background `poll_limit.py` for rate-limit monitoring
 - On resume, surfaces unfinished tracked tasks
 
 **Hermes** — replaced by native features:
@@ -168,7 +167,7 @@ hermes cron create "0 9 * * *" \
 |---|---|
 | `session_id` tracking | `session_search` — FTS5 over all past conversations; no need to track manually |
 | `transcript_path` | `~/.hermes/sessions/` + `hermes sessions list` |
-| `poll_limit.py` (rate limit polling) | Not needed — Hermes rotates credential pools automatically; `/usage` shows limits |
+| Rate limit visibility | `/usage` shows limits; Hermes rotates credential pools automatically |
 | Unfinished task notice on resume | `session_search(query="unfinished task")` or `/resume <name>` |
 | Background poller | `cronjob` for scheduled work; `delegate_task` for parallel work |
 
@@ -182,7 +181,7 @@ hermes cron create "0 9 * * *" \
 **Claude** (`statusline_capture.py`):
 - Pipes through a user's `statusline.sh` script
 - Captures rate limits, context window %, model info
-- Persists to the `statusline` store in the tracking DB for `poll_limit.py`
+- Persists to the `statusline` store in the tracking DB 
 
 **Hermes** — three approaches:
 
@@ -270,7 +269,7 @@ See Hermes docs for the full handler example (posts to Telegram when iteration >
 | Per-turn context injection | Yes (UserPromptSubmit) | Yes (pre_llm_call → context return) | Plugin hook |
 | Status line (model/limits/context) | Yes (statusLine) | Partial (TUI bar + /usage) | pre_llm_call enrichment |
 | Plugin auto-update | Yes (plugin update) | Yes (hermes skills update) | Same concept |
-| Rate limit polling | Custom (poll_limit.py) | Not needed (credential pools) | Remove entirely |
+| Rate limit visibility | statusLine capture | `/usage` (credential pools) | Not needed |
 | Unfinished task notice | Custom (session_start_hook.py) | session_search + /resume | Document, don't reimplement |
 
 ## ai-badger framework surface for Hermes
@@ -282,7 +281,6 @@ What the framework ships and where:
 | Drift notice | `hooks/hooks.json` + `drift_notice_hook.py` | `features/common/hooks/ai_badger_hooks.py`, installed into `~/.hermes/plugins/` by `features/hermes/adjustments/adjust_hooks.py` |
 | Session tracking | `session_start_hook.py` in scaffolded `.ai-badger/` | Documented in task extension; replaced by native Hermes features |
 | Statusline capture | `statusline_capture.py` | `/usage` + `pre_llm_call` enrichment in task extension |
-| Background poller | `poll_limit.py` | Not needed; documented removal in task extension |
 | User statusline | `statusline.sh` (~/.claude/) | TUI status bar + `/statusbar` + `display.show_cost` |
 
 ### Learned-skill sync

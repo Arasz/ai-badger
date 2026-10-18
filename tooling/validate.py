@@ -213,8 +213,8 @@ HOOKS_MANIFEST_AGENT_EXEMPTIONS: Dict[str, Dict[str, str]] = {
                    "a stop-event injection channel is evidenced.",
     },
     "session-start-tracking": {
-        "hermes": "Claude-only by design: recording the session id/transcript path, surfacing "
-                  "unfinished tracked tasks, and starting the usage-limit poller are all Claude "
+        "hermes": "Claude-only by design: recording the session id/transcript path and surfacing "
+                  "unfinished tracked tasks are both Claude "
                   "Code concepts (transcript files, Claude's own usage limits) with no Hermes "
                   "analogue to wire onto.",
         "copilot": "Claude-only by design, same reasoning as the hermes exemption above: "

@@ -2,7 +2,7 @@
 
 `_real_tracking_state_is_untouched` snapshots `.ai-badger/task-tracking/` before and after the
 whole session and fails if anything changed. That is the right invariant and the wrong evidence:
-a `*/30` resume cron or a `poll_limit.py` daemon left over from an earlier session writes into
+a `*/30` resume cron or a background daemon left over from an earlier session writes into
 that directory too, and the fixture attributes it to the suite.
 
 It failed a pre-push lane four times on 2026-08-01, on runs where the suite was clean — twice

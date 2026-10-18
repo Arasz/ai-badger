@@ -163,8 +163,6 @@ than Claude's per-prompt injection.
 
 **What Claude does:** `statusline_capture.py` pipes through a user's
 `statusline.sh`, capturing rate limits, context window %, and model info.
-The background `poll_limit.py` reads the `statusline` store in the tracking DB to avoid
-unnecessary rate-limit probes.
 
 **Hermes equivalent — no custom code needed.** Hermes has richer native tooling:
 
@@ -177,9 +175,9 @@ unnecessary rate-limit probes.
 | Session ID | `/status` or `hermes sessions list` |
 | Weekly analytics | `hermes insights --days 7` |
 
-The background `poll_limit.py` is completely unnecessary in Hermes —
+Hermes needs no rate-limit capture —
 the credential pool system auto-rotates exhausted keys, and rate limits
-are surfaced via `/usage` rather than polled.
+are surfaced via `/usage`.
 
 **For users who want persistent status:** enable `display.show_cost: true` in
 `~/.hermes/config.yaml` to show cost in the TUI status bar on every turn.
@@ -191,7 +189,7 @@ has been running for many iterations (see Hermes Event Hooks docs for the
 ### 4. Session tracking (Claude: SessionStart → Hermes: no wired equivalent)
 
 **What Claude does:** `session_start_hook.py` records `session_id` +
-transcript path into the `sessions` table of the tracking DB and launches `poll_limit.py`.
+transcript path into the `sessions` table of the tracking DB.
 
 **Hermes native features cover the user-facing parts:**
 - Session continuity: `hermes --continue` or `/resume <name>`
@@ -201,8 +199,8 @@ transcript path into the `sessions` table of the tracking DB and launches `poll_
 
 The scaffolder does not filter skill scripts by agent — it copies the whole
 `scripts/` directory regardless of the agent list (only `config.exclude`
-patterns filter) — so `session_start_hook.py`, `stop_hook.py` and
-`poll_limit.py` **are** scaffolded into `.ai-badger/skills/task/scripts/` even
+patterns filter) — so `session_start_hook.py` and `stop_hook.py`
+**are** scaffolded into `.ai-badger/skills/task/scripts/` even
 when `hermes` is in the agent list. They are inert under Hermes: Hermes executes
 Python plugins (`ai_badger_hooks.py`), not `hooks.json`, and that plugin
 currently registers no session-tracking hook. The in-session CLI path does read
@@ -230,7 +228,7 @@ explicit CLI invocation.
 | Tool call observing | PostToolUse | post_tool_call (with duration_ms) | **Hermes** — includes timing |
 | Gateway notifications | Not available | Gateway hooks (agent:end, agent:step) | **Hermes-only** — post to Telegram/Discord/etc. |
 | Status display | statusLine pipe | TUI status bar + /usage + insights | **Hermes** — richer, no custom scripts |
-| Rate limit polling | Custom poll_limit.py | Credential pools (auto-rotate) | **Hermes** — zero code needed |
+| Rate limit visibility | statusLine capture | Credential pools (auto-rotate) + `/usage` | **Hermes** — zero code needed |
 
 See `docs/hermes-claude-compatibility.md` for the full compatibility reference.
 

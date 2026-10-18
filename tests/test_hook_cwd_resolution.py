@@ -161,7 +161,7 @@ def test_post_tool_observer_finds_the_index_when_hermes_sends_no_cwd(
 def test_both_hosts_agree_on_versions_diverge(hooks, load_script):
     """ai_badger_hooks.py cannot import drift_notice.py cleanly (different Hermes/Claude
     directories), so `versions_diverge` is duplicated -- this pins both spellings agree,
-    the pattern SPAWN_LOG_ENV/REAL_WRITE_LOG_ENV use in tests/conftest.py."""
+    the pattern REAL_WRITE_LOG_ENV uses in tests/conftest.py."""
     dn = load_script("features/common/skills/task/scripts/drift_notice.py")
 
     cases = [

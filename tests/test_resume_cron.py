@@ -1,11 +1,11 @@
 """Tests for skills/task/scripts/resume_cron.py.
 
 Covers the cron-invoked resume-after-usage-limit logic: staleness/cooldown predicates, the
-usage-limit probe, resuming a single task (success, dry-run, timeout), and the full run() loop
-(no stalled tasks, a live session left alone, probe succeeds, probe fails, --dry-run, and the
+resuming a single task (success, dry-run, timeout), and the full run() loop
+(no stalled tasks, a live session left alone, resume without a probe, --dry-run, and the
 cross-process lock guard).
 
-Every subprocess.run call (probe + resume) is mocked via monkeypatch on the module's own
+Every subprocess.run call (the resume) is mocked via monkeypatch on the module's own
 `subprocess` reference — a real `claude` process must never be spawned. The lock-file test
 acquires a real fcntl flock, but only on a file under tmp_path, never the real repo's lock.
 """
@@ -141,33 +141,6 @@ def test_recently_attempted_false_when_no_attempts(resume_cron):
     assert resume_cron.recently_attempted({}) is False
 
 
-# --- usage_limit_lifted (the probe) ------------------------------------------------------
-
-def test_usage_limit_lifted_true_on_successful_probe(resume_cron, monkeypatch):
-    completed = subprocess.CompletedProcess(args=[], returncode=0, stdout="ok\n", stderr="")
-    monkeypatch.setattr(resume_cron.subprocess, "run", lambda *a, **k: completed)
-
-    assert resume_cron.usage_limit_lifted() is True
-
-
-def test_usage_limit_lifted_false_on_nonzero_exit(resume_cron, monkeypatch, capsys):
-    completed = subprocess.CompletedProcess(args=[], returncode=1, stdout="", stderr="rate limited")
-    monkeypatch.setattr(resume_cron.subprocess, "run", lambda *a, **k: completed)
-
-    assert resume_cron.usage_limit_lifted() is False
-    assert "rate limited" in capsys.readouterr().out
-
-
-def test_usage_limit_lifted_false_when_probe_times_out(resume_cron, monkeypatch, capsys):
-    def _raise(*_a, **_k):
-        raise subprocess.TimeoutExpired(cmd="claude", timeout=120)
-
-    monkeypatch.setattr(resume_cron.subprocess, "run", _raise)
-
-    assert resume_cron.usage_limit_lifted() is False
-    assert "probe failed to run" in capsys.readouterr().out
-
-
 # --- resume_task -------------------------------------------------------------------------
 
 def test_resume_task_dry_run_does_not_invoke_subprocess(resume_cron, monkeypatch, capsys):
@@ -213,7 +186,7 @@ def test_run_does_nothing_when_no_tasks_are_stalled(resume_cron, monkeypatch):
     assert resume_cron.run(dry_run=False) == 0
 
 
-def test_run_resumes_stalled_task_when_probe_succeeds(resume_cron, monkeypatch, tmp_path):
+def test_run_resumes_a_stalled_task_without_any_probe_call(resume_cron, monkeypatch, tmp_path):
     _write_tasks(resume_cron, [
         {"taskId": "T01", "state": "IN_PROGRESS", "sessionId": "sid-1",
          "startedAt": _old_iso(60), "transcriptPath": _stale_transcript(tmp_path)},
@@ -230,7 +203,9 @@ def test_run_resumes_stalled_task_when_probe_succeeds(resume_cron, monkeypatch, 
     rc = resume_cron.run(dry_run=False)
 
     assert rc == 0
-    assert len(calls) == 2  # probe + resume
+    assert len(calls) == 1  # the resume itself; no probe call first
+    assert calls[0][1:3] == ["--resume", "sid-1"]
+    assert not any("--model" in cmd or "Reply with exactly: ok" in cmd for cmd in calls)
     entry = resume_cron.lib.load_tasks()["tasks"][0]
     assert entry["state"] == "IN_PROGRESS"
     assert len(entry["resumeAttempts"]) == 1
@@ -246,7 +221,7 @@ def test_run_leaves_a_stalled_task_alone_while_its_session_is_alive(resume_cron,
     ])
     _record_session(resume_cron, "sid-live", os.getpid())
     monkeypatch.setattr(
-        resume_cron.subprocess, "run", lambda *a, **k: pytest.fail("must not probe or resume")
+        resume_cron.subprocess, "run", lambda *a, **k: pytest.fail("must not resume")
     )
 
     assert resume_cron.run(dry_run=False) == 0
@@ -270,32 +245,10 @@ def test_run_still_resumes_a_stalled_task_whose_recorded_session_is_dead(
 
     resume_cron.run(dry_run=False)
 
-    assert [cmd[1:3] for cmd in calls[1:]] == [["--resume", "sid-dead"]]
+    assert [cmd[1:3] for cmd in calls] == [["--resume", "sid-dead"]]
 
 
-def test_run_skips_resume_when_probe_fails(resume_cron, monkeypatch, tmp_path):
-    _write_tasks(resume_cron, [
-        {"taskId": "T01", "state": "IN_PROGRESS", "sessionId": "sid-1",
-         "startedAt": _old_iso(60), "transcriptPath": _stale_transcript(tmp_path)},
-    ])
-    completed = subprocess.CompletedProcess(args=[], returncode=1, stdout="", stderr="still limited")
-    calls = []
-
-    def fake_run(cmd, **_kwargs):
-        calls.append(cmd)
-        return completed
-
-    monkeypatch.setattr(resume_cron.subprocess, "run", fake_run)
-
-    rc = resume_cron.run(dry_run=False)
-
-    assert rc == 0
-    assert len(calls) == 1  # probe only, resume never attempted
-    entry = resume_cron.lib.load_tasks()["tasks"][0]
-    assert "resumeAttempts" not in entry
-
-
-def test_run_dry_run_skips_probe_and_never_shells_out(resume_cron, monkeypatch, tmp_path):
+def test_run_dry_run_never_shells_out(resume_cron, monkeypatch, tmp_path):
     _write_tasks(resume_cron, [
         {"taskId": "T01", "state": "IN_PROGRESS", "sessionId": "sid-1",
          "startedAt": _old_iso(60), "transcriptPath": _stale_transcript(tmp_path)},

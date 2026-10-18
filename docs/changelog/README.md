@@ -19,6 +19,7 @@ When cutting a release:
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
+| 0.199.0 | [the /task skill no longer probes for usage limits](0.199.0-remove-usage-limit-probe.md) |
 | 0.198.0 | [the user-scope rtk guard hook no longer depends on the checkout](0.198.0-rtk-user-hook.md) |
 | 0.197.1 | [scaffolded `$schema` paths resolve; `open_pr.py` resumes a failed run](0.197.1-schema-paths-and-open-pr-resume.md) |
 | 0.197.0 | [0.197.0: an rtk guard hook keeps Claude and Codex rules on the original command](0.197.0-rtk-guard-hook.md) |
