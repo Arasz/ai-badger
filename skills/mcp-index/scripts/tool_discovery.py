@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import os
 import sys
+import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple
@@ -43,29 +44,55 @@ def _challenge(exc: "mc.Unauthorized") -> str:
 
 
 def _with_helper(spec: Server, name: str, helper: Optional[sc.Helper]
-                 ) -> Tuple[Server, str]:
-    """(the spec to connect with, a note); a helper's headers override static ones."""
+                 ) -> Tuple[Server, str, bool]:
+    """(the spec to connect with, a note, whether a helper ran); its headers override static ones."""
     command = spec.get("headersHelper")
     if not command or mc.transport_of(spec) != "http" or helper is None:
-        return spec, ""
+        return spec, "", False
     effective = {k: v for k, v in spec.items() if k != "headersHelper"}
     if not helper.trusted:
-        return effective, "headersHelper not run: project not trusted in Claude Code"
+        return effective, "headersHelper not run: project not trusted in Claude Code", False
     url = mc.expand(str(spec.get("url") or ""), os.environ)
     env = hh.helper_env(os.environ, name=name, url=url, scrub=helper.scrub,
                         plugin_root=helper.plugin_root)
     dynamic = hh.run(str(command), cwd=helper.cwd, env=env)
     effective["headers"] = {**(spec.get("headers") or {}), **dynamic}
-    return effective, ""
+    return effective, "", True
+
+
+def _left(deadline: float) -> float:
+    """Seconds left of one server's deadline, which its headersHelper runs also spend."""
+    remaining = deadline - time.monotonic()
+    if remaining <= 0:
+        raise mc.Timeout("deadline spent before connecting")
+    return remaining
+
+
+def _list(spec: Server, cwd: str, deadline: float, name: str,
+          helper: Optional[sc.Helper]) -> Tuple[List[Server], str]:
+    """The tools, with one helper re-run and retry on 401/403.
+
+    Claude Code: "If a tool call returns `401 Unauthorized` or `403 Forbidden`, Claude Code
+    automatically re-runs the helper ..., reconnects with the fresh headers, and retries the
+    call once" (code.claude.com/docs/en/mcp, headersHelper).
+    """
+    effective, note, helped = _with_helper(spec, name, helper)
+    try:
+        return mc.list_tools(effective, _left(deadline), cwd=cwd), note
+    except mc.Unauthorized:
+        if not helped:
+            raise
+    effective, note, _ = _with_helper(spec, name, helper)
+    return mc.list_tools(effective, _left(deadline), cwd=cwd), note
 
 
 def ask_server(spec: Server, cwd: str, timeout: float, name: str = "",
                helper: Optional[sc.Helper] = None) -> Tuple[Optional[List[Server]], str]:
     """(tools, outcome) from one server; tools is None when it did not fully answer."""
-    note = ""
+    note = "headersHelper not run: project not trusted in Claude Code" if (
+        helper is not None and not helper.trusted and spec.get("headersHelper")) else ""
     try:
-        spec, note = _with_helper(spec, name, helper)
-        tools = mc.list_tools(spec, timeout, cwd=cwd)
+        tools, note = _list(spec, cwd, time.monotonic() + timeout, name, helper)
     except hh.HeadersHelperError as exc:
         return None, f"failed: headersHelper {exc}"
     except mc.Unauthorized as exc:
@@ -107,16 +134,30 @@ def _plan(pending: List[Server], configs: sc.Configs
     return jobs, outcomes, unresolved, refused
 
 
-def _ask_host(pending: List[Server], target: str, host: Optional[str],
-              host_timeout: float) -> Tuple[Dict[str, str], str]:
-    """(per-server notes, a run-level failure line) from Claude Code's init event."""
+def _ask_host(pending: List[Server], target: str, home: Path, host: Optional[str],
+              host_timeout: float) -> Tuple[Dict[str, str], List[str]]:
+    """(per-server notes, run-level lines) from Claude Code's init event.
+
+    `claude -p` skips the workspace trust dialog, so the target's settings helpers
+    (apiKeyHelper, otelHeadersHelper, approved headersHelpers, ...) would run in a directory
+    nobody trusted: an untrusted target is never run, whatever `--host-tools` says.
+    """
     if not host or not pending:
-        return {}, ""
+        return {}, []
+    if not sc.trusted(Path(target), home):
+        return {}, [f"host tools skipped: {target} is not trusted in Claude Code — open it in "
+                    f"Claude Code once and accept the trust dialog"]
+    refusal = ht.blocked()
+    if refusal:
+        return {}, [f"host tools {refusal}"]
     try:
-        found = ht.map_tools(ht.read_init(host, target, host_timeout))
+        reading = ht.read_init(host, target, host_timeout)
+    except ht.HostBilled as exc:
+        return {}, [f"WARNING: claude init {exc}"]
     except ht.HostToolsError as exc:
-        return {}, f"claude init failed: {exc}"
-    return ht.fill(pending, found), ""
+        return {}, [f"claude init failed: {exc}"]
+    notes = ht.fill(pending, ht.map_tools(reading.init))
+    return notes, [f"WARNING: claude init {reading.warning}"] if reading.warning else []
 
 
 def _line(outcome: str, note: Optional[str], server: Server) -> str:
@@ -156,11 +197,10 @@ def enrich_with_mcp_client(servers: List[Server], target: str, home: Path,
             server["discovered_via"] = "mcp-client"
     left = [s for s in pending if not s.get("tools_known", True)
             and s.get("name", "") not in refused]
-    notes, failure = _ask_host(left, target, host, host_timeout)
+    notes, run_lines = _ask_host(left, target, home, host, host_timeout)
     lines = []
     for server in pending:
         name = server.get("name", "")
         lines.append(f"{name}: {_line(outcomes[name], notes.get(name), server)}")
-    if failure:
-        lines.append(f"({failure})")
+    lines.extend(f"({line})" for line in run_lines)
     return lines, [s for s in unresolved if not s.get("tools_known", True)]

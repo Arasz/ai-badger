@@ -27,6 +27,7 @@ class _Fake:
     def __init__(self, mode):
         self.mode = mode
         self.headers = []
+        self.accept = None  # when set, only this Authorization value gets past a 401
 
 
 def _handler(fake):
@@ -55,7 +56,8 @@ def _handler(fake):
                 return self._reply(403, b"{}", [("WWW-Authenticate",
                                                  'Bearer error="insufficient_scope", '
                                                  'scope="admin"')])
-            if fake.mode == "401-bare":
+            if fake.mode == "401-bare" or (
+                    fake.accept and self.headers.get("Authorization") != fake.accept):
                 return self._reply(401, b"{}")
             method = body.get("method")
             if method is None or method.startswith("notifications/"):
@@ -284,3 +286,47 @@ def test_the_skip_report_names_the_challenge_and_the_fix(mod, serve, claude_json
     assert "forbidden (HTTP 403)" in line_b and "scope=admin" in line_b
     line_c = next(line for line in err.splitlines() if line.strip().startswith("c:"))
     assert "needs authorization (HTTP 401)" in line_c and "resource_metadata" not in line_c
+
+
+def _rotating(tmp_path: Path) -> str:
+    """A helper that hands out tok1, tok2, ... one per run, counting runs in a file."""
+    count = tmp_path / "runs"
+    return (f'n=$(( $(cat {count} 2>/dev/null || echo 0) + 1 )); echo $n > {count}; '
+            "printf '{\"Authorization\": \"Bearer tok%s\"}' $n")
+
+
+def test_a_401_re_runs_the_helper_once_and_retries(mod, serve, claude_json, tmp_path):
+    """Claude Code re-runs the helper on 401/403 and retries the call once (docs, headersHelper)."""
+    fake = serve()
+    fake.accept = "Bearer tok2"
+    claude_json({"mcpServers": {"rot": {"type": "http", "url": fake.url,
+                                        "headersHelper": _rotating(tmp_path)}}})
+
+    assert _discover(mod, tmp_path, "rot") == 0
+
+    assert list(_source(tmp_path, "rot")["tools"]) == ["remote"]
+    assert (tmp_path / "runs").read_text().strip() == "2"
+
+
+def test_the_helper_retry_happens_only_once(mod, serve, claude_json, tmp_path, capsys):
+    fake = serve()
+    fake.accept = "Bearer tok3"
+    claude_json({"mcpServers": {"rot": {"type": "http", "url": fake.url,
+                                        "headersHelper": _rotating(tmp_path)}}})
+
+    assert _discover(mod, tmp_path, "rot") == 0
+
+    assert (tmp_path / "runs").read_text().strip() == "2"
+    assert "rot: needs authorization (HTTP 401)" in capsys.readouterr().err
+
+
+def test_the_helper_spends_the_servers_deadline(mod, serve, claude_json, tmp_path, capsys):
+    fake = serve()
+    claude_json({"mcpServers": {"slow": {"type": "http", "url": fake.url,
+                                         "headersHelper": "sleep 1.2; printf '{}'"}}})
+
+    assert mod.main(["init", "--target", str(tmp_path), "--discover", "--no-host-tools",
+                     "--discover-timeout", "1", "--from-json", _names_only("slow")]) == 0
+
+    assert "slow: timed out" in capsys.readouterr().err
+    assert fake.headers == []

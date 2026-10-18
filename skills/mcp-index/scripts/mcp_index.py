@@ -211,9 +211,10 @@ DISCOVER_TIMEOUT = tdisc.TIMEOUT
 HOST_TOOLS_TIMEOUT = tdisc.HOST_TIMEOUT
 
 
-def _host_executable(host_tools: Optional[bool]) -> Optional[str]:
-    """The `claude` to read the init event from: on unless `--no-host-tools` (False)."""
-    if host_tools is False:
+def _host_executable(host_tools: Optional[bool], host: Optional[str] = None) -> Optional[str]:
+    """The `claude` to read the init event from: on unless `--no-host-tools` (False), and with
+    `--host hermes` only when `--host-tools` asks for it."""
+    if host_tools is False or (host_tools is None and host not in (None, "claude")):
         return None
     found = tdisc.ht.executable()
     if found is None and host_tools:
@@ -223,13 +224,14 @@ def _host_executable(host_tools: Optional[bool]) -> Optional[str]:
 
 def _discover_tools(servers: list[dict[str, Any]], target: str,
                     timeout: float = DISCOVER_TIMEOUT, host_tools: Optional[bool] = None,
-                    host_timeout: float = HOST_TOOLS_TIMEOUT) -> None:
+                    host_timeout: float = HOST_TOOLS_TIMEOUT,
+                    listing_host: Optional[str] = None) -> None:
     """Ask every unenumerated server for its own tools, then Claude Code's init event, then
     `hermes mcp test` for the rest. `host_tools`: None default (on), True forced, False off."""
     pending = sum(1 for s in servers if not s.get("tools_known", True))
     if not pending:
         return
-    host = _host_executable(host_tools)
+    host = _host_executable(host_tools, listing_host)
     print(f"Asking {pending} server(s) for their tools directly — each configured command is "
           f"run, as `claude mcp list` does ({timeout:g}s each)"
           + (f"; then `claude -p /cost`'s init event for the rest ({host_timeout:g}s, no model "
@@ -462,7 +464,7 @@ def _seed_from_catalog(source: dict[str, Any], server: Optional[dict[str, Any]],
     including when it reports none — so the catalog never contradicts one, only stands in for
     a listing that has nothing to say (issue #188).
     """
-    if server is None or server.get("tools_known", True):
+    if server is None or (server.get("tools_known", True) and not server.get("tools_partial")):
         return []
     name = source["name"]
     tools = source.setdefault("tools", {})
@@ -489,7 +491,7 @@ def cmd_init(target: str, from_json: Optional[str] = None,
     """Create a new index from the current MCP tool list."""
     servers = _fetch_mcp_tools(from_json, host, target)
     if discover:
-        _discover_tools(servers, target, discover_timeout, host_tools, host_timeout)
+        _discover_tools(servers, target, discover_timeout, host_tools, host_timeout, host)
     catalog = load_catalog(FRAMEWORK_ROOT)
     _note_missing_catalog(catalog)
 
@@ -600,7 +602,9 @@ def _sync_tools(source: dict[str, Any], server: Optional[dict[str, Any]],
     if not server.get("tools_known", True):
         return 0
     current = {t["name"]: t.get("description", "") for t in server.get("tools", [])}
-    changes = _mark_removed(tools, sorted(set(tools) - set(current)))
+    # A partial list (host tools: filtered by deny rules and policy) adds, never removes.
+    changes = 0 if server.get("tools_partial") else _mark_removed(
+        tools, sorted(set(tools) - set(current)))
     for name in sorted(set(tools) & set(current)):  # reappeared: un-remove, keep curation
         if tools[name].get("status") == "removed":
             tools[name]["status"] = "active"
@@ -668,7 +672,7 @@ def cmd_update(target: str, from_json: Optional[str] = None,
     # that the listing names every server.
     absence_is_evidence = hl.carries_tool_detail(servers)
     if discover:
-        _discover_tools(servers, target, discover_timeout, host_tools, host_timeout)
+        _discover_tools(servers, target, discover_timeout, host_tools, host_timeout, host)
     catalog = load_catalog(FRAMEWORK_ROOT)
     _note_missing_catalog(catalog)
     listed = {s.get("name", ""): s for s in servers}

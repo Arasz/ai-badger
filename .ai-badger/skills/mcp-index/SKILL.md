@@ -236,7 +236,9 @@ and the plugin root for a plugin's; it gets `CLAUDE_CODE_MCP_SERVER_NAME` and `_
 (names with TOKEN, SECRET, PASSWORD, KEY or AUTH). A project or local helper runs only once that
 exact directory has accepted Claude Code's trust dialog (`projects[<dir>].hasTrustDialogAccepted`
 in `~/.claude.json`; a parent's trust does not count). Until then the server connects with its
-static headers alone. A failing helper fails that server only. One stderr line per server says what
+static headers alone. On a 401/403 the helper is re-run once and the call retried, as Claude Code
+does. Its run time counts against the server's `--discover-timeout`. A failing helper fails that
+server only. One stderr line per server says what
 happened: `enumerated N tool(s)`, `no config`, `needs authorization (HTTP 401)` or `forbidden (HTTP
 403)` (with the challenge's `resource_metadata` and `scope` when the server sent them, and the fix:
 authenticate the server in Claude Code via `/mcp`, then rerun with host tools on), `timed out`,
@@ -258,32 +260,50 @@ claude -p --output-format stream-json --verbose --no-session-persistence \
   --settings '{"disableAllHooks": true}' /cost
 ```
 
-It reads stdout up to the `system/init` event and then kills the process group. The deadline is
-`--host-tools-timeout` (default 60s), and a line over 16 MiB is refused. It is **on by default**;
-`--no-host-tools` turns it off, and `--host-tools` asks for it explicitly, saying so if no `claude`
-is found. Measured on Claude Code 2.1.302 (2026-10-18):
+It reads stdout to the `system/init` event, then on to the `result` event (up to 10s more), then
+kills the process group. The deadline is `--host-tools-timeout` (default 60s), and a line over 16
+MiB is refused. It is **on by default** when the listing came from `claude`; with `--host hermes` it
+runs only when `--host-tools` asks. `--no-host-tools` turns it off, and `--host-tools` asks for it
+explicitly, saying so if no `claude` is found. Two guards hold whatever the flags say:
+
+- **Trust.** `claude -p` skips the workspace trust dialog, so the target's settings helpers
+  (`apiKeyHelper`, `awsAuthRefresh`, `otelHeadersHelper`, approved `headersHelper`s) would run in a
+  directory nobody trusted. The host step runs only when `--target` itself has
+  `projects[<target>].hasTrustDialogAccepted` in `~/.claude.json` (a parent does not count).
+  Otherwise it prints `host tools skipped: <target> is not trusted in Claude Code`.
+- **Cost.** A non-`<synthetic>` assistant message, or a `result` with `total_cost_usd` or
+  `num_turns` above 0, is reported as `MODEL TURN DETECTED` and writes the sentinel
+  `~/.ai-badger/mcp-index/host-tools-billed.json`. While that file exists, every run refuses the
+  host step and names the file to delete. If no `result` arrives within 10s, the run prints an
+  `unknown cost` warning and writes no sentinel.
+
+Measured on Claude Code 2.1.302 (2026-10-18):
 
 | cost | measured |
 |---|---|
 | wall time | ~5.5s to the init event (it waits for the host's own MCP connections) |
 | model turn / billing | none: `/cost` is a local command, 0 API requests, `total_cost_usd: 0` |
-| hooks | none: `disableAllHooks` ran 0 settings hooks (43 in the same project without it) |
+| hooks | none: `disableAllHooks` ran 0 settings hooks (43 in the same project without it); it does not switch off managed-policy hooks |
 | transcript | none under `~/.claude/projects` (`--no-session-persistence`) |
 | other writes | Claude Code's own `~/.claude.json` bookkeeping and plugin-cache refresh, as any start does |
 
 The host does the authenticating, so ai-badger handles no credentials and never reads Claude Code's
 token stores. The event's tool names are `mcp__<server>__<tool>`, the server name with every
 character outside `[A-Za-z0-9_-]` turned into `_` (`claude.ai Exa` → `claude_ai_Exa`,
-`plugin:context7:context7` → `plugin_context7_context7`). Two names that normalize alike, or a tool
-two servers could own, refuse every server involved, because guessing would misfile tools. A server
-the event reports **`connected`** is the whole truth, like a direct answer: `tools_known` True, so
-seeded tools it lacks go `removed`. The event carries **names only**, so intents come from the
-catalog when it covers the tool, else a `TODO` heuristic, never an invented description. Any other
-host status (`needs-auth`, `failed`, `pending`) leaves the server's tools untouched and is noted
-(`no config; claude init reports needs-auth`), and becomes its status when the listing had none. A
-direct answer always wins over the host, servers refused for approval stay refused, and the host
-source never makes an unnamed source `absent`. A host run that fails (no init event, timeout,
-`claude` exiting) fails only the host source: `(claude init failed: <reason>)`.
+`plugin:context7:context7` → `plugin_context7_context7`). Two names that normalize alike, or one
+tool name that parses more than one way (two servers, or two splits of one name such as server `x_`
+and `mcp__x___t`), refuse every server involved, because guessing would misfile tools. A server the
+event reports **`connected`** with tools gets them **added**, never as the whole truth: init's
+`tools` list is filtered by permission deny rules and managed policy while the server still reads
+`connected`, so a curated or seeded tool it lacks is never marked `removed`. A connected server with
+0 tools is left as listed. The event carries **names only**, so intents come from the catalog when
+it covers the tool, else a `TODO` heuristic, never an invented description. Any other host status
+(`needs-auth`, `failed`, `pending`) leaves the server's tools untouched and is noted (`no config;
+claude init reports needs-auth`). When the listing gave no status of its own, it maps onto the
+listing vocabulary (`pending` becomes `pending_approval`). A direct answer always wins over the
+host, servers refused for approval stay refused, and the host source never makes an unnamed source
+`absent`. A host run that fails (no init event, timeout, `claude` exiting) fails only the host
+source: `(claude init failed: <reason>)`.
 
 What stays unenumerated keeps `tools_known` False and falls back to the catalog seed. That covers
 servers neither the client nor the host could reach, legacy `sse` servers, managed enterprise config

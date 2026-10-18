@@ -39,6 +39,14 @@ print(json.dumps(["a list, not an event"]))
 print(json.dumps({{"type": "system", "subtype": "hook_started"}}))
 sys.stdout.write(open(os.environ["FAKE_CLAUDE_INIT"]).read().strip() + "\\n")
 sys.stdout.flush()
+# What `/cost` printed on 2.1.302: a <synthetic> assistant message, then a free result.
+model = "claude-opus-5-5" if mode in ("billed", "assistant") else "<synthetic>"
+cost = 0.2128666 if mode == "billed" else 0
+if mode != "noresult":
+    print(json.dumps({{"type": "assistant", "message": {{"model": model, "content": []}}}}))
+    print(json.dumps({{"type": "result", "subtype": "success", "num_turns": 0,
+                      "total_cost_usd": cost}}))
+    sys.stdout.flush()
 time.sleep(120)
 """
 
@@ -65,6 +73,7 @@ def _fake_claude(tmp_path, monkeypatch):
     monkeypatch.setenv("MCP_INDEX_CLAUDE", str(exe))
     monkeypatch.setenv("FAKE_CLAUDE_LOG", str(state["log"]))
     monkeypatch.setenv("FAKE_CLAUDE_PIDS", str(state["pids"]))
+    trust(tmp_path)
 
     def install(event=None, mode="init"):
         init = tmp_path / "init.json"
@@ -73,7 +82,16 @@ def _fake_claude(tmp_path, monkeypatch):
         monkeypatch.setenv("FAKE_CLAUDE_MODE", mode)
         return state
 
-    return install
+    yield install
+    (Path.home() / ".claude.json").unlink(missing_ok=True)
+    sentinel = Path.home() / ".ai-badger" / "mcp-index" / "host-tools-billed.json"
+    sentinel.unlink(missing_ok=True)
+
+
+def trust(directory: Path, accepted: bool = True) -> None:
+    """Mark `directory` as having accepted Claude Code's trust dialog in ~/.claude.json."""
+    (Path.home() / ".claude.json").write_text(json.dumps({"projects": {
+        str(directory): {"hasTrustDialogAccepted": accepted}}}), encoding="utf-8")
 
 
 def _alive(pid: int) -> bool:
@@ -192,7 +210,8 @@ def test_the_init_event_is_read_past_garbage_and_the_process_group_is_killed(loa
     got = host.read_init(str(state["exe"]), str(tmp_path), timeout=20)
 
     assert time.monotonic() - started < 10  # the fake sleeps 120s after printing it
-    assert got["mcp_servers"] == event["mcp_servers"]
+    assert got.init["mcp_servers"] == event["mcp_servers"]
+    assert got.warning == ""  # the free `/cost` result was seen
     assert _all_dead(state["pids"])
 
 
@@ -319,10 +338,10 @@ def test_the_host_is_not_spawned_when_direct_answers_cover_everything(tmp_path, 
     assert _calls(state) == []
 
 
-def test_host_tools_make_removal_apply_but_never_make_unnamed_sources_absent(
+def test_host_tools_add_but_never_remove_or_make_unnamed_sources_absent(
         tmp_path, load_script, monkeypatch, fake_claude):
-    """Connected in init is authoritative for that server (a seeded tool it lacks goes removed);
-    a source the listing does not name (hermes-sourced `x`) stays untouched."""
+    """Init's `tools` is filtered by permission deny rules and managed policy while the server
+    still reads `connected`, so a curated tool it lacks stays; an unnamed source stays too."""
     mod = load_script(SCRIPT)
     _no_hermes(mod, monkeypatch)
     native = json.dumps({"servers": [
@@ -342,7 +361,8 @@ def test_host_tools_make_removal_apply_but_never_make_unnamed_sources_absent(
 
     assert _source(tmp_path, "x") == before
     tools = _source(tmp_path, "y")["tools"]
-    assert tools["ghost"]["status"] == "removed"
+    assert tools["ghost"].get("status") != "removed"
+    assert _source(tmp_path, "y")["status"] == "ok"
     assert tools["real"]["intent"] == "TODO: describe what real does"  # no invented description
 
 
@@ -416,3 +436,141 @@ def test_a_bad_host_tools_timeout_is_a_usage_error(tmp_path, load_script, value)
 
     assert mod.main(["init", "--target", str(tmp_path), "--discover", "--host-tools-timeout",
                      value, "--from-json", _names_only("x")]) == 2
+
+
+def test_a_connected_server_with_no_tools_is_left_as_listed(tmp_path, load_script, monkeypatch,
+                                                            fake_claude, capsys):
+    mod = load_script(SCRIPT)
+    _no_hermes(mod, monkeypatch)
+    fake_claude(init_event({"claude.ai Exa": ("connected", [])}))
+
+    assert mod.main(["init", "--target", str(tmp_path), "--discover",
+                     "--from-json", _names_only("claude.ai Exa")]) == 0
+
+    assert _source(tmp_path, "claude.ai Exa")["status"] == "unknown"
+    assert "claude init reports connected with 0 tools" in capsys.readouterr().err
+
+
+# ── trust and cost guards ────────────────────────────────────────────────────
+
+@pytest.mark.parametrize("flags", [[], ["--host-tools"]])
+def test_an_untrusted_target_never_spawns_claude(tmp_path, load_script, monkeypatch, fake_claude,
+                                                 capsys, flags):
+    """`claude -p` skips the trust dialog, so the target's settings helpers (apiKeyHelper,
+    otelHeadersHelper, ...) would run in a directory nobody trusted; `--host-tools` cannot force it."""
+    mod = load_script(SCRIPT)
+    _no_hermes(mod, monkeypatch)
+    state = fake_claude(init_event({"claude.ai Exa": ("connected", ["mcp__claude_ai_Exa__x"])}))
+    trust(tmp_path.parent)  # a parent's trust does not count
+
+    assert mod.main(["init", "--target", str(tmp_path), "--discover", *flags,
+                     "--from-json", _names_only("claude.ai Exa")]) == 0
+
+    assert _calls(state) == []
+    assert "not trusted in Claude Code" in capsys.readouterr().err
+
+
+SENTINEL = (".ai-badger", "mcp-index", "host-tools-billed.json")
+
+
+def test_a_billed_run_is_refused_and_leaves_a_sentinel(tmp_path, load_script, monkeypatch,
+                                                       fake_claude, capsys):
+    mod = load_script(SCRIPT)
+    _no_hermes(mod, monkeypatch)
+    fake_claude(init_event({"claude.ai Exa": ("connected", ["mcp__claude_ai_Exa__x"])}),
+                mode="billed")
+
+    assert mod.main(["init", "--target", str(tmp_path), "--discover",
+                     "--from-json", _names_only("claude.ai Exa")]) == 0
+
+    sentinel = Path.home().joinpath(*SENTINEL)
+    assert sentinel.is_file()
+    assert _source(tmp_path, "claude.ai Exa")["tools"] == {}
+    err = capsys.readouterr().err
+    assert "MODEL TURN" in err and str(sentinel) in err
+
+
+def test_while_the_sentinel_exists_claude_is_never_spawned(tmp_path, load_script, monkeypatch,
+                                                           fake_claude, capsys):
+    mod = load_script(SCRIPT)
+    _no_hermes(mod, monkeypatch)
+    state = fake_claude(init_event({"claude.ai Exa": ("connected", ["mcp__claude_ai_Exa__x"])}))
+    sentinel = Path.home().joinpath(*SENTINEL)
+    sentinel.parent.mkdir(parents=True, exist_ok=True)
+    sentinel.write_text("{}", encoding="utf-8")
+
+    assert mod.main(["init", "--target", str(tmp_path), "--discover", "--host-tools",
+                     "--from-json", _names_only("claude.ai Exa")]) == 0
+
+    assert _calls(state) == []
+    assert f"delete {sentinel}" in capsys.readouterr().err
+
+
+def test_no_result_within_the_cap_is_unknown_cost_not_a_sentinel(tmp_path, load_script,
+                                                                 monkeypatch, fake_claude):
+    host = load_script(HOST)
+    monkeypatch.setattr(host, "SETTLE", 0.5)
+    state = fake_claude(init_event({"s": ("connected", ["mcp__s__t"])}), mode="noresult")
+
+    got = host.read_init(str(state["exe"]), str(tmp_path), timeout=20)
+
+    assert "unknown cost" in got.warning
+    assert not Path.home().joinpath(*SENTINEL).exists()
+    assert _all_dead(state["pids"])
+
+
+def test_a_tool_one_server_could_split_two_ways_is_refused(load_script):
+    """Server `x_` has prefixes `x_` and `x`, so `mcp__x___t` is tool `t` or tool `_t`."""
+    host = load_script(HOST)
+
+    found = host.map_tools(init_event({"x_": ("connected", ["mcp__x___t"])}))
+
+    assert found.ambiguous == {"x_"}
+    assert "x_" not in found.tools
+
+
+def test_init_statuses_map_onto_the_listing_vocabulary(load_script):
+    host = load_script(HOST)
+    td = host.td
+
+    assert {host.STATUS_PHRASES[s] for s in ("needs-auth", "failed", "pending")} <= set(
+        td.HOST_STATUS_PHRASES)
+    assert td.server_status({"host_status": host.STATUS_PHRASES["pending"]}) == "pending_approval"
+
+
+def test_a_server_pending_in_init_reads_pending_approval(tmp_path, load_script, monkeypatch,
+                                                         fake_claude):
+    mod = load_script(SCRIPT)
+    _no_hermes(mod, monkeypatch)
+    fake_claude(init_event({"claude.ai Exa": ("pending", [])}))
+
+    assert mod.main(["init", "--target", str(tmp_path), "--discover",
+                     "--from-json", _names_only("claude.ai Exa")]) == 0
+
+    assert _source(tmp_path, "claude.ai Exa")["status"] == "pending_approval"
+
+
+@pytest.mark.parametrize("flags, spawned", [([], False), (["--host-tools"], True)])
+def test_host_hermes_runs_claude_init_only_when_asked(tmp_path, load_script, monkeypatch,
+                                                      fake_claude, flags, spawned):
+    mod = load_script(SCRIPT)
+    _no_hermes(mod, monkeypatch)
+    state = fake_claude(init_event({"claude.ai Exa": ("connected", ["mcp__claude_ai_Exa__x"])}))
+
+    assert mod.main(["init", "--target", str(tmp_path), "--host", "hermes", "--discover",
+                     *flags, "--from-json", _names_only("claude.ai Exa")]) == 0
+
+    assert bool(_calls(state)) is spawned
+
+
+@pytest.mark.parametrize("mode", ["billed", "assistant"])
+def test_read_init_refuses_a_model_turn_from_either_signal(load_script, fake_claude, tmp_path,
+                                                           mode):
+    """`assistant`: a non-<synthetic> assistant message with a zero-cost result still counts."""
+    host = load_script(HOST)
+    state = fake_claude(init_event({}), mode=mode)
+
+    with pytest.raises(host.HostBilled, match="MODEL TURN"):
+        host.read_init(str(state["exe"]), str(tmp_path), timeout=20)
+
+    assert Path.home().joinpath(*SENTINEL).is_file()

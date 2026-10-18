@@ -320,3 +320,8 @@ def lookup(configs: Configs, name: str) -> Tuple[Optional[Spec], str]:
     if spec is not None:
         return spec, ""
     return None, NOT_APPROVED if name in configs.unapproved else NO_CONFIG
+
+
+def trusted(target: Path, home: Path) -> bool:
+    """Whether `target` itself accepted Claude Code's trust dialog (a parent does not count)."""
+    return _trusted(_read_json(home / ".claude.json"), _resolved(target))
