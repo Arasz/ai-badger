@@ -256,7 +256,7 @@ def test_a_propose_arm_removes_the_wired_handler_and_says_why(arm, tmp_path):
     assert "permissions.ask" in result["notes"]
     # A local `rtk init` wires no Claude hook: only the user-wide init does, so say so.
     assert "`rtk init -g`" in result["notes"] and "user-wide" in result["notes"]
-    assert "--agent" not in result["notes"]
+    assert "--agent" not in result["notes"] and "config.tools.rtk.hooks" in result["notes"]
 
 
 def test_a_propose_arm_on_a_fresh_project_writes_no_settings_but_still_notes(arm, tmp_path):
