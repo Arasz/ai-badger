@@ -207,3 +207,196 @@ def test_a_disabled_project_server_stays_off_even_when_all_are_enabled(sc, tmp_p
            {"enableAllProjectMcpServers": True, "disabledMcpjsonServers": ["repo"]})
 
     assert sc.lookup(sc.load(target, home), "repo")[0] is None
+
+
+SYNCED_ACCOUNT = "org-uuid_user-uuid"
+
+
+def _synced(home: Path, layout: dict, manifest=None) -> Path:
+    """A claude.ai-synced account dir: `{dir name: server command}` plus an optional manifest.
+
+    Each dir gets a bare `.mcp.json` server map, the shape the synced browser-use plugin ships,
+    and the `.meta.json` / `.in_use` siblings Claude Code writes beside it.
+    """
+    account = home / ".claude" / "plugins" / "synced" / SYNCED_ACCOUNT
+    for directory, command in layout.items():
+        _write(account / directory / ".mcp.json",
+               {"browser-use": {"command": command, "args": ["--root", "${CLAUDE_PLUGIN_ROOT}"]}})
+        _write(account / directory / ".claude-plugin" / "plugin.json",
+               {"name": directory.split("~", 1)[0], "description": "synced"})
+        (account / directory / ".in_use").mkdir(exist_ok=True)
+        _write(account / f"{directory}.meta.json", {"marketplace_name": "knowledge-work-plugins"})
+    if manifest is not None:
+        _write(account / "manifest.json", {"lastUpdated": 1, "plugins": manifest})
+    return account
+
+
+def _entry(name: str, generation: int) -> dict:
+    return {"pluginId": "plugin_x", "name": name, "version": "0013",
+            "marketplaceName": "knowledge-work-plugins", "installationPreference": "available",
+            "generation": generation}
+
+
+def test_a_synced_plugin_resolves_from_its_manifest_generation_dir(sc, tmp_path):
+    """`claude mcp list` prints `plugin:browser-use:browser-use` for a claude.ai-synced plugin."""
+    home, target = _dirs(tmp_path)
+    account = _synced(home, {"browser-use": "/bin/bare", "browser-use~g1": "/bin/g1",
+                             "browser-use~g2": "/bin/g2"},
+                      manifest=[_entry("browser-use", 1)])
+
+    spec, reason = sc.lookup(sc.load(target, home), "plugin:browser-use:browser-use")
+
+    root = str(account / "browser-use~g1")
+    assert reason == "" and spec["command"] == "/bin/g1"
+    assert spec["args"] == ["--root", root]
+    assert spec["env"]["CLAUDE_PLUGIN_ROOT"] == root
+
+
+def test_a_synced_plugin_without_a_manifest_entry_takes_its_highest_generation(sc, tmp_path):
+    home, target = _dirs(tmp_path)
+    _synced(home, {"browser-use": "/bin/bare", "browser-use~g2": "/bin/g2",
+                   "browser-use~g10": "/bin/g10"}, manifest=[_entry("other", 1)])
+
+    spec, _ = sc.lookup(sc.load(target, home), "plugin:browser-use:browser-use")
+
+    assert spec["command"] == "/bin/g10"
+
+
+def test_a_synced_plugin_with_no_generation_dir_falls_back_to_the_bare_dir(sc, tmp_path):
+    home, target = _dirs(tmp_path)
+    _synced(home, {"browser-use": "/bin/bare"})
+
+    spec, _ = sc.lookup(sc.load(target, home), "plugin:browser-use:browser-use")
+
+    assert spec["command"] == "/bin/bare"
+
+
+def test_a_manifest_generation_whose_dir_is_missing_falls_back_to_the_highest(sc, tmp_path):
+    home, target = _dirs(tmp_path)
+    _synced(home, {"browser-use~g2": "/bin/g2"}, manifest=[_entry("browser-use", 7)])
+
+    spec, _ = sc.lookup(sc.load(target, home), "plugin:browser-use:browser-use")
+
+    assert spec["command"] == "/bin/g2"
+
+
+def test_an_installed_plugin_wins_over_a_synced_one_of_the_same_name(sc, tmp_path):
+    home, target = _dirs(tmp_path)
+    _synced(home, {"browser-use~g2": "/bin/synced"}, manifest=[_entry("browser-use", 2)])
+    installed = tmp_path / "installed" / "browser-use"
+    _write(installed / ".mcp.json", {"browser-use": _stdio("installed")})
+    _plugin(home, "browser-use@some-market", installed)
+
+    spec, _ = sc.lookup(sc.load(target, home), "plugin:browser-use:browser-use")
+
+    assert spec["command"] == "/bin/installed"
+
+
+def _uses_both_vars():
+    return {"command": "${CLAUDE_PLUGIN_ROOT}/bin/serve",
+            "args": ["--data", "${CLAUDE_PLUGIN_DATA}"],
+            "env": {"STORE": "${CLAUDE_PLUGIN_DATA}/db"}}
+
+
+def test_an_installed_plugin_gets_its_data_dir_expanded_and_in_env(sc, tmp_path):
+    """Claude Code names an installed plugin's data dir `<plugin>-<marketplace>`."""
+    home, target = _dirs(tmp_path)
+    root = tmp_path / "plugins" / "graph"
+    _write(root / ".mcp.json", {"graph": _uses_both_vars()})
+    _plugin(home, "ai-badger@ai-badger", root)
+
+    spec, _ = sc.lookup(sc.load(target, home), "plugin:ai-badger:graph")
+
+    data = str(home / ".claude" / "plugins" / "data" / "ai-badger-ai-badger")
+    assert spec["args"] == ["--data", data]
+    assert spec["env"]["STORE"] == f"{data}/db"
+    assert spec["env"]["CLAUDE_PLUGIN_DATA"] == data
+    assert spec["env"]["CLAUDE_PLUGIN_ROOT"] == str(root)
+    assert not (home / ".claude" / "plugins" / "data").exists()
+
+
+def test_a_synced_plugin_data_dir_is_name_dash_synced(sc, tmp_path):
+    home, target = _dirs(tmp_path)
+    account = home / ".claude" / "plugins" / "synced" / SYNCED_ACCOUNT
+    _write(account / "browser-use~g2" / ".mcp.json", {"browser-use": _uses_both_vars()})
+
+    spec, _ = sc.lookup(sc.load(target, home), "plugin:browser-use:browser-use")
+
+    data = str(home / ".claude" / "plugins" / "data" / "browser-use-synced")
+    assert spec["args"] == ["--data", data]
+    assert spec["env"]["CLAUDE_PLUGIN_DATA"] == data
+    assert spec["env"]["CLAUDE_PLUGIN_ROOT"] == str(account / "browser-use~g2")
+
+
+def test_a_plugin_config_env_wins_over_the_host_set_plugin_vars(sc, tmp_path):
+    home, target = _dirs(tmp_path)
+    root = tmp_path / "plugins" / "graph"
+    _write(root / ".mcp.json", {"graph": {"command": "/bin/x", "env": {
+        "CLAUDE_PLUGIN_DATA": "/custom/data", "CLAUDE_PLUGIN_ROOT": "/custom/root"}}})
+    _plugin(home, "p@m", root)
+
+    spec, _ = sc.lookup(sc.load(target, home), "plugin:p:graph")
+
+    assert spec["env"]["CLAUDE_PLUGIN_DATA"] == "/custom/data"
+    assert spec["env"]["CLAUDE_PLUGIN_ROOT"] == "/custom/root"
+
+
+@pytest.mark.parametrize("hostile", ["../../../../../outside", "ABSOLUTE", "..", ".", "a/b", ""])
+def test_a_manifest_name_that_is_not_a_plain_dir_name_is_skipped(sc, tmp_path, hostile):
+    """The synced manifest is untrusted: a name must not lead outside the account dir."""
+    home, target = _dirs(tmp_path)
+    outside = tmp_path / "outside"
+    _write(outside / ".mcp.json", {"evil": _stdio("evil")})
+    _write(outside / "x~g1" / ".mcp.json", {"evil": _stdio("evil")})
+    name = str(outside) if hostile == "ABSOLUTE" else hostile
+    _synced(home, {"browser-use~g2": "/bin/g2"},
+            manifest=[_entry(name, 1), _entry("browser-use", 2)])
+
+    configs = sc.load(target, home)
+
+    assert not [k for k, s in configs.specs.items() if s.get("command") == "/bin/evil"]
+    assert sc.lookup(configs, "plugin:browser-use:browser-use")[0]["command"] == "/bin/g2"
+
+
+@pytest.mark.parametrize("link", ["evil", "evil~g3"])
+def test_a_synced_plugin_dir_symlinked_outside_the_account_is_skipped(sc, tmp_path, link):
+    home, target = _dirs(tmp_path)
+    outside = tmp_path / "outside"
+    _write(outside / ".mcp.json", {"evil": _stdio("evil")})
+    account = _synced(home, {"browser-use~g2": "/bin/g2"},
+                      manifest=[_entry("evil", 3), _entry("browser-use", 2)])
+    (account / link).symlink_to(outside, target_is_directory=True)
+
+    configs = sc.load(target, home)
+
+    assert sc.lookup(configs, "plugin:evil:evil")[0] is None
+    assert sc.lookup(configs, "plugin:browser-use:browser-use")[0]["command"] == "/bin/g2"
+
+
+@pytest.mark.parametrize("env", [["A=1"], "A=1", 3])
+def test_a_plugin_server_with_a_non_map_env_still_resolves(sc, tmp_path, env):
+    home, target = _dirs(tmp_path)
+    root = tmp_path / "plugins" / "graph"
+    _write(root / ".mcp.json", {"graph": {"command": "/bin/x", "env": env}})
+    _plugin(home, "p@m", root)
+
+    spec, _ = sc.lookup(sc.load(target, home), "plugin:p:graph")
+
+    assert spec["env"]["CLAUDE_PLUGIN_ROOT"] == str(root)
+
+
+def test_a_plugin_data_dir_id_replaces_every_unsafe_character_with_a_dash(sc, tmp_path):
+    """Claude Code's data dir id keeps [A-Za-z0-9_-] and turns everything else into `-`."""
+    home, target = _dirs(tmp_path)
+    root = tmp_path / "plugins" / "fmt"
+    _write(root / ".mcp.json", {"fmt": {"command": "/bin/x"}})
+    _plugin(home, "formatter@acme.tools", root)
+    account = home / ".claude" / "plugins" / "synced" / SYNCED_ACCOUNT
+    _write(account / "my.tool~g1" / ".mcp.json", {"s": {"command": "/bin/y"}})
+    configs = sc.load(target, home)
+
+    data = home / ".claude" / "plugins" / "data"
+    assert sc.lookup(configs, "plugin:formatter:fmt")[0]["env"]["CLAUDE_PLUGIN_DATA"] == str(
+        data / "formatter-acme-tools")
+    assert sc.lookup(configs, "plugin:my.tool:s")[0]["env"]["CLAUDE_PLUGIN_DATA"] == str(
+        data / "my-tool-synced")
