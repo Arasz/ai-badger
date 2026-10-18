@@ -26,11 +26,13 @@ Pre-1.0, the minor slot is the breaking slot. The number tracks blast radius, no
 1. Edit `VERSION`.
 2. Add `docs/changelog/{version}-{slug}.md` describing what changed.
 3. `python3 tooling/changelog_index.py` — regenerates the release table in `docs/changelog/README.md` from the entry files. Never hand-edit that table (issue #160).
-4. `python3 tooling/version_sync.py` — propagates version to `plugin.json`, `marketplace.json`, and `index.json`.
-5. `python3 tooling/version_sync.py --check && python3 tooling/changelog_index.py --check && python3 gates/release_guard.py` — all three must pass.
-6. `python3 -m pytest tests/ -q` and `python3 -m pylint $(git ls-files '*.py' | grep -v '^tests/')`.
-7. Open a PR; CI runs the same gates.
-8. **Merge. The tag is automatic** — since 0.69.2 a workflow tags `ai-badger--v{version}` from
+4. `python3 tooling/version_sync.py` — propagates version to `plugin.json`, `marketplace.json`, `index.json` and `features/common/data/model-groups.json`.
+5. Re-scaffold this repo against itself, after step 4 so the stamps carry the new version:
+   `AI_BADGER_MCP_AVAILABILITY=all python3 features/common/skills/welcome-ai-badger/scripts/scaffold.py --config .ai-badger/config.json --target . --root . --no-install --skills ''`
+6. `python3 tooling/version_sync.py --check && python3 tooling/changelog_index.py --check && python3 gates/release_guard.py` — all three must pass.
+7. `python3 -m pytest tests/ -q` and `python3 -m pylint $(git ls-files '*.py' | grep -v '^tests/')`.
+8. Open a PR; CI runs the same gates.
+9. **Merge. The tag is automatic** — since 0.69.2 the `release-tag` workflow tags `ai-badger--v{version}` from
    `main` after the merge. Nobody runs `claude plugin tag --push` by hand any more.
 
    That step used to be step 8 and used to be *the* release, and it was skipped 32 times: a
@@ -40,7 +42,7 @@ Pre-1.0, the minor slot is the breaking slot. The number tracks blast radius, no
    rather than assuming, because a workflow that did not run also looks like nothing. The
    workflow annotates the run if the merge subject contains a parenthesized version different
    from `VERSION`; this is advisory because the merge has already happened.
-9. **Verify content, not just metadata** (fixes #27):
+10. **Verify content, not just metadata** (fixes #27):
 
 ### Verification (mandatory)
 
@@ -49,7 +51,7 @@ Verify the release actually shipped by checking **content**:
 
 ```bash
 # Option A: Hash-based verification (preferred)
-CACHE_DIR="$HOME/.claude/plugins/cache/ai-badger--ai-badger/$(python3 -c "import json;print(json.load(open('$HOME/.claude/plugins/installed_plugins.json'))['plugins']['ai-badger@ai-badger']['version'])")"
+CACHE_DIR="$HOME/.claude/plugins/cache/ai-badger/ai-badger/$(python3 -c "import json;print(json.load(open('$HOME/.claude/plugins/installed_plugins.json'))['plugins']['ai-badger@ai-badger']['version'])")"
 python3 -c "
 import hashlib, pathlib
 h = hashlib.sha256()

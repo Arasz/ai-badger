@@ -25,50 +25,49 @@ Two things to know before you start, because they shape everything below:
 
 ## Setup
 
-Python **3.10+** (the CI floor) and Node (for the two `.mjs` gate scripts).
+Python **3.10+** (the CI floor) and Node 18+ (for the `.mjs` scripts and the `tests/js/` suites).
 
 ```bash
 git clone https://github.com/Arasz/ai-badger
 cd ai-badger
 python3 -m venv .venv
 .venv/bin/python3 -m pip install -r engine/requirements.txt -r engine/requirements-dev.txt
-.venv/bin/python3 -m pip install pytest
 ```
 
 `engine/requirements.txt` carries the runtime dependencies and `engine/requirements-dev.txt`
-carries `pylint`; `pytest` is not pinned in either, so install it separately (CI installs
-`pylint pytest jsonschema pyyaml` explicitly).
+carries `pylint`, `astroid`, `pytest` and `pytest-xdist`. CI installs both files
+(`.github/workflows/pylint.yml`), so the install line above matches what a build runs.
 
 **Use `.venv/bin/python3` for everything below.** Depending on your machine the system `python3`
 may be a version with no pytest installed; every command in this file assumes the venv
 interpreter.
 
-Runtime dependencies are deliberately minimal, and the two behave differently on purpose:
+Runtime dependencies are deliberately few, and they behave differently on purpose:
 
-- **`jsonschema` is required.** `engine/badger_lib.py` imports it inside the three validation
-  functions rather than at module scope, so the eleven entry points that never validate do not
-  pay for it — but the `ImportError` is never caught there. Validation that silently no-ops is
-  worse than a missing dependency — an unvalidated config would sail straight into the
-  scaffolder — so it fails loudly instead.
+- **`jsonschema` is required.** `engine/badger_lib.py` imports it lazily through one helper,
+  `_jsonschema()`, rather than at module scope, so entry points that never validate do not pay for
+  it. The `ImportError` is never caught there: validation that silently no-ops is worse than a
+  missing dependency, because an unvalidated config would sail straight into the scaffolder.
+- **`pydantic` is required.** The task-plan model and its schema generator use it.
 - **`pyyaml` is optional.** It is imported behind a guard and degrades to a printed note
   (`mcp_index.YAML_MISSING_HINT`), because the features needing it are not on the critical path.
+- **`tomli` supplies TOML parsing on Python 3.10**; 3.11+ uses the standard library `tomllib`.
+- **`semantica` is declared for the optional MCP wrapper only.**
 
-Everything else is standard library. **Do not add a third runtime dependency without a very good
-reason**; if you must, decide deliberately which of these two shapes it takes and say so here.
-`gates/deps_guard.py` enforces the declaration half of that rule: it parses every `*.py` under
+Everything else is standard library. **Do not add a runtime dependency without a very good
+reason**; if you must, decide deliberately which shape it takes (required, guarded or
+version-conditional) and say so here. `gates/deps_guard.py` enforces the declaration half of that rule: it parses every `*.py` under
 `engine/`, `tooling/`, `features/` and `gates/` and fails on a third-party import — including one
 hidden inside a function or a `try:` block — that `engine/requirements.txt` does not declare.
 
-Optionally install the pre-commit hooks, which run seven of the gates locally:
+Optionally install the pre-commit hooks, which run a subset of the gates locally:
 
 ```bash
 .venv/bin/python3 -m pip install pre-commit
 pre-commit install
 ```
 
-They are `version-sync`, `index-build`, `plugin-skills-sync`, `docs-guard`, `deps-guard`,
-`shipped-paths-guard`, and `pylint` — see
-[`.pre-commit-config.yaml`](.pre-commit-config.yaml).
+[`.pre-commit-config.yaml`](.pre-commit-config.yaml) is the list of hooks it runs.
 
 Separately, lefthook runs **every** gate on `git push`. That one is worth installing — it is what
 stops an unbumped `VERSION` or a failing test from reaching CI. See
@@ -96,30 +95,21 @@ file again.
 ## How the repository is laid out
 
 ```
-features/{stack|common}/{feature}/   the catalog — skills, personas, invariants, instructions,
+features/{stack|common}/{feature}/   the catalog: skills, personas, invariants, instructions,
                                      hooks, adjustments, templates, mcp, data, retrieval
-engine/                              the library every bootstrap shim imports: badger_lib,
-                                     badger_store, framework_copies, frontmatter,
-                                     unsafe_literals (and requirements.txt)
-tooling/                             maintainer catalog and release tooling: index_build,
-                                     validate, version_sync, changelog_index,
-                                     sync_plugin_skills, install_plugins, retrieval_eval,
-                                     fixture_harvest
-gates/                               repo gates CI and the pre-push hook run: release_guard,
-                                     tdd_guard, docs_guard, deps_guard, shipped_paths_guard,
-                                     scaffold_freshness_guard, skills_lint, workflow_lint,
-                                     consumer_journey (and gate_report, the shared finding shape)
-.github/scripts/                     CI helpers a workflow calls and nothing else:
-                                     conflicting_pr_report
+engine/                              the library every bootstrap shim imports
+tooling/                             maintainer catalog and release tooling
+gates/                               repo gates CI and the pre-push hook run
+.github/scripts/                     CI helpers a workflow calls and nothing else
 schemas/                             a JSON Schema per *.json model
 index.json                           SCRIPT-GENERATED. Never hand-edit it.
 tests/                               pytest; tests/js/ holds the node --test suites
 docs/                                see docs/README.md
 ```
 
-That list is prose and drifts; [`docs/scripts.md`](docs/scripts.md) is the one this repo checks
-(`tests/test_docs_match_the_catalog.py` fails when a script under `engine/`, `tooling/` or
-`gates/` has no entry there).
+Which script lives in which directory changes often, so [`docs/scripts.md`](docs/scripts.md) is the
+list to trust: `tests/test_docs_match_the_catalog.py` fails when a script under `engine/`,
+`tooling/` or `gates/` has no entry there.
 
 [`docs/framework-architecture.md`](docs/framework-architecture.md) explains the model,
 [`docs/authoring-a-feature.md`](docs/authoring-a-feature.md) is the how-to for adding a catalog
@@ -155,7 +145,7 @@ that demanded it.
 ```
 
 `gates/tdd_guard.py` checks the one thing a machine can: that a change to `.py` or `.mjs` under
-`engine/`, `tooling/`, `features/` or `gates/` came with a change to a test file. It is a signal,
+`engine/`, `tooling/`, `features/` or `gates/`, or to `.ts` under `features/pi/adjustments/`, came with a change to a test file. It is a signal,
 not a proof — it cannot tell a real test from an empty one, so passing it is not the point;
 writing the test first is.
 
@@ -183,6 +173,9 @@ as one large diff at the end.
     --config .ai-badger/config.json --target . --root .
 ```
 
+Prefix the scaffold with `AI_BADGER_MCP_AVAILABILITY=all`, as in sub-step 6 of
+step 5, or the self-scaffold drops MCP servers it cannot detect.
+
 `index.json` is likewise generated — run `.venv/bin/python3 tooling/index_build.py` after adding
 or removing a catalog entry, and commit the result. Never edit it by hand.
 
@@ -209,7 +202,7 @@ Run the release guard. It compares the shipped surface (`features/`, `engine/`, 
   4. Add the version to [`BREAKING_VERSIONS`](BREAKING_VERSIONS) if a re-scaffold is *required*,
      not merely recommended.
   5. `.venv/bin/python3 tooling/version_sync.py` — propagates the version into `plugin.json`,
-     `marketplace.json` and `index.json`.
+     `marketplace.json`, `index.json` and `features/common/data/model-groups.json`.
   6. **Re-scaffold this repo against itself, last.** The scaffolder stamps `frameworkVersion`
      into `.ai-badger/manifest.json` and `Scaffolded by ai-badger <v>` into every generated
      agent file, and it reads the version from `index.json` — so this only produces the right
@@ -270,7 +263,7 @@ What each one is for:
 | `deps_guard.py` | Code imports a third-party module that `engine/requirements.txt` does not declare. |
 | `release_guard.py` | The shipped surface changed since the last release tag without a `VERSION` bump. |
 | `shipped_paths_guard.py` | A machine-specific absolute path (`/Users/…`, `/home/…`, `C:\Users\…`) ships in a tracked file outside `docs/`, root `*.md` and `tests/`. The `docs/` exemption stops at generated `.html`/`.htm` pages, which are scanned. |
-| `skills_lint.py` | A catalog `SKILL.md` breaks one of the eleven conventions. `validate.py --all` calls it, so CI reports it without a step of its own. |
+| `skills_lint.py` | A catalog `SKILL.md` breaks one of the thirteen conventions. `validate.py --all` calls it, so CI reports it without a step of its own. |
 | `scaffold_freshness_guard.py` | Re-scaffolding this repo against itself would change something other than a version stamp — a `features/**` edit that never reached `.ai-badger/`. |
 | `tdd_guard.py` | Code changed and no test changed with it. Runs on branches, not on `main`. |
 | `workflow_lint.py` | A `uses:` in `.github/workflows/` is not pinned to a commit SHA, or a workflow runs on the repository's default token scope with no `permissions:` block. |
@@ -323,7 +316,7 @@ left an orphaned pytest at PPID 1 that outlived `git push`, lefthook and `verify
 no row at all, which is why the log's timings were survivorship-biased for as long as they were.
 
 Only `pre-push` is wired. `pre-commit` deliberately stays with the pre-commit framework: it
-already runs eight of these gates and chains to code-review-graph, and `lefthook install` renames
+already runs a subset of these gates (see `.pre-commit-config.yaml`) and chains to code-review-graph, and `lefthook install` renames
 a hook it conflicts with to `.old` and never runs it again. Configuring both would silently kill
 that chain.
 
@@ -378,21 +371,21 @@ posts this same notice on any stuck PR:
 gh pr view <number> --json mergeable --jq .mergeable   # CONFLICTING means stuck
 ```
 
-### 8. After merge — tag, if you released
+### 8. After merge, verify the tag
 
-**This step is the release**, and it is easy to forget because a green PR looks finished without
-it. From `main`:
+**The tag is automatic.** The `release-tag` workflow (`.github/workflows/release-tag.yml`) tags
+`ai-badger--v{version}` from `main` after the merge. Do not tag by hand. A workflow that did not
+run looks the same as one that did, so confirm the tag reached the remote:
 
 ```bash
-claude plugin tag --push     # creates ai-badger--v{version}
+git ls-remote --tags origin | grep "refs/tags/ai-badger--v{version}$"
 ```
 
-Until that runs, the version denotes no commit and `release_guard.py` still compares against the
-*previous* tag — which silently disables the guard. That is exactly how this project accumulated
-a 32-release gap. Never skip a tag.
+An untagged version silently disables `release_guard.py` (it compares against the *previous* tag),
+which is how this project accumulated a 32-release gap.
 
-Then verify the release shipped by checking **content**, not the CLI's own output — see the
-mandatory verification section in [`RELEASING.md`](RELEASING.md).
+Then verify the release shipped by checking **content**, not the CLI's own output. See the
+verification section in [`RELEASING.md`](RELEASING.md).
 
 ## Mutation testing (`features/common/retrieval/` only)
 
@@ -418,7 +411,7 @@ seconds.
 
 **What it deliberately does not cover:** everything else. `gates/`, `engine/`, `tooling/` and
 `features/**/scripts/` are not configured for mutation at all, and `features/common/hooks/` is
-structurally blocked — 28 of this repo's 101 test files spawn a script as a subprocess, and
+structurally blocked — many of this repo's test files spawn a script as a subprocess, and
 mutmut's trampoline resolves its config cwd-relatively with no override, so it crashes the
 moment a mutated script runs as a subprocess from a temp directory. Scoping around that
 destroys the score anyway: `scaffold.py` alone scored 39% with 136 "no tests" purely because its
