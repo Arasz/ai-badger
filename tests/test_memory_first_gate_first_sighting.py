@@ -486,3 +486,13 @@ def test_grouping_parens_are_not_part_of_a_key(env):
     found = env.gate.search_patterns("Bash", {"command": "grep -E '(foo|bar)baz' f"})
 
     assert [env.gate.normalize(p) for p in found] == ["foo", "barbaz"]
+
+
+def test_a_single_overlong_pattern_is_recorded_after_its_truncated_search(env):
+    """Mutation: return [] when no pattern fits the cap -> a >500-char pattern is never
+    recorded and every retry re-searches and denies -> red."""
+    long_pattern = "a" * 600
+    query, queried = env.gate.search_query([long_pattern])
+
+    assert len(query) == env.gate.QUERY_MAX_CHARS
+    assert queried == [long_pattern]

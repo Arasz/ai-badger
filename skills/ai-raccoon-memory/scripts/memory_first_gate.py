@@ -565,7 +565,8 @@ def search_query(patterns: Iterable[str]) -> Tuple[str, List[str]]:
             break
         included.append(pattern)
     if not included:
-        return next(iter(dict.fromkeys(p.strip() for p in patterns)), "")[:QUERY_MAX_CHARS], []
+        first = next(iter(dict.fromkeys(p.strip() for p in patterns)), "")
+        return first[:QUERY_MAX_CHARS], [first] if first else []
     return " ".join(included), included
 
 
