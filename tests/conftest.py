@@ -47,6 +47,10 @@ REAL_WRITE_LOG = Path(tempfile.mkdtemp(prefix="ai-badger-real-writes-")) / "writ
 os.environ[REAL_WRITE_LOG_ENV] = str(REAL_WRITE_LOG)
 os.environ.setdefault(DEBUG_DIR_ENV, tempfile.mkdtemp(prefix="ai-badger-debug-sink-"))
 
+# `mcp-index --discover` asks the `claude` on PATH for its init event by default; empty means
+# "no claude", so no test spawns the real CLI. Tests that want one point it at a fake.
+os.environ["MCP_INDEX_CLAUDE"] = ""
+
 # The real repo root, captured before any test can redirect it.
 REAL_PROJECT_ROOT = ROOT
 
