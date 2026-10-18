@@ -1,0 +1,18 @@
+"""Probe: which wrapped forms does rtk 1.0.1 rewrite? Temp HOME, no rules."""
+import subprocess
+import tempfile
+from pathlib import Path
+
+base = Path(tempfile.mkdtemp(dir=Path(__file__).parent))
+(base / "h").mkdir()
+G = "gi" + "t"
+cmds = [f"bash -c '{G} push origin main'", f"sh -lc '{G} push origin main'", f"sudo {G} push origin main",
+        f"env {G} push origin main", f"if {G} push origin main; then :; fi", f"{{ {G} push origin main; }}",
+        f"time {G} push origin main", f"! {G} push origin main", f"nice {G} push origin main",
+        f"command {G} push origin main", f"for x in a; do {G} push origin main; done",
+        f"{G} -C . push origin main", f"echo $HOME && {G} push origin main"]
+for cmd in cmds:
+    env = {"PATH": "/opt/homebrew/bin:/usr/bin:/bin", "HOME": str(base / "h"),
+           "RTK_DB_PATH": str(base / "db"), "RTK_TELEMETRY_DISABLED": "1"}
+    run = subprocess.run(["rtk", "rewrite", cmd], cwd=base, env=env, capture_output=True, text=True)
+    print(f"[{run.returncode}] {cmd!r} -> {run.stdout.strip()!r}")

@@ -1,0 +1,13 @@
+[3] "bash -c 'git push origin main'" -> "bash -c 'rtk git push origin main'"
+[1] "sh -lc 'git push origin main'" -> ''
+[1] 'sudo git push origin main' -> ''
+[3] 'env git push origin main' -> 'env rtk git push origin main'
+[1] 'if git push origin main; then :; fi' -> ''
+[1] '{ git push origin main; }' -> ''
+[3] 'time git push origin main' -> 'time rtk git push origin main'
+[1] '! git push origin main' -> ''
+[3] 'nice git push origin main' -> 'nice rtk git push origin main'
+[3] 'command git push origin main' -> 'command rtk git push origin main'
+[1] 'for x in a; do git push origin main; done' -> ''
+[3] 'git -C . push origin main' -> 'rtk git -C . push origin main'
+[3] 'echo $HOME && git push origin main' -> 'echo $HOME && rtk git push origin main'

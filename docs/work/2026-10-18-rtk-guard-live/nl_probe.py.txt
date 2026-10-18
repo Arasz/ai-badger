@@ -1,0 +1,23 @@
+"""Probe: does rtk's openclaw ask detection see an ask rule on a second line? Temp HOME and repo."""
+import json
+import subprocess
+import tempfile
+from pathlib import Path
+
+base = Path(tempfile.mkdtemp(dir=Path(__file__).parent))
+home, repo = base / "home", base / "r"
+home.mkdir()
+(repo / ".claude").mkdir(parents=True)
+subprocess.run(["git", "init", "-q", str(repo)], check=True,
+               env={"PATH": "/usr/bin:/bin", "HOME": str(home)})
+(repo / ".claude/settings.json").write_text(json.dumps({"permissions": {"ask": ["Bash(git push:*)"]}}))
+cmds = ["git status", "git push origin main", "git status\ngit push origin main",
+        "git status\n  git push origin main", "git status && git push origin main"]
+for host in (None, "openclaw"):
+    for cmd in cmds:
+        env = {"PATH": "/opt/homebrew/bin:/usr/bin:/bin", "HOME": str(home),
+               "RTK_DB_PATH": str(base / "db"), "RTK_TELEMETRY_DISABLED": "1"}
+        if host:
+            env["RTK_REWRITE_HOST"] = host
+        run = subprocess.run(["rtk", "rewrite", cmd], cwd=repo, env=env, capture_output=True, text=True)
+        print(f"host={host} exit={run.returncode} cmd={cmd!r} out={run.stdout!r} err={run.stderr.strip()!r}")
