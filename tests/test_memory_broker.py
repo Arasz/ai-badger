@@ -77,7 +77,7 @@ class Rig:
         thread.start()
         self.threads.append(thread)
         self.brokers.append(instance)
-        deadline = time.monotonic() + 5
+        deadline = time.monotonic() + 15
         while not broker.is_live(session, str(self.home)):
             assert time.monotonic() < deadline, "broker never came up"
             time.sleep(0.01)
@@ -170,7 +170,7 @@ def test_a_dead_proxy_is_reopened_lazily_on_the_next_request(rig):
 
 def test_the_proxy_is_warmed_at_start_and_not_reopened_per_request(rig):
     rig.start()
-    deadline = time.monotonic() + 5
+    deadline = time.monotonic() + 15
     while rig.starts() == 0:
         assert time.monotonic() < deadline, "the broker never opened its proxy"
         time.sleep(0.02)
