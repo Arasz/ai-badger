@@ -10,6 +10,7 @@ headers, no redirects — has a test that goes red when the rule is broken.
 from __future__ import annotations
 
 import json
+import os
 import sys
 import threading
 import time
@@ -47,11 +48,47 @@ def test_stdio_passes_config_env_with_expansion(mc, monkeypatch):
     assert [t["name"] for t in mc.list_tools(spec, timeout=10)] == ["from-env-dflt"]
 
 
-def test_stdio_hang_times_out_within_the_deadline(mc):
+def _alive(pid):
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    return True
+
+
+def test_stdio_hang_times_out_and_leaves_no_child_or_grandchild(mc, tmp_path):
+    """npx/uvx-style launchers fork the real server; killing only the direct child leaks it."""
+    pids = tmp_path / "pids"
     started = time.monotonic()
     with pytest.raises(mc.Timeout):
-        mc.list_tools(_stdio("hang"), timeout=1)
+        mc.list_tools(_stdio("hang", env={"FAKE_PID_FILE": str(pids)}), timeout=1)
     assert time.monotonic() - started < 5
+
+    child, grandchild = (int(p) for p in pids.read_text(encoding="utf-8").split())
+    give_up = time.monotonic() + 3
+    while (_alive(child) or _alive(grandchild)) and time.monotonic() < give_up:
+        time.sleep(0.05)
+    assert not _alive(child) and not _alive(grandchild)
+
+
+def test_stdio_exit_wait_never_runs_past_the_deadline(mc, monkeypatch):
+    monkeypatch.setattr(mc, "GRACE_SECONDS", 5)
+    session = mc._Stdio(_stdio("close-stdout"), time.monotonic() + 0.3, None)  # pylint: disable=protected-access
+    try:
+        while session.stdout.get(timeout=5) is not None:
+            pass
+        started = time.monotonic()
+        session._exited()  # pylint: disable=protected-access
+        assert time.monotonic() - started < 1
+    finally:
+        monkeypatch.setattr(mc, "GRACE_SECONDS", 0.5)
+        session.close()
+
+
+def test_stdio_an_oversized_line_is_response_too_large(mc, monkeypatch):
+    monkeypatch.setattr(mc, "MAX_MESSAGE_BYTES", 1024)
+    with pytest.raises(mc.McpClientError, match="response too large"):
+        mc.list_tools(_stdio("big"), timeout=10)
 
 
 def test_stdio_early_exit_reports_the_last_stderr_line(mc):

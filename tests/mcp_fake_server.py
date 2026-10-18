@@ -9,6 +9,9 @@ Modes:
   page-error answers the first tools/list page, errors on the second
   loop       every tools/list page carries a nextCursor
   chatty     writes ~1 MiB to stderr before answering, so an undrained stderr would deadlock
+  big        answers initialize with a 4 KiB line (tests lower the size cap)
+  close-stdout closes stdout and keeps running
+  (hang with $FAKE_PID_FILE also spawns a hung grandchild and records both pids)
 """
 
 import json
@@ -50,11 +53,20 @@ def fail(text):
 
 
 def main():
+    if MODE == "close-stdout":
+        sys.stdout.close()
+        os.close(1)
+        time.sleep(30)
     if MODE == "exit":
         sys.stderr.write("starting\nfatal: database is locked\n")
         sys.exit(3)
     initialize = read()
     if MODE == "hang":
+        if os.environ.get("FAKE_PID_FILE"):
+            import subprocess  # pylint: disable=import-outside-toplevel
+            grandchild = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(60)"])
+            with open(os.environ["FAKE_PID_FILE"], "w", encoding="utf-8") as handle:
+                handle.write(f"{os.getpid()} {grandchild.pid}")
         while True:
             time.sleep(1)
     if initialize.get("method") != "initialize":
@@ -63,6 +75,8 @@ def main():
         fail("capabilities were not {}")
     if MODE == "ok":
         sys.stdout.write("server banner on stdout, not JSON\n")
+    if MODE == "big":
+        send({"jsonrpc": "2.0", "id": initialize["id"], "result": {"pad": "x" * 4096}})
     if MODE == "chatty":
         sys.stderr.write("x" * (1 << 20) + "\n")
         sys.stderr.flush()

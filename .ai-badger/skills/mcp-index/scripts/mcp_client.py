@@ -14,6 +14,7 @@ import json
 import os
 import queue
 import re
+import signal
 import subprocess
 import threading
 import time
@@ -28,6 +29,9 @@ CLIENT_INFO = {"name": "ai-badger-mcp-index", "version": "1"}
 PAGE_CAP = 50
 # Seconds a stdio server gets to exit after stdin closes, and again after terminate().
 GRACE_SECONDS = 1.0
+# One stdio line, HTTP body or SSE event larger than this is refused, not buffered.
+MAX_MESSAGE_BYTES = 16 * 1024 * 1024
+POSIX = os.name == "posix"
 
 Tool = Dict[str, str]
 Request = Callable[[str, Dict[str, Any]], Dict[str, Any]]
@@ -44,6 +48,13 @@ class Timeout(McpClientError):
 
 class Unauthorized(McpClientError):
     """The server refused the request without credentials this client does not hold."""
+
+
+def _too_large() -> McpClientError:
+    return McpClientError(f"response too large (over {MAX_MESSAGE_BYTES} bytes)")
+
+
+_TOO_LARGE = b"\0too-large"
 
 
 # ── ${VAR} expansion ─────────────────────────────────────────────────────────
@@ -122,10 +133,14 @@ class _Stdio:
         self.next_id = 0
         self.stdout: "queue.Queue[Optional[bytes]]" = queue.Queue()
         self.stderr: deque = deque(maxlen=20)
+        self.limit = MAX_MESSAGE_BYTES
+        # Its own process group, so close() reaches what an npx/uvx launcher forks.
+        group = ({"start_new_session": True} if POSIX
+                 else {"creationflags": getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)})
         try:
             self.proc = subprocess.Popen(  # pylint: disable=consider-using-with
                 argv, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                env=env, cwd=cwd or None)
+                env=env, cwd=cwd or None, **group)
         except FileNotFoundError as exc:
             raise McpClientError(f"command not found: {command}") from exc
         except OSError as exc:
@@ -134,7 +149,13 @@ class _Stdio:
         threading.Thread(target=self._pump_stderr, daemon=True).start()
 
     def _pump_stdout(self) -> None:
-        for line in iter(self.proc.stdout.readline, b""):
+        while True:
+            line = self.proc.stdout.readline(self.limit + 1)
+            if not line:
+                break
+            if len(line) > self.limit:
+                self.stdout.put(_TOO_LARGE)
+                break
             self.stdout.put(line)
         self.stdout.put(None)
 
@@ -153,7 +174,8 @@ class _Stdio:
 
     def _exited(self) -> McpClientError:
         try:
-            code = self.proc.wait(timeout=GRACE_SECONDS)
+            code = self.proc.wait(timeout=max(0.0, min(GRACE_SECONDS,
+                                                       self.deadline - time.monotonic())))
         except subprocess.TimeoutExpired:
             code = None
         time.sleep(0.05)  # let the stderr pump catch the last line
@@ -179,6 +201,8 @@ class _Stdio:
                 raise Timeout(f"timed out waiting for {method}") from exc
             if line is None:
                 raise self._exited()
+            if line is _TOO_LARGE:
+                raise _too_large()
             try:
                 message = json.loads(line)
             except ValueError:
@@ -192,23 +216,38 @@ class _Stdio:
             if message.get("id") == wanted:
                 return _result_of(method, message)
 
+    def _signal(self, sig: int) -> None:
+        """Signal the whole process group on POSIX; the direct child elsewhere."""
+        try:
+            if POSIX:
+                os.killpg(self.proc.pid, sig)
+            elif sig == getattr(signal, "SIGKILL", None):
+                self.proc.kill()
+            else:
+                self.proc.terminate()
+        except OSError:
+            pass  # already gone
+
     def close(self) -> None:
-        """Close stdin, then terminate, then kill — a server never outlives the call."""
+        """Close stdin, then terminate, then kill the group — nothing outlives the call."""
         try:
             self.proc.stdin.close()
         except OSError:
             pass
-        for stop in (None, self.proc.terminate, self.proc.kill):
-            if stop is not None:
-                try:
-                    stop()
-                except OSError:
-                    pass
+        try:
+            self.proc.wait(timeout=GRACE_SECONDS)
+        except subprocess.TimeoutExpired:
+            self._signal(signal.SIGTERM)
             try:
                 self.proc.wait(timeout=GRACE_SECONDS)
-                return
             except subprocess.TimeoutExpired:
-                continue
+                pass
+        # Grandchildren may outlive a child that exited cleanly; the group kill reaches them.
+        self._signal(getattr(signal, "SIGKILL", signal.SIGTERM))
+        try:
+            self.proc.wait(timeout=GRACE_SECONDS)
+        except subprocess.TimeoutExpired:
+            pass
 
 
 # ── streamable HTTP ──────────────────────────────────────────────────────────
