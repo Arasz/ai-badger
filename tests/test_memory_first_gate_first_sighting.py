@@ -398,3 +398,21 @@ def test_stored_entries_carry_their_kind(env):
     env.gate.record_query(PROJECT, "Bar baz")
 
     assert env.gate.searched(PROJECT) == {"p:foo", "q:bar baz"}
+
+
+# ------------------------------------------------------------------ the marker
+def test_a_search_for_the_marker_word_itself_can_carry_the_marker(env, monkeypatch, capsys):
+    """Mutation: restore the 'no parsed word contains memory-checked' rule -> red."""
+    _bash(env, monkeypatch, capsys, "grep -rn memory-checked docs")
+
+    assert _bash(env, monkeypatch, capsys, "grep -rn memory-checked docs # memory-checked") is None
+
+
+def test_a_marker_the_lexer_reads_as_a_word_is_refused(env, monkeypatch, capsys):
+    """Mutation: drop the parse(command) == parse(command without marker) comparison -> red."""
+    env.gate.remember(PROJECT, ["foo"])
+
+    # the raw text ends in the marker, but an escaped blank glues `#` into a word
+    assert _bash(env, monkeypatch, capsys, "git log | grep foo f \\\t# memory-checked") is not None
+    assert _bash(env, monkeypatch, capsys, "grep foo f\\ # memory-checked") is not None
+    assert _bash(env, monkeypatch, capsys, "grep foo f\n# memory-checked") is None

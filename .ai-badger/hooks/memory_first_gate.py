@@ -33,7 +33,6 @@ SEARCHED_DIR = Path.home() / ".ai-badger" / "memory-first-searched"
 
 MARKER = "# memory-checked"
 _MARKER_LINE = re.compile(r"(?:^|\s)#\s*memory-checked\s*$")
-_MARKER_WORD = "memory-checked"
 
 # Wall clock for the gate's own memory search, from hook start: hook timeouts are 10 s and
 # Hermes abandons a callback at 30 s.
@@ -310,16 +309,17 @@ def is_text_search(tool_name: Any, tool_input: Any) -> bool:
 def has_marker(tool_input: Any) -> bool:
     """True when the call needs no marker (no `command` string) or its last line ends in one.
 
-    The comment is read from the raw text (the lexer drops comments) and refused when any
-    lexed word carries it, so `grep '# memory-checked' f` cannot spoof it.
+    The marker is read from the raw text and accepted only when removing it leaves the parse
+    unchanged, so a quoted or escaped `# memory-checked` (a word, not a comment) cannot spoof it.
     """
     command = tool_input.get("command") if isinstance(tool_input, dict) else None
     if not isinstance(command, str):
         return True
-    lines = command.rstrip().splitlines()
-    if not lines or not _MARKER_LINE.search(lines[-1]):
+    text = command.rstrip()
+    match = _MARKER_LINE.search(text)
+    if match is None:
         return False
-    return not any(_MARKER_WORD in word for _, _, words, _ in _commands(command) for word in words)
+    return _commands(text) == _commands(text[:match.start()])
 
 
 # ------------------------------------------------------------------ the searched-pattern store
