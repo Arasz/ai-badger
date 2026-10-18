@@ -1,0 +1,2 @@
+prefix_rule(pattern=["git","push"], decision="prompt")
+prefix_rule(pattern=["rm"], decision="forbidden")

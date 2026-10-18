@@ -1,0 +1,12 @@
+git push origin main                                    {"matchedRules":[{"prefixRuleMatch":{"matchedPrefix":["git","push"],"decision":"prompt"}}],"decision":"prompt"}
+
+rtk git push origin main                                {"matchedRules":[]}
+
+rm -r build                                             {"matchedRules":[{"prefixRuleMatch":{"matchedPrefix":["rm"],"decision":"forbidden"}}],"decision":"forbidden"}
+
+rtk rm -r build                                         {"matchedRules":[]}
+
+bash -lc 'git status && git push origin main'           {"matchedRules":[]}
+
+bash -lc 'rtk git status && rtk git push origin main'   {"matchedRules":[]}
+

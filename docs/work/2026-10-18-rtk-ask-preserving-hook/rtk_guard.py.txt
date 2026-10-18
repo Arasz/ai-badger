@@ -1,0 +1,104 @@
+"""Research prototype: one rtk PreToolUse hook for Claude and Codex.
+
+Rewrites a Bash command through `rtk rewrite` only when no host rule names the original command,
+so the host's own rules always judge what the model asked for. Usage: rtk_guard.py claude|codex
+"""
+import json
+import os
+import re
+import shlex
+import shutil
+import subprocess
+import sys
+from pathlib import Path
+
+CHAIN = {"&&", "||", ";", "|"}
+ASSIGN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
+
+
+def rewrite(cmd, cwd, host=None):
+    env = dict(os.environ)
+    if host:
+        env["RTK_REWRITE_HOST"] = host
+    run = subprocess.run(["rtk", "rewrite", cmd], cwd=cwd, env=env,
+                         capture_output=True, text=True, timeout=4, check=False)
+    return run.returncode, run.stdout.strip()
+
+
+def segments(cmd):
+    """The argv of each command in a plain chain, or None when the shell text is not one."""
+    try:
+        lex = shlex.shlex(cmd, posix=True, punctuation_chars=True)
+        lex.whitespace_split = True
+        tokens = list(lex)
+    except ValueError:
+        return None
+    out, cur = [], []
+    for tok in tokens:
+        if tok in CHAIN:
+            out.append(cur)
+            cur = []
+        elif set(tok) <= set("&|;<>()"):
+            return None
+        else:
+            cur.append(tok)
+    out.append(cur)
+    out = [s[next((i for i, t in enumerate(s) if not ASSIGN.match(t)), len(s)):] for s in out]
+    return [s for s in out if s] or None
+
+
+def codex_rule_files(cwd):
+    home = Path(os.environ.get("CODEX_HOME", Path.home() / ".codex"))
+    layers = [home]
+    here = Path(cwd).resolve()
+    for d in (here, *here.parents):
+        if (d / ".codex").is_dir() and d != home.parent:
+            layers.append(d / ".codex")
+        if (d / ".git").exists():
+            break
+    return [f for layer in layers for f in sorted((layer / "rules").glob("*.rules"))]
+
+
+def codex_rule_names(cmd, cwd):
+    """True when any Codex rule matches any command in the chain, or when that is unknowable."""
+    files = codex_rule_files(cwd)
+    if not files:
+        return False
+    codex = os.environ.get("RTK_GUARD_CODEX") or shutil.which("codex")
+    parts = segments(cmd)
+    if not codex or not os.access(codex, os.X_OK) or parts is None:
+        return True
+    rules = [a for f in files for a in ("--rules", str(f))]
+    for argv in parts:
+        run = subprocess.run([codex, "execpolicy", "check", *rules, "--", *argv],
+                             capture_output=True, text=True, timeout=4, check=False)
+        if run.returncode != 0 or json.loads(run.stdout or "{}").get("matchedRules"):
+            return True
+    return False
+
+
+def main():
+    host = sys.argv[1]
+    event = json.load(sys.stdin)
+    cmd = (event.get("tool_input") or {}).get("command") or ""
+    cwd = event.get("cwd") or os.getcwd()
+    code, out = rewrite(cmd, cwd)
+    if code not in (0, 3) or not out or out == cmd:
+        return
+    if host == "claude":
+        if code == 3 and rewrite(cmd, cwd, "openclaw")[0] == 3:
+            return
+        decision = "allow" if code == 0 else None
+    else:
+        if codex_rule_names(cmd, cwd):
+            return
+        decision = "allow"
+    hso = {"hookEventName": "PreToolUse", "updatedInput": {**event["tool_input"], "command": out}}
+    if decision:
+        hso["permissionDecision"] = decision
+        hso["permissionDecisionReason"] = "rtk rewrite"
+    print(json.dumps({"hookSpecificOutput": hso}))
+
+
+if __name__ == "__main__":
+    main()

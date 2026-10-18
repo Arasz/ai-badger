@@ -1,0 +1,6 @@
+import subprocess,sys,time,statistics
+for label,b in (("npm launcher",sys.argv[1]),("native binary",sys.argv[2])):
+    t=[]
+    for _ in range(15):
+        s=time.perf_counter(); subprocess.run([b,"execpolicy","check","--rules","r.rules","--","git","push","origin","main"],capture_output=True); t.append((time.perf_counter()-s)*1000)
+    print(f"{label}: min={min(t):.0f} median={statistics.median(t):.0f} max={max(t):.0f} ms")

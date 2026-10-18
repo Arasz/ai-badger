@@ -1,0 +1,2 @@
+npm launcher: min=100 median=112 max=186 ms
+native binary: min=11 median=11 max=20 ms
