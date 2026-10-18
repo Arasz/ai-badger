@@ -19,6 +19,7 @@ When cutting a release:
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
+| 0.202.0 | [host-only MCP servers get real tags and intents](0.202.0-host-only-servers-get-real-intents.md) |
 | 0.201.0 | [`mcp-index --discover` reads tool names from Claude Code's init event](0.201.0-discover-reads-claude-code-init.md) |
 | 0.200.2 | [semantica catalog covers the tools 0.6.8 serves](0.200.2-semantica-catalog-current-tools.md) |
 | 0.200.1 | [`--discover` finds claude.ai-synced plugins; ai-raccoon and semantica catalogs refreshed](0.200.1-synced-plugins-and-catalog-refresh.md) |

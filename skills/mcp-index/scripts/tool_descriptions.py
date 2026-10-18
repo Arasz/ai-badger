@@ -53,6 +53,17 @@ def all_valid_tags(taxonomy: dict[str, Any]) -> set[str]:
 
 # ── Auto-tagging heuristics ──────────────────────────────────────────────────
 
+# The action a tool name's *first* `_`/`-` token names, matched whole (so `budget` is not `get`).
+# Actions only, never a technology (#171). These verbs led the 59 names the 2026-10-18 host-tools
+# smoke left `general`.
+_READ, _WRITE, _RUN = ("read",), ("write",), ("run",)
+LEADING_VERBS = {
+    **dict.fromkeys(("get", "list", "fetch", "download", "export", "whoami", "describe"), _READ),
+    **dict.fromkeys(("query", "search"), ("read", "search")),
+    **dict.fromkeys(("create", "update", "delete", "add", "upload", "set", "patch"), _WRITE),
+    **dict.fromkeys(("cancel", "pause", "resume", "start", "stop"), _RUN),
+}
+
 def auto_tags(tool_name: str, server_name: str, valid_tags: set[str]) -> list[str]:
     """Assign tags from tool-name heuristics, or ["general"] when none match."""
     name = tool_name.lower()
@@ -98,6 +109,7 @@ def auto_tags(tool_name: str, server_name: str, valid_tags: set[str]) -> list[st
         tags.add("write")
     if "terminal" in name or "shell" in name:
         tags.add("terminal")
+    tags.update(LEADING_VERBS.get(re.split(r"[_-]", name, maxsplit=1)[0], ()))
 
     valid = sorted(tags & valid_tags)
     return valid if valid else ["general"]
@@ -199,7 +211,17 @@ def heuristic_intent(name: str, description: str) -> str:
     text = " ".join(str(description or "").split())
     if len(text) > INTENT_MAX:
         text = text[:INTENT_MAX - 1].rsplit(" ", 1)[0].rstrip(" ,;:") + "…"
-    return text if len(text) >= INTENT_MIN else f"TODO: describe what {name} does"
+    return text if len(text) >= INTENT_MIN else PLACEHOLDER_INTENT.format(name=name)
+
+
+# What `heuristic_intent` writes when it has nothing to say; `validate` refuses it.
+PLACEHOLDER_INTENT = "TODO: describe what {name} does"
+_PLACEHOLDER = re.compile(re.escape(PLACEHOLDER_INTENT).replace(re.escape("{name}"), ".+"))
+
+
+def is_placeholder(intent: str) -> bool:
+    """Whether an intent is the unwritten placeholder rather than a description."""
+    return bool(_PLACEHOLDER.fullmatch(str(intent or "")))
 
 
 # ── Server status: opposite remedies must not share one silence ──────────────
