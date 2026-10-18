@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from pathlib import Path
 from typing import Any, Dict, NamedTuple, Optional, Set, Tuple
 
@@ -134,12 +135,13 @@ def _plugin_servers(root: Path) -> Dict[str, Spec]:
 
 
 def _data_dir(home: Path, label: str) -> str:
-    """`~/.claude/plugins/data/<label>`, never created here.
+    """`~/.claude/plugins/data/<id>`, never created here.
 
-    Claude Code labels it `<plugin>-<marketplace>` for an installed plugin (`ai-badger@ai-badger`
-    → `ai-badger-ai-badger`) and `<plugin>-synced` for a claude.ai-synced one (`browser-use-synced`).
+    Claude Code's id is `<plugin>@<marketplace>` for an installed plugin and `<plugin>-synced` for
+    a claude.ai-synced one, with every character outside [A-Za-z0-9_-] turned into `-`:
+    `ai-badger@ai-badger` → `ai-badger-ai-badger`, `formatter@acme.tools` → `formatter-acme-tools`.
     """
-    return str(home / ".claude" / "plugins" / "data" / label)
+    return str(home / ".claude" / "plugins" / "data" / re.sub(r"[^A-Za-z0-9_-]", "-", label))
 
 
 def _add_plugin(configs: Dict[str, Spec], plugin: str, root: str, data: str) -> None:
@@ -166,7 +168,7 @@ def _installed_roots(home: Path) -> Dict[str, Tuple[str, str]]:
                         and i.get("installPath")), None) if isinstance(installs, list) else None
         if install is not None:
             roots.setdefault(str(key).split("@", 1)[0], (
-                str(install["installPath"]), _data_dir(home, str(key).replace("@", "-", 1))))
+                str(install["installPath"]), _data_dir(home, str(key))))
     return roots
 
 

@@ -383,3 +383,20 @@ def test_a_plugin_server_with_a_non_map_env_still_resolves(sc, tmp_path, env):
     spec, _ = sc.lookup(sc.load(target, home), "plugin:p:graph")
 
     assert spec["env"]["CLAUDE_PLUGIN_ROOT"] == str(root)
+
+
+def test_a_plugin_data_dir_id_replaces_every_unsafe_character_with_a_dash(sc, tmp_path):
+    """Claude Code's data dir id keeps [A-Za-z0-9_-] and turns everything else into `-`."""
+    home, target = _dirs(tmp_path)
+    root = tmp_path / "plugins" / "fmt"
+    _write(root / ".mcp.json", {"fmt": {"command": "/bin/x"}})
+    _plugin(home, "formatter@acme.tools", root)
+    account = home / ".claude" / "plugins" / "synced" / SYNCED_ACCOUNT
+    _write(account / "my.tool~g1" / ".mcp.json", {"s": {"command": "/bin/y"}})
+    configs = sc.load(target, home)
+
+    data = home / ".claude" / "plugins" / "data"
+    assert sc.lookup(configs, "plugin:formatter:fmt")[0]["env"]["CLAUDE_PLUGIN_DATA"] == str(
+        data / "formatter-acme-tools")
+    assert sc.lookup(configs, "plugin:my.tool:s")[0]["env"]["CLAUDE_PLUGIN_DATA"] == str(
+        data / "my-tool-synced")
