@@ -3,12 +3,9 @@
 You found this repository and you do not yet know whether it is for you. This page answers that
 in the first two sections, then walks one project from nothing to a committed scaffold.
 
-**The commands and flags below are current** — re-run against `0.97.0` on 2026-08-07, and they
-still work as written. **The quoted output is a transcript from `0.27.1`**, kept because it is
-real output rather than an invented sample, and it has moved since: the catalog is larger, the
-scaffolder wires more hooks, and two of the note strings it prints were reworded. The counts you
-see are the counts for *your* repo, not these. Where a number matters, the deltas are called out
-next to the block it appears in.
+**The quoted output below is sample output from an earlier release**, kept because it is real
+output rather than an invented sample. Counts and note strings drift as the catalog grows. Run
+the commands and read your own notes; do not calibrate against these.
 
 ---
 
@@ -39,8 +36,8 @@ hook routes. The older transcript below remains a record of its original agents 
 - **You are on Windows.** The scripts themselves are portable, but the `task` skill declares
   `platforms: [linux, macos]` — it uses `fcntl` and `crontab`.
 - **You want zero generated files in your repo.** A scaffold writes dozens of files under
-  `.ai-badger/` plus copies at conventional paths — a one-file demo repo produced 71 entries at
-  `0.97.0`, and a real project produces more. They are meant to be committed.
+  `.ai-badger/` plus copies at conventional paths; a real project produces more
+  entries than a one-file demo. They are meant to be committed.
 
 Requirements: **Python 3.10+** (CI floor) and the dependencies in
 [`engine/requirements.txt`](../engine/requirements.txt).
@@ -53,7 +50,7 @@ Requirements: **Python 3.10+** (CI floor) and the dependencies in
 flowchart TD
   A["Found the repo"] --> B{"Which agent<br/>runs your work?"}
   B -->|"Claude Code"| C["/plugin marketplace add<br/>https://github.com/Arasz/ai-badger"]
-  B -->|"Copilot · Hermes<br/>· scripted / CI use"| D["git clone the repo"]
+  B -->|"Copilot · Hermes · pi · Codex<br/>· scripted / CI use"| D["git clone the repo"]
   C --> E["/plugin install ai-badger@ai-badger"]
   E --> F["Skills load automatically<br/>+ SessionStart drift hook"]
   D --> G["export AI_BADGER=path/to/clone"]
@@ -84,12 +81,9 @@ On a Mac it lands at `~/.claude/plugins/cache/ai-badger/ai-badger/<version>/`.
 What that buys you:
 
 - The plugin's `skills/` directory is the one place Claude Code scans for a plugin's skills
-  (see [ADR-0008](adr/0008-plugin-skills-live-at-the-plugin-skill-path.md)), so
-  `welcome-ai-badger`, `den-refresh`, `feed-badger`, `task`, `create-task-spec`,
-  `maintain-agent-instructions`, `mcp-index`, `prompt-markers`, `auto-wm`, `call-behaviorist`,
-  `code-review-checklist`, `owner-gate-review`, `commit-reminder`, `differential-feature-refactor`
-  and `ai-raccoon-memory` are available as
-  `ai-badger:<name>` without any setup — see [`skills.md`](skills.md) for what each one does.
+  (see [ADR-0008](adr/0008-plugin-skills-live-at-the-plugin-skill-path.md)), so every shipped
+  skill is available as `ai-badger:<name>` without any setup. [`skills.md`](skills.md) lists
+  them and what each one does.
 - [`hooks/hooks.json`](../hooks/hooks.json) registers a `SessionStart` hook that compares the
   plugin's `VERSION` against a project's `.ai-badger/manifest.json` and prints a one-line notice
   when they differ. That notice is your cue to run `den-refresh`. It only fires for the plugin —
@@ -111,14 +105,18 @@ python3 tooling/index_build.py --check
 
 What that buys you:
 
-- It works for Copilot, Hermes, and from a shell script or CI job — nothing depends on
-  Claude Code being installed.
+- It works for Copilot, Hermes, pi and Codex, and from a shell script or CI job. Nothing depends
+  on Claude Code being installed. These four agents install by scaffold only (no plugin): the
+  scaffold writes their native files, and [Codex setup](codex.md) covers the Codex routes.
 - You choose the commit. You can run `main`, a tag, or a branch you are testing.
 - It is the only route that lets you **contribute back**: `feed-badger` step 3 writes generalized
   files into a framework checkout before opening the PR.
 
 The cost: you install the dependencies and keep the checkout current yourself, and there is no
 drift notice — you have to remember to refresh.
+
+Using pi? The opinionated extension set built to work with the pi scaffold lives in
+[pi-badger-integration](https://github.com/Arasz/pi-badger-integration).
 
 ### They are the same catalog
 
@@ -181,7 +179,7 @@ Python project it produces:
 ```json
 {
   "$schema": "./schemas/config.schema.json",
-  "frameworkVersion": "0.27.1",
+  "frameworkVersion": "<version>",
   "project": { "name": "demo1", "summary": "", "domain": "" },
   "stacks": ["python"],
   "agents": ["claude", "copilot", "hermes"],
@@ -224,19 +222,16 @@ script. Fill in:
 - `commands` — `build` / `test` / `lint` / `run`. The `task` skill reads these.
 - `sourceControl` — setting `platform: "github"` with a `repoUrl` activates the `task` skill's
   GitHub PR/issue extension at scaffold time.
-- `skillScope` — `"default"` honours each skill's declared scope; `"local"` forces every install
-  to project scope.
-- `agentDocs` — `{"maxChars": N, "maxLines": N}`, raising the size budget the `task` skill's stop
-  hook enforces on the generated discovery files. Set it when the breach comes from content the
-  framework renders and the project cannot shorten without declining policy. A non-positive or
-  non-integer value is ignored, so a typo cannot silently disable the check.
 - `exclude` — what this project declines, by catalog name:
   `{"skills": ["mcp-index"], "invariants": ["pr-per-task"]}`. Keys are `skills`, `personas`,
   `invariants` and `instructions`; anything else is a validation error, so a typo cannot become
   a silent no-op. See [declining an artifact](#declining-an-artifact) below.
 
-The full contract is [`schemas/config.schema.json`](../schemas/config.schema.json). It sets
+The full key list (`skillScope`, `agentDocs`, `dataPolicy` and the rest) is
+[`schemas/config.schema.json`](../schemas/config.schema.json). It sets
 `additionalProperties: false`, so a stray key is a hard validation failure, not a warning.
+`dataPolicy` locks which model endpoints may see your data; see
+[`reference/data-access.md`](reference/data-access.md).
 
 ### Step 3 — validate
 
@@ -285,16 +280,12 @@ scaffolded 50 entries into /path/to/demo1/.ai-badger
 
 Read the notes. They are the honest record of what was skipped and why.
 
-*What has changed since that `0.27.1` transcript, measured on 2026-08-07 at `0.97.0`:* the entry
-count and the hook/skill counts are all higher and depend on the repo and the agents detected —
-a one-file demo scaffolded **71** entries and wired **6** hooks here, not 50 and 2. Two of the
-note strings above can no longer be printed as written: the skip note now reads
-`skill '<name>' not in any configured stack — skipped`
+*Read the notes in your own run, not these.* Entry, hook and skill counts depend on the repo and
+the agents detected. The skip note now reads `skill '<name>' not in any configured stack — skipped`
 (`skill_delivery.py`), and the MCP line reads `generated .mcp.json with N MCP server(s)`, not
-`N external tool(s)` — MCP servers became a catalog feature type in 0.51.0
+`N external tool(s)`: MCP servers became a catalog feature type in 0.51.0
 ([ADR-0014](adr/0014-mcp-support-is-configuration-not-retrieval.md)). The scaffolder also prints
-a `prerequisite —` note per declared server now. Run it and read your own notes; do not calibrate
-against these.
+a `prerequisite —` note per declared server.
 
 Useful flags: `--overwrite-agent-files` (replace hand-authored discovery files instead of
 preserving them), `--execute` (actually run the printed plugin-install commands),
@@ -311,7 +302,10 @@ your-repo/
   .ai-badger/                       # the source of truth for everything below
     config.json                     # the profile you just authored
     manifest.json                   # provenance: frameworkVersion, commit, every entry written
-    CLAUDE.md  HERMES.md  copilot-instructions.md
+    CLAUDE.md  HERMES.md  copilot-instructions.md  AGENTS.md  AGENTS.override.md
+    mcp-tools.json                  # MCP tool index used by the per-turn recommendation hook
+    model-groups.json  project-id  stack-ignore.json
+    engine/  schemas/  plugins/     # copies the hooks and scripts run against
     agents/architect.md  agents/code-reviewer.md  agents/test-engineer.md
     delegation.md                   # generated: personas + model lanes, routing, verifiers
     invariants/*.md                 # guard-clauses, tdd-mandatory, no-hardcoded-secrets, …
@@ -474,7 +468,7 @@ The three moving parts:
 1. **The catalog** — `features/{stack|common}/{feature}/`. A *stack* is a technology (`python`,
    `dotnet`, `react`, …, plus `common` for stack-agnostic content); a *feature* is a kind of asset
    (`personas`, `invariants`, `instructions`, `skills`, `hooks`, `adjustments`, `templates`,
-   `mcp`).
+   `mcp`, `tools`, `retrieval`, `data`).
 2. **`index.json`** — script-generated from that tree by `index_build.py`, and the only thing the
    scaffolder reads to find catalog items. Never hand-edited. If it is stale, items that exist on
    disk are invisible to the scaffold (see [Troubleshooting](#7-troubleshooting)).
@@ -567,15 +561,15 @@ PR/review-loop behaviour activates only when `sourceControl.platform == "github"
 ### `ModuleNotFoundError: No module named 'jsonschema'`
 
 ```
-  File ".../engine/badger_lib.py", line 696, in validate
+  File ".../engine/badger_lib.py", line N, in validate
     validator = _jsonschema().Draft202012Validator(schema)
-  File ".../engine/badger_lib.py", line 685, in _jsonschema
+  File ".../engine/badger_lib.py", line N, in _jsonschema
     import jsonschema  # pylint: disable=import-outside-toplevel
 ModuleNotFoundError: No module named 'jsonschema'
 ```
 
 `badger_lib` imports `jsonschema` **on first use**, inside `_jsonschema()`, not at module level —
-deferred because 11 of its 13 entry points never validate (ADR-0011, D1). The import is still
+deferred because most of its entry points never validate (ADR-0011, D1). The import is still
 unguarded, so validation refuses rather than silently passing: `validate.py`, `scaffold.py` and
 `refresh.py` all die with the traceback above. `detect.py` does not — it never validates, so it
 completes with exit 0 on an interpreter that has no `jsonschema` at all.
