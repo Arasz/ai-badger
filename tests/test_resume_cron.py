@@ -10,6 +10,7 @@ Every subprocess.run call (the resume) is mocked via monkeypatch on the module's
 acquires a real fcntl flock, but only on a file under tmp_path, never the real repo's lock.
 """
 from __future__ import annotations
+# pylint: disable=redefined-outer-name  # pytest fixture names
 
 import fcntl
 import os
@@ -212,6 +213,28 @@ def test_run_resumes_a_stalled_task_without_any_probe_call(resume_cron, monkeypa
     assert entry["resumeAttempts"][0]["dryRun"] is False
 
 
+def test_run_does_not_retry_a_failed_resume_inside_the_cooldown(resume_cron, monkeypatch, tmp_path):
+    """With no probe, the cooldown is what stops a limited resume being retried every cycle."""
+    _write_tasks(resume_cron, [
+        {"taskId": "T01", "state": "IN_PROGRESS", "sessionId": "sid-1",
+         "startedAt": _old_iso(60), "transcriptPath": _stale_transcript(tmp_path)},
+    ])
+    limited = subprocess.CompletedProcess(args=[], returncode=1, stdout="", stderr="usage limit")
+    calls = []
+
+    def fake_run(cmd, **_kwargs):
+        calls.append(cmd)
+        return limited
+
+    monkeypatch.setattr(resume_cron.subprocess, "run", fake_run)
+
+    assert resume_cron.run(dry_run=False) == 0
+    assert resume_cron.run(dry_run=False) == 0
+
+    assert len(calls) == 1
+    assert len(resume_cron.lib.load_tasks()["tasks"][0]["resumeAttempts"]) == 1
+
+
 def test_run_leaves_a_stalled_task_alone_while_its_session_is_alive(resume_cron, monkeypatch, tmp_path):
     """A quiet transcript is not a dead session: an idle interactive session writes nothing.
     Resuming it would run a second copy of the same session in parallel."""
@@ -274,7 +297,7 @@ def test_run_skips_when_lock_already_held(resume_cron, monkeypatch):
 
     resume_cron.lib.ensure_data_dir()
     _test_write(resume_cron.CRON_LOCK, "")
-    holder = open(resume_cron.CRON_LOCK, "r")
+    holder = open(resume_cron.CRON_LOCK, "r", encoding="utf-8")  # pylint: disable=consider-using-with
     try:
         fcntl.flock(holder, fcntl.LOCK_EX)
         rc = resume_cron.run(dry_run=False)

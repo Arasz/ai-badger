@@ -169,7 +169,6 @@ hermes cron create "0 9 * * *" \
 | `transcript_path` | `~/.hermes/sessions/` + `hermes sessions list` |
 | Rate limit visibility | `/usage` shows limits; Hermes rotates credential pools automatically |
 | Unfinished task notice on resume | `session_search(query="unfinished task")` or `/resume <name>` |
-| Background poller | `cronjob` for scheduled work; `delegate_task` for parallel work |
 
 **Implementation:** A `hermes` task extension provides equivalent functionality via native Hermes features rather than reimplementing Claude hooks. The extension documents that:
 - Session continuity → `hermes --continue` or `/resume`
@@ -181,7 +180,7 @@ hermes cron create "0 9 * * *" \
 **Claude** (`statusline_capture.py`):
 - Pipes through a user's `statusline.sh` script
 - Captures rate limits, context window %, model info
-- Persists to the `statusline` store in the tracking DB 
+- Persists to the `statusline` store in the tracking DB
 
 **Hermes** — three approaches:
 
