@@ -304,11 +304,14 @@ class _Http:
                 raise Timeout(f"timed out waiting for {method}") from exc
             raise McpClientError(f"{method}: {_one_line(exc.reason)}") from exc
 
+    def _post(self, label: str, message: Dict[str, Any]) -> None:
+        """POST a message that expects no reply (a notification or a response); 202 back."""
+        with self._open(label, "POST", json.dumps(message).encode("utf-8")):
+            pass
+
     def notify(self, method: str) -> None:
         """POST a notification; the server answers 202 with no body."""
-        body = json.dumps({"jsonrpc": "2.0", "method": method}).encode("utf-8")
-        with self._open(method, "POST", body):
-            pass
+        self._post(method, {"jsonrpc": "2.0", "method": method})
 
     def request(self, method: str, params: Dict[str, Any]) -> Dict[str, Any]:
         """POST one request; read the JSON body or the SSE stream until the matching id."""
@@ -323,7 +326,10 @@ class _Http:
                 if "text/event-stream" in ctype:
                     message = self._read_sse(method, response, wanted)
                 else:
-                    message = json.loads(response.read() or b"{}")
+                    raw = response.read(MAX_MESSAGE_BYTES + 1)
+                    if len(raw) > MAX_MESSAGE_BYTES:
+                        raise _too_large()
+                    message = json.loads(raw or b"{}")
             except TimeoutError as exc:
                 raise Timeout(f"timed out waiting for {method}") from exc
             except ValueError as exc:
@@ -337,21 +343,40 @@ class _Http:
         return result
 
     def _read_sse(self, method: str, response, wanted: int) -> Dict[str, Any]:
+        """Events until the reply with `wanted`; server requests on the stream are answered."""
         data: List[str] = []
-        for raw in response:
+        size = 0
+        while True:
             self._remaining(method)
+            raw = response.readline(MAX_MESSAGE_BYTES + 1)
+            size += len(raw)
+            if size > MAX_MESSAGE_BYTES:
+                raise _too_large()
             line = raw.decode("utf-8", "replace").rstrip("\r\n")
             if line.startswith("data:"):
                 data.append(line[5:].lstrip())
-                continue
-            if line or not data:
-                continue
-            message = json.loads("\n".join(data))
-            data = []
-            if isinstance(message, dict) and message.get("id") == wanted \
-                    and "method" not in message:
-                return message
+            elif not line and data:  # a blank line, or the end of the stream, ends an event
+                message = self._event(method, "\n".join(data), wanted)
+                data, size = [], 0
+                if message is not None:
+                    return message
+            if not raw:
+                break
         raise McpClientError(f"{method}: event stream ended without a reply")
+
+    def _event(self, method: str, text: str, wanted: int) -> Optional[Dict[str, Any]]:
+        """The reply if this event is it; a server request is answered, anything else skipped."""
+        try:
+            message = json.loads(text)
+        except ValueError:
+            return None
+        if not isinstance(message, dict):
+            return None
+        if "method" in message:
+            if "id" in message:
+                self._post(method, _reply_to_server_request(message))
+            return None
+        return message if message.get("id") == wanted else None
 
     def close(self) -> None:
         """Best-effort DELETE of the session; a refusal or a dead server is not an error."""

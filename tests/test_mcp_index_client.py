@@ -169,11 +169,23 @@ def _handler(fake):
                     headers=[("Mcp-Session-Id", "s-1")])
             if self.headers.get("Mcp-Session-Id") != "s-1":
                 return self._reply(400, b'{"error":"no session"}')
+            if method is None:  # the client's reply to a server-initiated request
+                return self._reply(202)
             if method == "notifications/initialized":
                 return self._reply(202)
             result = {"tools": [{"name": "remote", "description": "Remote tool."}]}
+            if fake.mode.endswith("big"):
+                result["pad"] = "x" * 4096
             reply = json.dumps({"jsonrpc": "2.0", "id": body["id"], "result": result})
-            if fake.mode == "sse":
+            if fake.mode == "sse-chatty":
+                events = ["data: not json at all",
+                          "data: " + json.dumps({"jsonrpc": "2.0", "id": "srv-1",
+                                                 "method": "ping"}),
+                          "data: " + json.dumps({"jsonrpc": "2.0", "id": "srv-2",
+                                                 "method": "sampling/createMessage"})]
+                stream = "\n\n".join(events) + "\n\ndata: " + reply  # no trailing blank line
+                return self._reply(200, stream.encode(), ctype="text/event-stream")
+            if fake.mode in ("sse", "sse-big"):
                 note = json.dumps({"jsonrpc": "2.0", "method": "notifications/progress"})
                 stream = f"event: message\ndata: {note}\n\nevent: message\ndata: {reply}\n\n"
                 return self._reply(200, stream.encode(), ctype="text/event-stream")
@@ -249,3 +261,23 @@ def test_http_never_follows_a_redirect_with_config_headers(mc, serve):
                        "headers": {"Authorization": "Bearer secret"}}, timeout=10)
 
     assert elsewhere.requests == []
+
+
+def test_http_sse_answers_server_requests_skips_noise_and_flushes_the_last_event(mc, serve):
+    fake = serve("sse-chatty")
+
+    tools = mc.list_tools({"type": "http", "url": fake.url}, timeout=10)
+
+    assert [t["name"] for t in tools] == ["remote"]
+    replies = {b["id"]: b for _, _, b in fake.requests if b and "method" not in b}
+    assert replies["srv-1"]["result"] == {}
+    assert replies["srv-2"]["error"]["code"] == -32601
+
+
+@pytest.mark.parametrize("mode", ["big", "sse-big"])
+def test_http_an_oversized_reply_is_response_too_large(mc, serve, monkeypatch, mode):
+    monkeypatch.setattr(mc, "MAX_MESSAGE_BYTES", 1024)
+    fake = serve(mode)
+
+    with pytest.raises(mc.McpClientError, match="response too large"):
+        mc.list_tools({"type": "http", "url": fake.url}, timeout=10)
