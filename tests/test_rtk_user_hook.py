@@ -63,7 +63,7 @@ class Home:
 
     def rtk_commands(self) -> list[str]:
         return [h["command"] for g in self.read()["hooks"]["PreToolUse"]
-                for h in g["hooks"] if "rtk" in h["command"]]
+                for h in g["hooks"] if "rtk" in str(h["command"])]
 
 
 @pytest.fixture(name="home")
@@ -125,6 +125,7 @@ def test_apply_creates_a_missing_settings_file(home):
 def test_a_bare_rtk_hook_is_kept_and_named(home):
     bare = {"matcher": "Bash", "hooks": [{"type": "command", "command": "rtk hook claude"}]}
     home.write({"hooks": {"PreToolUse": [bare]}})
+    assert "rtk hook claude" in home.run().stdout
     proc = home.run("--apply")
     assert proc.returncode == 0, proc.stderr
     assert home.read()["hooks"]["PreToolUse"][0] == bare
@@ -187,3 +188,19 @@ def test_without_claude_config_dir_it_writes_under_home(home):
     assert proc.returncode == 0, proc.stderr
     assert (Path(env["HOME"]) / ".claude/settings.json").is_file()
     assert not home.settings.exists()
+
+
+def test_the_current_command_under_another_matcher_is_moved_to_bash(home):
+    home.write({"hooks": {"PreToolUse": [{"matcher": "*", "hooks": [
+        {"type": "command", "command": project_command()}]}]}})
+    assert home.run("--apply").returncode == 0
+    assert home.read()["hooks"]["PreToolUse"] == [{"matcher": "Bash", "hooks": [
+        {"type": "command", "command": project_command()}]}]
+    assert home.backups()
+
+
+def test_a_non_string_command_does_not_crash(home):
+    home.write({"hooks": {"PreToolUse": [{"matcher": "x", "hooks": [{"command": 7}]}]}})
+    proc = home.run("--apply")
+    assert proc.returncode == 0, proc.stderr
+    assert home.rtk_commands() == [project_command()]

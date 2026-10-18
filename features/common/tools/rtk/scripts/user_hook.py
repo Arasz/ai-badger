@@ -39,7 +39,7 @@ def entry() -> dict:
 
 def is_guard(hook: dict) -> bool:
     """True for an earlier rtk guard entry: the marked inline form or a path to rtk_guard.py."""
-    command = hook.get("command") or ""
+    command = str(hook.get("command") or "")
     return f"{MARKER}=rtk " in command or "rtk_guard.py" in command
 
 
@@ -71,8 +71,6 @@ def merged(settings: dict) -> dict:
         kept = [h for h in group.get("hooks", []) if not is_guard(h)]
         if kept:
             groups.append({**group, "hooks": kept})
-        elif not group.get("hooks"):
-            groups.append(group)
     groups.append(entry())
     return {**settings, "hooks": {**settings.get("hooks", {}), "PreToolUse": groups}}
 
@@ -105,10 +103,13 @@ def write(path: Path, settings: dict) -> Path:
     if target.exists():
         shutil.copy2(target, backup)
     tmp = target.with_name(target.name + ".tmp")
-    tmp.write_text(json.dumps(settings, indent=2) + "\n", encoding="utf-8")
-    if target.exists():
-        shutil.copymode(target, tmp)
-    os.replace(tmp, target)
+    try:
+        tmp.write_text(json.dumps(settings, indent=2) + "\n", encoding="utf-8")
+        if target.exists():
+            shutil.copymode(target, tmp)
+        os.replace(tmp, target)
+    finally:
+        tmp.unlink(missing_ok=True)
     return backup
 
 
