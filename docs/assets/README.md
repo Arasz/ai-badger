@@ -12,8 +12,7 @@ only when nothing pins their path.
 Empty. Two asset directories predate this one and stay where they are, because both are pinned:
 
 - `../brand/` — `logo.svg` is the header image of the repository's root `README.md`.
-- `../screenshots/` — `owner-gate-review.png` is linked from `../skills.md` and named in
-  `.ai-badger/state.json`.
+- `../screenshots/` — `owner-gate-review.png` is linked from `../skills.md`.
 
-Freeze-list rule 2 makes re-placing a config-pinned path its own PR, never part of a migration.
+Freeze-list rule 2 makes re-placing a pinned path its own PR, never part of a migration.
 Consolidating both into this directory is tracked separately.

@@ -30,12 +30,13 @@ python3 -m pip install -r engine/requirements.txt   # runtime dependencies
 
 | feature                     | shape       | rule                                                                                                           |
 |-----------------------------|-------------|----------------------------------------------------------------------------------------------------------------|
-| `skills` (installable)      | directory   | any subdir of `features/common/skills/` containing a `SKILL.md`                                                |
+| `skills` (installable)      | directory   | any subdir of `features/common/skills/` (or a stack-local `features/<stack>/skills/`, such as `features/claude/skills/auto-wm`) containing a `SKILL.md` |
 | `personas`                  | file        | any `*.md` in `features/<stack>/personas/` (excluding `README.md`); name = filename stem                       |
 | `invariants`                | file        | any `*.md` in `features/<stack>/invariants/` (excluding `README.md`); name = filename stem                     |
 | `instructions`              | file        | any `*.md` in `features/<stack>/instructions/` (excluding `README.md`); name = filename stem                   |
 | `templates` (`common` only) | file/dir    | every top-level entry under `features/common/templates/`                                                       |
 | `mcp`                       | directory   | any subdir of `features/<stack>/mcp/` containing a `meta.json`; one MCP server each. `server.md` beside it is injected into every agent file; `tools.json` carries curated tool intents |
+| `tools`                     | directory   | any subdir of `features/<stack>/tools/` containing a `meta.json` (`schemas/tool.schema.json`); one CLI tool each, neither a skill nor an MCP server |
 
 These catalog files are deliberately **not** in that table, because `index_build.py` does not index
 them and they have no entry in `index.json` — the scaffold reads them directly, so adding one
@@ -151,6 +152,22 @@ most one `features/<stack>/skills-source.json` and one `features/<stack>/skills.
 Scope semantics: `"default"` means "whatever scope the project chose at scaffold time";
 `"local"` and `"user"` force that specific scope. Use `{"skills": []}` for extension-only
 stacks that have no external skills.
+
+## Adding a tool
+
+A tool is a CLI program that ai-badger wires into each agent harness, such as `rtk`, which rewrites
+shell commands so their output reaches the model compressed. Give it a directory
+`features/<stack>/tools/<name>/` with a `meta.json` that validates against
+`schemas/tool.schema.json`. `name` and `prerequisite` are required. `prerequisite` carries a
+`summary` plus the `check` and `install` commands. `hooks` is keyed by agent (`claude`, `codex`,
+`copilot`, `pi`, `hermes`). Each entry's `mode` is `native` (ai-badger writes the hook), `init` (it
+runs the tool's own installer) or `propose` (it prints the command for the user). An optional
+`guard` names a stdlib-only script under `scripts/` that a native hook runs in place of
+`<tool> hook <arg>`. `features/common/tools/rtk/` is a worked example.
+
+A tool installs nothing until the project opts in through `config.json`:
+`tools.<name>.hooks: [agent, ...]`. [ADR-0039](adr/0039-tools-feature-type.md) has the
+design.
 
 ## Adding a stack-recommended MCP server
 
@@ -301,5 +318,5 @@ resolve silently.
       unreachable ([ADR-0018](adr/0018-where-the-skill-routing-declaration-lives.md) §Context).
 - [ ] New content filed under the right stack (or genuinely `common`) — no project-specific
       paths or domain-coupled models leaked into `common`.
-- [ ] If you touched `skills/task`, grep it for stack-specific literals (`dotnet`,
+- [ ] If you touched `features/common/skills/task`, grep it for stack-specific literals (`dotnet`,
       `Cosmos`, `gh `, a hardcoded repo) — none should be present outside `task/extensions/`.
