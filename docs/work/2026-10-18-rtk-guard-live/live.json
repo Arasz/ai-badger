@@ -1,0 +1,75 @@
+[
+  {
+    "run": "g0",
+    "ask": true,
+    "command": "git push origin main",
+    "exit": 0,
+    "remote_main": "8e15e5b7abe97fd5d3405f5470df9aad822ad0d6",
+    "denials": [],
+    "results": [
+      "To $SCRATCH/live0/live-g0-ao5d9rwb/remote.git\n * [new branch"
+    ],
+    "stderr": "",
+    "rtk_commands": [
+      [
+        "git push origin main",
+        "rtk git push origin main"
+      ]
+    ],
+    "settings_sha_unchanged": true
+  },
+  {
+    "run": "g1",
+    "ask": true,
+    "command": "git push origin main",
+    "exit": 0,
+    "remote_main": "none",
+    "denials": [
+      "git push origin main"
+    ],
+    "results": [
+      "Claude requested permissions to use Bash, but you haven't granted it yet."
+    ],
+    "stderr": "",
+    "rtk_commands": [],
+    "settings_sha_unchanged": true
+  },
+  {
+    "run": "g2",
+    "ask": true,
+    "command": "git status",
+    "exit": 0,
+    "remote_main": "none",
+    "denials": [],
+    "results": [
+      "* main\n?? .claude/"
+    ],
+    "stderr": "",
+    "rtk_commands": [
+      [
+        "git status",
+        "rtk git status"
+      ]
+    ],
+    "settings_sha_unchanged": true
+  },
+  {
+    "run": "g3",
+    "ask": false,
+    "command": "git push origin main",
+    "exit": 0,
+    "remote_main": "164370425dfc11ec882c358ab5d254be99b8a830",
+    "denials": [],
+    "results": [
+      "To $SCRATCH/live2/live-g3-7exb35eh/remote.git\n * [new branch"
+    ],
+    "stderr": "",
+    "rtk_commands": [
+      [
+        "git push origin main",
+        "rtk git push origin main"
+      ]
+    ],
+    "settings_sha_unchanged": true
+  }
+]

@@ -1,7 +1,8 @@
 # ADR-0039 — A `tools` feature type, and per-harness wiring for rtk
 
 **Date:** 2026-10-17
-**Status:** Accepted; amended 2026-10-17 (0.195.1, Claude arm to propose)
+**Status:** Accepted; amended 2026-10-17 (0.195.1, Claude arm to propose); amended 2026-10-18
+(0.197.0, the rtk guard hook, Claude arm back to native)
 
 ## Context
 
@@ -48,6 +49,17 @@ Three plan reviews (security, harness, structure) then tightened the guard and t
    adjustment declares `cleanupOnDeselection`, so dropping the agent or the tool removes only
    the marked entry.
 
+   **Amended 0.197.0: Claude is `native` again, through a guard.** A meta spec may name a
+   `guard` script; the guarded command then runs it in place of `<tool> hook <arg>`. rtk's is
+   `scripts/rtk_guard.py`. It runs `rtk rewrite` and prints the rewrite only when no host rule
+   names the original command, so the host's rules judge what the model asked for. Claude: a
+   second `rtk rewrite` with `RTK_REWRITE_HOST=openclaw` isolates an ask-rule match, which leaves
+   the command unrewritten. Codex: the user and project `.rules` files are checked per
+   plain-chain segment with `codex execpolicy check`, and anything the guard cannot judge (no
+   `codex`, a failed check, a newline, a redirect or expansion, a rewrite inside a wrapper) leaves
+   the command unrewritten. Codex stays `propose` until a live Codex session has run the guard;
+   its spec already names it. Live evidence for Claude: `docs/work/2026-10-18-rtk-guard-live.md`.
+
    **Amended 0.195.1: Claude is `propose`, not `native`.** The live check found that Claude
    matches project `permissions.ask` rules against the hook's `updatedInput` only, so a
    `Bash(git push:*)` ask rule stopped prompting once rtk rewrote the command, and the push ran.
@@ -71,7 +83,9 @@ Three plan reviews (security, harness, structure) then tightened the guard and t
    `rtk init -g --agent hermes --auto-patch` command (honouring `HERMES_HOME`) and writes
    nothing.
 6. **The guarded command.** Every native entry runs
-   `env AI_BADGER_TOOL=rtk RTK_TELEMETRY_DISABLED=1 sh -c '…'`. The script exits 0 when `rtk`
+   `env AI_BADGER_TOOL=rtk RTK_TELEMETRY_DISABLED=1 sh -c '…'`. A guard script rides along as the
+   shell's `$1` and runs as `python3 -I -c "$1" <arg>` (0.197.0), so it is inlined from the
+   framework at scaffold time and no file lands in the project; a missing `python3` exits 0. The script exits 0 when `rtk`
    is not on PATH, maps any non-zero rtk exit to 0, and passes stdout through only when it starts
    with `{`. stderr is kept, so a broken or tampered rtk (`hook integrity check FAILED`) stays
    visible. Mapping exit 2 to 0 is deliberate: Claude reads exit 2 as a block, and rtk uses it
@@ -97,6 +111,13 @@ skill dependency.
 
 Negative, and accepted as opt-in risk:
 
+- **The guard's Codex rule search is a copy of Codex's own** (0.197.0). It reads the user and
+  project layers only; Team Config, `requirements.toml` and project trust are not modelled, so a
+  rule in a layer it misses is bypassed as before. Codex stays `propose` until that and a live run
+  are settled. Shell wrappers are covered only by failing closed when rtk rewrote inside one.
+- **The inlined guard is long.** The hook command carries the guard's source, a few kilobytes,
+  in `.claude/settings.json`; a reviewer reads it there, and any change to it re-triggers Codex's
+  `/hooks` approval.
 - **Codex approval bypass.** rtk's Codex hook always answers `permissionDecision: "allow"` with
   its `updatedInput`, because Codex rejects a rewrite with `ask` or no decision. Codex applies
   the replacement before its own approval and sandbox checks, and its safe/dangerous classifiers

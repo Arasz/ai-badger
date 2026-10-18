@@ -111,15 +111,18 @@ def backup_names(box: Sandbox) -> list:
 
 # -- a2: every arm lands, a rerun is a no-op, removal leaves nothing ----------------------
 
-def test_copilot_writes_a_file_and_claude_codex_pi_hermes_only_note(box):
+def test_copilot_and_claude_wire_hooks_and_codex_pi_hermes_only_note(box):
     stdout = box.scaffold(ALL_HOOKS)
 
     for rel in MARKED_FILES:
         assert MARKER + "rtk" in (box.target / rel).read_text(), rel
     by_agent = {agent: [n for n in tool_notes(stdout) if f"for '{agent}'" in n] for agent in AGENTS}
     assert all(len(notes) == 1 for notes in by_agent.values()), by_agent
-    assert MARKER not in (box.target / ".claude/settings.json").read_text()
-    assert "permissions.ask" in by_agent["claude"][0]
+    claude = json.loads((box.target / ".claude/settings.json").read_text())
+    [handler] = [h for g in claude["hooks"]["PreToolUse"] for h in g["hooks"]
+                 if MARKER + "rtk" in h["command"]]
+    assert "rtk rewrite" in handler["command"] and "rtk hook" not in handler["command"]
+    assert "wired into .claude/settings.json" in by_agent["claude"][0]
     assert MARKER not in (box.target / ".codex/hooks.json").read_text()
     assert "approval" in by_agent["codex"][0]
     assert "rtk init --agent pi" in by_agent["pi"][0]

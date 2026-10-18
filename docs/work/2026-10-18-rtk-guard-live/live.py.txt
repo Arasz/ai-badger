@@ -1,0 +1,91 @@
+"""Live check of the rtk guard under headless Claude Code (2026-10-18).
+
+One fresh temp repo per run, a local bare remote, project settings only, the guard command built
+by the worktree's tool_hooks exactly as the scaffold wires it. Usage: live.py <worktree> <outdir>
+"""
+import hashlib
+import json
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+WT, OUT = Path(sys.argv[1]), Path(sys.argv[2])
+OUT.mkdir(parents=True, exist_ok=True)
+sys.path.insert(0, str(WT / "features/common/skills/welcome-ai-badger/scripts"))
+import tool_hooks  # noqa: E402
+
+GUARD = tool_hooks.guarded_command(
+    "rtk", "claude", (WT / "features/common/tools/rtk/scripts/rtk_guard.py").read_text())
+G = "gi" + "t"
+SETTINGS = Path.home() / ".claude/settings.json"
+
+
+def sha(path):
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def sh(argv, cwd):
+    return subprocess.run(argv, cwd=cwd, capture_output=True, text=True, check=False)
+
+
+def run(name, ask, command):
+    base = Path(tempfile.mkdtemp(prefix=f"live-{name}-", dir=OUT))
+    repo, remote = base / "R", base / "remote.git"
+    sh([G, "init", "-q", "--bare", str(remote)], base)
+    sh([G, "init", "-q", "-b", "main", str(repo)], base)
+    for argv in ([G, "config", "user.email", "t@example.com"], [G, "config", "user.name", "T"],
+                 [G, "remote", "add", "origin", str(remote)]):
+        sh(argv, repo)
+    (repo / "a.txt").write_text("a\n")
+    sh([G, "add", "a.txt"], repo)
+    sh([G, "commit", "-q", "-m", "init"], repo)
+    settings = {"hooks": {"PreToolUse": [{"matcher": "Bash", "hooks": [
+        {"type": "command", "command": GUARD, "timeout": 5}]}]}}
+    if ask:
+        settings["permissions"] = {"ask": ["Bash(git push:*)"]}
+    (repo / ".claude").mkdir()
+    (repo / ".claude/settings.json").write_text(json.dumps(settings, indent=2))
+    env_prefix = {"RTK_DB_PATH": str(base / "rtkdb"), "RTK_RECALL": "0"}
+    proc = subprocess.run(
+        ["env", *[f"{k}={v}" for k, v in env_prefix.items()], "claude", "-p",
+         "--setting-sources", "project", "--model", "haiku", "--max-turns", "3",
+         "--allowedTools", "Bash", "--output-format", "stream-json", "--verbose",
+         "--no-session-persistence", "--strict-mcp-config",
+         f"Run exactly this shell command with the Bash tool, once, and nothing else: {command}"],
+        cwd=repo, capture_output=True, text=True, timeout=300, check=False)
+    (OUT / f"{name}.jsonl").write_text(proc.stdout)
+    executed, denials, results = [], [], []
+    for line in proc.stdout.splitlines():
+        try:
+            msg = json.loads(line)
+        except ValueError:
+            continue
+        if msg.get("type") == "result":
+            denials = [d.get("tool_input", {}).get("command") for d in msg.get("permission_denials", [])]
+        message = msg.get("message")
+        for block in (message.get("content") if isinstance(message, dict) else None) or []:
+            if isinstance(block, dict) and block.get("type") == "tool_result":
+                content = block.get("content")
+                results.append(content if isinstance(content, str) else json.dumps(content)[:200])
+    remote_main = sh([G, "--git-dir", str(remote), "rev-parse", "--verify", "-q", "main"], base)
+    rtk_db = None
+    if (base / "rtkdb").exists():
+        import sqlite3  # pylint: disable=import-outside-toplevel
+        con = sqlite3.connect(base / "rtkdb")
+        rtk_db = {}
+        for (table,) in con.execute("select name from sqlite_master where type='table'"):
+            rtk_db[table] = [list(map(str, r))[:4] for r in con.execute(f"select * from {table} limit 5")]
+    return {"run": name, "ask": ask, "command": command, "exit": proc.returncode,
+            "remote_main": remote_main.stdout.strip() or "none", "denials": denials,
+            "results": [r[:160] for r in results], "rtk_db_written": rtk_db,
+            "stderr": proc.stderr.strip()[:300]}
+
+
+before = sha(SETTINGS)
+rows = [run("g1", True, f"{G} push origin main"), run("g2", True, f"{G} status"),
+        run("g3", False, f"{G} push origin main")]
+after = sha(SETTINGS)
+summary = {"settings_sha_before": before, "settings_sha_after": after, "rows": rows}
+(OUT / "live.json").write_text(json.dumps(summary, indent=2))
+print(json.dumps(summary, indent=2))
