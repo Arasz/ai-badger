@@ -37,11 +37,55 @@ Each feature item is a small, self-describing unit:
 | `templates` (`common` only) | file/dir | every top-level entry |
 | `skills` (extensions only, e.g. `github`) | directory | `<base>-extensions/<ext>/` containing a manifest, attached by directory convention (§5) |
 
-Three files sit beside the feature directories rather than inside one, because they describe
-the stack instead of belonging to it: `features/<stack>/stack-mcp.json` (which MCP servers this
-stack wants and how to launch them), `features/common/support.json` (the agent capability
+Some files sit beside the feature directories rather than inside one, because they describe
+the stack instead of belonging to it. For example: `features/<stack>/stack-mcp.json` (which MCP
+servers this stack wants and how to launch them), `features/common/mcp-tags.json` (the closed tag
+vocabulary an MCP tool must draw from), `features/common/support.json` (the agent capability
 matrix) and `features/common/dependencies.json` (what a feature needs installed before it
-works).
+works). Stacks also carry `stack.json`, `skills-source.json` and `plugins-instructions.json`
+where they need them, and every agent stack has a `scaffolding.json` (below).
+
+How each kind behaves once scaffolded:
+
+- **personas**, **invariants** and **instructions** are individual `*.md` files, named by
+  filename stem.
+- **skills** live at `features/common/skills/`, each a `SKILL.md` plus scripts and references.
+  A skill declares its own routing in frontmatter (`stacks:` and `scope:`). Config-gated
+  extensions live inline at `features/common/skills/<skill>/extensions/<ext>/` with
+  `extension.json` activation conditions. A skill may carry a seed-once `project-local.md` for
+  project-specific additions. A skill with a `<!-- MERGE_EXTENSIONS -->` marker in `SKILL.md`
+  has its extensions merged into the skill file at scaffold time; the others keep them as
+  separate files.
+- **hooks** live at `features/common/hooks/` with a `hooks-manifest.json` naming each hook's
+  wiring per agent. Claude, Copilot and Hermes wire from that manifest. pi registers no per-hook
+  arm, so a new tool-event hook arms pi with no manifest edit and no adapter change (ADR-0022).
+  The hooks themselves are listed under [Hooks](#hooks).
+- **adjustments** are per-agent scaffold adjustments at `features/{agent}/adjustments/`, each
+  driven by an `adjustment.json` that names its scripts.
+- **mcp** holds one directory per server at `features/<stack>/mcp/{server}/`, each with a
+  `meta.json` declaring its prerequisite. What a server is for travels with the catalog whatever
+  route the server arrived by; `features/{stack}/stack-mcp.json` separately declares the ones
+  ai-badger may launch ([ADR-0014](adr/0014-mcp-support-is-configuration-not-retrieval.md)).
+  See [Bundled MCP servers](#bundled-mcp-servers).
+- **tools** holds one directory per external CLI at `features/<stack>/tools/{tool}/`: a
+  `meta.json` ([`schemas/tool.schema.json`](../schemas/tool.schema.json)), a `tool.md` rendered
+  into every agent file, and `check` and `install` scripts. Nothing is wired until the project
+  names the tool in `config.tools`; each agent's `adjust_tools` then adds the tool's marked hook,
+  or prints a proposal where the tool declares one (rtk on Claude, Codex and Hermes). The first
+  entry is `rtk`, which compresses shell output
+  ([ADR-0039](adr/0039-tools-feature-type.md)).
+- **data** and **retrieval**: `features/common/data/model-groups.json` maps a persona's `model:`
+  lane to a real model id, and `features/common/retrieval/` holds the BM25 matcher, tokenizer and
+  eval fixtures behind the MCP tool index (ADR-0012). Both are catalog content the scaffolder
+  copies; neither is prose. [`retrieval.md`](retrieval.md) covers how the index is searched.
+
+### `scaffolding.json`: declarative agent file generation
+
+Each agent has a `features/<agent>/scaffolding.json` that declares which files to scaffold into
+a target project, so `scaffold.py` carries no hardcoded agent-specific logic. The contract is
+[`schemas/scaffolding.schema.json`](../schemas/scaffolding.schema.json). pi's stack is the one
+with compiled surface: its `adjustments/adapter/` is TypeScript with its own `package.json` and
+tests, because pi loads extensions as `.ts` modules that shell out to the Python hooks.
 
 This keeps every asset generalizable at the point of authorship: a persona, invariant, or
 instruction that is genuinely stack-agnostic goes in `common`; anything that only makes sense
@@ -67,11 +111,12 @@ Stack-scoped skill *extensions* live inline inside the base skill directory (e.g
 `features/common/skills/task/extensions/github/`). `scaffold.py` embeds them when their
 `extension.json` `requires` conditions are met and prunes them otherwise.
 
-Historical note: skills previously lived at the repo-root `skills/` directory as a workaround
-for the Claude Code plugin loader's discovery mechanism. This was resolved by having the
-scaffolder symlink `.hermes/skills/` for Hermes auto-discovery and updating the plugin hook
-paths. Codex receives project `.agents/skills/<name>` symlinks to the same embedded skill
-directories; OpenAI documents symlink discovery explicitly. See [`codex.md`](codex.md).
+The repo-root `skills/` directory is the generated plugin copy of the catalog skills that Claude
+Code's plugin loader reads. Never edit it: `tooling/sync_plugin_skills.py` rewrites it from
+`features/` ([ADR-0008](adr/0008-plugin-skills-live-at-the-plugin-skill-path.md)). The scaffolder
+symlinks `.hermes/skills/` for Hermes auto-discovery. Codex receives project
+`.agents/skills/<name>` symlinks to the same embedded skill directories; OpenAI documents symlink
+discovery explicitly. See [`codex.md`](codex.md).
 
 ### `index.json` — the source of truth
 
@@ -105,6 +150,121 @@ you remember to regenerate it (see [`authoring-a-feature.md`](authoring-a-featur
 `tooling/validate.py --all` checks it against `schemas/index.schema.json` along with every other
 model in the repo.
 
+### Hooks
+
+A skill waits to be invoked. A hook does not. The catalog wires hooks into
+`.claude/settings.json`, `.github/hooks/` and the Hermes plugin at scaffold time. The two
+tool-event families run on pi as well, through a TypeScript adapter that reads the same generated
+`hooks.json` at event time, so a new gate lands on pi with no adapter edit
+([ADR-0022](adr/0022-pi-arms-hooks-dynamically.md)).
+
+| Hook | What it does when you did not ask |
+|---|---|
+| `memory-context` | Searches project memory for each user prompt and injects the matched excerpts ([ADR-0031](adr/0031-per-prompt-memory-context-through-the-ai-raccoon-proxy.md)) |
+| `context-enrichment` | Recommends MCP tools per turn out of the BM25 index ([ADR-0012](adr/0012-bm25-retrieval-with-a-falsifiable-eval.md)) |
+| `message-delivery` | Puts another session's mail in front of you at session start, every turn, and again at turn end |
+| `dispatch-gate` | Denies a subagent dispatch that names no model and whose persona has no lane |
+| `generated-file-guard` | Refuses a hand edit to a file the scaffold generated, and names the `features/` source to edit instead |
+| `memory-first-gate` | Blocks repo text search until the session has consulted memory ([ADR-0017](adr/0017-memory-first-gate.md)) |
+| `git-internals-guard`, `blast-radius-kill-guard` | Refuse the edit or the bare `kill` that damages a repo other lanes are working in |
+| `commit-reminder`, `test-run-economy` | Count what you are doing and say something when it crosses the line |
+| `grounded-feedback` | Carries a failed command's real output into your next correction turn |
+| `drift-notice` | Tells the session its `.ai-badger/` is behind the framework ([ADR-0001](adr/0001-versioning-and-release-model.md)) |
+
+The table is what Claude Code arms. Copilot and Hermes arm most of it, including the bus rows. On
+pi the `PreToolUse` and `PostToolUse` rows run through the adapter, while the session- and
+turn-level ones are the adapter's own bus router.
+`features/common/hooks/hooks-manifest.json` is the full list, one entry per hook per agent, and
+[`skills.md`](skills.md) marks which skills are hook-backed rather than named.
+
+The `dispatch-gate` row exists because of what the tracker measures. The `/task` skill reads the
+session transcript, including `<session-id>/subagents/*.jsonl` where dispatched work lives, and
+records which model produced each task's output, how many dispatches ran, and how many declared a
+model. `task_tracker.py status` prints the mix, for example `mix=opus-5:69%`. Model mix is tracked
+rather than cache efficiency because cache efficiency saturates: it measured 0.975 to 0.986 across
+1250 sessions, so it cannot separate a cheap task from a costly one, while model mix can. Since
+0.60.0 the leak is also closed up front: every persona carries a `model:` lane and a `level:`
+beside it ([ADR-0027](adr/0027-dual-key-persona-levels.md)), and a `PreToolUse` gate on `Agent`
+denies a dispatch that names neither a model of its own nor a persona that has one
+([ADR-0015](adr/0015-delegation-needs-a-mechanism-not-more-prose.md)).
+
+### Bundled MCP servers
+
+Each server is a catalog item under `features/<stack>/mcp/<server>/`, carrying the prose injected
+into every agent file, its prerequisite and its install command. `welcome-ai-badger` and
+`den-refresh` scaffold them into the project.
+
+| Server | What it does |
+|---|---|
+| [**code-review-graph**](https://github.com/tirth8205/code-review-graph) | Local-first code intelligence graph for MCP. Builds a persistent map of your codebase so AI coding tools read only what matters, used for code review, impact analysis, and architecture exploration. |
+| [**ai-raccoon**](https://github.com/Arasz/ai-raccoon) | Project memory server: semantic search, durable-fact writes, workspaces, docs watching. Declared only when `ai-raccoon` is on PATH. |
+| [**semantica**](https://github.com/semantica-agi/semantica) | Graph-native knowledge infrastructure: entity extraction, decisions with W3C PROV-O provenance, causal chains. Declared only when `semantica-mcp` is on PATH. |
+| [**playwright**](https://playwright.dev/docs/getting-started-mcp) | Browser automation over MCP: accessibility snapshots, element refs, network inspection. Declared only when `npx` is available, since it launches through `npx -y`. |
+| [**hermes**](https://hermes-agent.nousresearch.com/docs/user-guide/features/mcp#running-hermes-as-an-mcp-server) | Hermes Agent's stdio MCP bridge: list conversations, read history, poll live events, send messages, manage approvals. Declared only when `hermes` is on PATH. |
+| **task-graph** | The decomposed task plan as a DAG of steps with status, acceptance criteria and evidence, persisted in the project's `tracking.db`. Launched through `uv`. |
+
+`features/common/mcp/` holds ai-raccoon, code-review-graph, hermes, playwright, semantica and
+task-graph. `aspire` is catalogued in `features/aspire/mcp/` and is the Aspire CLI's own
+`aspire agent mcp` surface, so it is described but never launched by ai-badger.
+`features/common/stack-mcp.json` says which servers the `common` stack wants and which of them are
+written into `.mcp.json` during scaffold
+([ADR-0014](adr/0014-mcp-support-is-configuration-not-retrieval.md)). Availability is per server:
+`hermes`, `ai-raccoon`, `semantica` and `playwright` each depend on their own launcher being
+present, while `code-review-graph` and `task-graph` carry no availability condition.
+
+> **Hermes users:** Hermes reads MCP servers only from `~/.hermes/config.yaml`
+> (`mcp_servers:`). It has no project route, so a server written to `.mcp.json` is
+> invisible to Hermes sessions. ai-badger prints the block to merge instead of writing
+> user-global config (ADR-0014 decision 6); run `hermes mcp add <name> --command <cmd>`
+> once per machine (or merge the printed block) to make a server available to Hermes.
+
+### Repository layout
+
+```
+ai-badger/
+  index.json                     # SOURCE OF TRUTH: every feature for every stack (script-generated)
+  README.md   LICENSE (MIT)   VERSION   BREAKING_VERSIONS
+  CONTRIBUTING.md   SECURITY.md   CODE_OF_CONDUCT.md   RELEASING.md
+  AGENTS.md                      # Codex discovery copy of this repo's own instructions
+  lefthook.yml                   # local git-hook runner for the gates
+  pyproject.toml                 # tool configuration (pylint, pytest)
+  .claude-plugin/marketplace.json   # ai-badger is itself installable, plugin source "./"
+  .claude-plugin/plugin.json        # the installable plugin wrapping the root skills
+  skills/                        # What the plugin exposes to Claude Code (generated from features/)
+  hooks/hooks.json               # The plugin's own runtime wiring (the drift-notice hook)
+  schemas/                       # JSON Schema for every *.json model
+  engine/                        # The library every bootstrap shim imports: badger_lib, badger_store
+  tooling/                       # Maintainer catalog and release tooling (no LLM, no network)
+  gates/                         # Repo quality gates, run only by CI and the pre-push hook
+  tests/                         # The suite the gates are themselves verified against
+  docs/                          # Architecture, authoring guides, ADRs
+  features/
+    common/
+      skills/                    # default + optIn, per each SKILL.md's own scope (see skills.md)
+      personas/{architect, test-engineer, code-reviewer, qa, delegator}.md
+      invariants/*.md            # Agnostic invariant snippets
+      instructions/*.md          # Agnostic scoped instructions
+      hooks/                     # Hook scripts + hooks-manifest.json (claude, copilot, hermes)
+      retrieval/*.py             # BM25 matcher, tokenizer, eval fixtures for the MCP tool index
+      data/model-groups.json     # A persona's model: lane mapped to a real model id
+      skills-source.json         # External skill sources
+      skills.json                # External skills to install
+      mcp/                       # MCP server catalog (code-review-graph, ai-raccoon, semantica, ...)
+      tools/                     # External CLI catalog (rtk), one meta.json each
+      mcp-tags.json              # The closed tag vocabulary an MCP tool must draw from
+      stack-mcp.json             # Which MCP servers this stack wants, and how to launch them
+      support.json               # Agent capability matrix
+      dependencies.json          # What a feature needs installed before it works
+      templates/                 # CLAUDE.md.tmpl, HERMES.md.tmpl, delegation.md.tmpl,
+                                 # state.json, agent-instructions
+    dotnet/ azure/ aspire/ cosmos/ terraform/ mcp/ changelog/ python/  {personas,invariants,instructions}/...
+    github/ react/ vue/ angular/ node/ js/ ts/ css/ ux/  {personas,invariants,instructions}/...
+    ai-raccoon/                  # The memory server's own stack: its skill and its CLI dependency
+    claude/ copilot/ hermes/ pi/ codex/ # Agent stacks: scaffolding.json, adjustments/, templates/
+                                 # pi additionally ships the TypeScript hook adapter and its tests
+```
+Derive the stack list rather than trusting this tree: `ls features/`.
+
 ## 2. The two contracts
 
 Two JSON files connect the framework to a target project. Both are schema-validated
@@ -131,6 +291,17 @@ activate, what commands to run) is derived from it.
   "docs": { "architecture": "docs/…" }
 }
 ```
+
+The example shows the common keys. [`schemas/config.schema.json`](../schemas/config.schema.json)
+is the full list. Three of the rest control what leaves the machine or what the agent may call:
+
+- `dataPolicy` locks the project to loopback-only model calls. The string `"local-only"` or the
+  mere presence of the key locks; the object form relaxes it for named https hosts, and only for a
+  session that opted in.
+- `tools` names the catalog tools (`features/<stack>/tools/<tool>/`) the project opts into. Nothing
+  is wired unless it is named here.
+- `mcp` decides which of the catalog's MCP servers the agent may call and whether ai-badger
+  pre-approves them (ADR-0014).
 
 Its role is to **gate extensions**: a `task` extension or a plugin entry activates *iff* the
 data it needs is present in `config.json`. For example, the `task` GitHub extension (issue/PR
@@ -206,7 +377,9 @@ This split exists so that everything deterministic and mechanical is determinist
 mechanical — no LLM call decides a file path or writes JSON by hand — and the agent is reserved
 for the genuinely creative decisions.
 
-**Scripts do all mechanical work, no LLM, no network (except `open_pr.py`'s `gh` call):**
+**Scripts do all mechanical work, no LLM, no network (except `open_pr.py`'s `gh` call and
+`scaffold.py`'s optional ai-raccoon project-id lookup and registration,
+[ADR-0036](adr/0036-reuse-or-register-the-project-id-with-ai-raccoon.md)):**
 
 - `index_build.py` — scan the catalog tree → `index.json`, validated against its schema.
 - `validate.py` — validate any model (`config` / `manifest` / `index` / `skills-source` / `skills` /
@@ -286,12 +459,15 @@ The `task` skill ships in two parts:
 - **Extensions** (`features/common/skills/task/extensions/<name>/`) are opt-in slices
   shipped inline inside the base skill directory, gated by `extension.json` `requires`
   conditions evaluated against `config.json` at scaffold time:
-  - `github` — create/track issues + PRs, Copilot review loop; needs `sourceControl.platform ==
+  - `claude` - binds the base skill's delegation roles to Claude Code's concrete agents and models;
+    needs `agents=claude`.
+  - `codex` - Codex delegation patterns; needs `agents=codex`.
+  - `copilot` - Copilot delegation patterns; needs `agents=copilot`.
+  - `github` - create/track issues + PRs, Copilot review loop; needs `sourceControl.platform ==
     "github"` and `sourceControl.repoUrl`; project-board features additionally need
     `sourceControl.projectUrl`.
-  - `hermes` — Hermes Agent delegation patterns; needs `hermes` in `stacks`.
-  - (future) `dotnet-verify` — a `dotnet build && dotnet test` gate; needs the `dotnet` stack
-    plus `commands.build`/`commands.test`.
+  - `hermes` - Hermes Agent delegation patterns; needs `hermes` in `stacks`.
+  - `pi` - pi delegation patterns; needs `agents=pi`.
 
 `scaffold.py` evaluates each extension's `extension.json` `requires` array against
 `config.json` at scaffold time. Met requirements → embed; unmet → prune. No separate
@@ -317,6 +493,8 @@ target-repo/
     project-id                # identity: uuid4 minted at scaffold, or the id ai-raccoon already
                               # knows by name; registered once, never rewritten (ADR-0036)
     CLAUDE.md                # framework-managed source of the claude instructions
+    AGENTS.md                # framework-managed source of the Codex discovery copy
+    AGENTS.override.md       # framework-managed source of the pi project-instruction file
     HERMES.md                # ditto, when hermes is a configured agent
     copilot-instructions.md  # framework-managed copilot source (if copilot present)
     agents/*.md              # scaffolded personas
@@ -328,8 +506,8 @@ target-repo/
     skills-data/{stack}/        # the per-stack external-skill declarations the scaffold resolved
     stack-ignore.json        # stacks this project declined, so a refresh does not re-propose them
     hooks/hooks.json         # the project's own Pre/PostToolUse entries, read at event time
-    retrieval/               # BM25 matcher + tokenizer, for the MCP tool index
     mcp-tools.json           # the curated tool index the context hook searches
+                             # (the BM25 matcher is delivered beside the mcp-index hook script)
     model-groups.json        # model: lane -> a real model id
     plugins/                 # resolved external plugin installs
     engine/                  # vendored copies of the framework modules hooks import
@@ -401,6 +579,42 @@ project guidance; a hand-authored override is preserved and requires its
 owner to reconcile the guidance. See [ADR-0038](adr/0038-codex-harness-delivery.md).
 
 ## 7. Data flow, end to end
+
+```mermaid
+flowchart TB
+  subgraph FW["ai-badger repo (source of truth)"]
+    IDX["index.json\n(script-generated)"]
+    SCH["schemas/*.schema.json"]
+    subgraph CAT["catalog: features/{stack|common}/{feature}"]
+      COMMON["common/\npersonas·invariants·instructions·hooks·templates\ndata·retrieval·tools"]
+      STACKS["one directory per stack\ndotnet · azure · aspire · cosmos · terraform · mcp\nnode · js · ts · react · vue · css · ux · github · angular · python · changelog · ai-raccoon"]
+    end
+    SKILLSDIR["features/common/skills/\ndefault + optIn, per each SKILL.md's own scope\nsee skills.md for the roster"]
+    AGENTS["features/{claude|copilot|hermes|pi|codex}/\nscaffolding.json · adjustments/ · templates/"]
+    MCPCAT["features/*/mcp/ + stack-mcp.json\ncode-review-graph · hermes · ai-raccoon · task-graph (common)\nsemantica · playwright · aspire (aspire stack)"]
+    MKT[".claude-plugin/marketplace.json\n+ installable plugin"]
+  end
+  IDXbuild["index_build.py"] -->|scans features/| IDX
+  CAT --> IDXbuild
+  SKILLSDIR --> IDXbuild
+  AGENTS --> IDXbuild
+  MCPCAT --> IDXbuild
+  MKT -->|/plugin install| SKILLS["installed skills"]
+  IDX -. read .-> SKILLS
+  CAT -. copied features .-> PROJ
+  subgraph PROJ["target repo (.ai-badger/)"]
+    CFG["config.json\n(agent-authored)"]
+    MAN["manifest.json\n(script-written provenance)"]
+    OUT[".ai-badger/ files\n+ CLAUDE.md / copilot / hermes / pi / Codex copies"]
+  end
+  SKILLS -->|welcome| PROJ
+  PROJ -->|feed: manifest diff| PRD["draft PR → ai-badger"]
+  PRD -. merges new features .-> CAT
+```
+
+The diagram above is the whole loop: the catalog feeds `index_build.py`, the installed skills
+scaffold a project, and `feed-badger` carries improvements back. The two diagrams below zoom in on
+the scaffold path and the feed path.
 
 ```mermaid
 flowchart LR
