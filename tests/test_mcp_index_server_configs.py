@@ -38,9 +38,14 @@ def _stdio(tag):
     return {"command": f"/bin/{tag}", "args": [tag]}
 
 
+def _approve_all(target: Path):
+    _write(target / ".claude" / "settings.local.json", {"enableAllProjectMcpServers": True})
+
+
 def test_project_mcp_json_entries_resolve(sc, tmp_path):
     home, target = _dirs(tmp_path)
     _write(target / ".mcp.json", {"mcpServers": {"semantica": _stdio("project")}})
+    _approve_all(target)
 
     spec, reason = sc.lookup(sc.load(target, home), "semantica")
 
@@ -65,6 +70,7 @@ def test_local_scope_outranks_project_which_outranks_user(sc, tmp_path):
     })
     _write(target / ".mcp.json", {"mcpServers": {"a": _stdio("project"),
                                                  "b": _stdio("project")}})
+    _approve_all(target)
     configs = sc.load(target, home)
 
     assert sc.lookup(configs, "a")[0]["command"] == "/bin/local"
@@ -90,6 +96,7 @@ def test_disabled_project_servers_are_not_run(sc, tmp_path):
     _write(target / ".mcp.json", {"mcpServers": {"off": _stdio("p"), "on": _stdio("p")}})
     _write(home / ".claude.json", {"projects": {str(target): {
         "disabledMcpjsonServers": ["off"]}}})
+    _approve_all(target)
     configs = sc.load(target, home)
 
     assert sc.lookup(configs, "off")[0] is None
@@ -161,3 +168,42 @@ def test_unknown_names_and_unreadable_files_are_no_config(sc, tmp_path):
     spec, reason = sc.lookup(sc.load(target, home), "nowhere")
 
     assert spec is None and reason == sc.NO_CONFIG
+
+
+def test_an_unapproved_project_server_is_not_run(sc, tmp_path):
+    """Claude Code runs a repo's .mcp.json command only once the user approved it; so do we."""
+    home, target = _dirs(tmp_path)
+    _write(target / ".mcp.json", {"mcpServers": {"repo": _stdio("p")}})
+
+    spec, reason = sc.lookup(sc.load(target, home), "repo")
+
+    assert spec is None and reason == sc.NOT_APPROVED
+
+
+@pytest.mark.parametrize("where, setting", [
+    (".claude/settings.json", {"enabledMcpjsonServers": ["repo"]}),
+    (".claude/settings.local.json", {"enableAllProjectMcpServers": True}),
+    ("HOME/.claude/settings.json", {"enableAllProjectMcpServers": True}),
+    ("HOME/.claude.json", None),
+])
+def test_approval_comes_from_any_settings_file_claude_code_reads(sc, tmp_path, where, setting):
+    home, target = _dirs(tmp_path)
+    _write(target / ".mcp.json", {"mcpServers": {"repo": _stdio("p")}})
+    if setting is None:
+        _write(home / ".claude.json", {"projects": {str(target): {
+            "enableAllProjectMcpServers": True}}})
+    elif where.startswith("HOME/"):
+        _write(home / where[5:], setting)
+    else:
+        _write(target / where, setting)
+
+    assert sc.lookup(sc.load(target, home), "repo")[0] is not None
+
+
+def test_a_disabled_project_server_stays_off_even_when_all_are_enabled(sc, tmp_path):
+    home, target = _dirs(tmp_path)
+    _write(target / ".mcp.json", {"mcpServers": {"repo": _stdio("p")}})
+    _write(target / ".claude" / "settings.local.json",
+           {"enableAllProjectMcpServers": True, "disabledMcpjsonServers": ["repo"]})
+
+    assert sc.lookup(sc.load(target, home), "repo")[0] is None

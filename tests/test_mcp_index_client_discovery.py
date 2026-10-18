@@ -21,6 +21,9 @@ def _mcp_json(target: Path, env=None, **modes):
     servers = {name: {"command": sys.executable, "args": [FAKE, mode], "env": env or {}}
                for name, mode in modes.items()}
     (target / ".mcp.json").write_text(json.dumps({"mcpServers": servers}), encoding="utf-8")
+    (target / ".claude").mkdir(exist_ok=True)
+    (target / ".claude" / "settings.local.json").write_text(
+        json.dumps({"enableAllProjectMcpServers": True}), encoding="utf-8")
 
 
 def _names_only(*names):
@@ -255,3 +258,19 @@ def test_an_unexpected_client_error_fails_one_server_not_the_run(tmp_path, load_
 
     assert "broken: failed: " in capsys.readouterr().err
     assert "solo" in _source(tmp_path, "fake")["tools"]
+
+
+def test_an_unapproved_repo_server_is_not_run_whatever_the_host(tmp_path, load_script,
+                                                                 monkeypatch, capsys):
+    """The hermes host prints no `Pending approval` phrase, so approval comes from config."""
+    mod = load_script(SCRIPT)
+    asked = _no_hermes(mod, monkeypatch)
+    _mcp_json(tmp_path, repo="solo")
+    (tmp_path / ".claude" / "settings.local.json").unlink()
+
+    assert mod.main(["init", "--target", str(tmp_path), "--discover",
+                     "--from-json", _names_only("repo")]) == 0
+
+    assert "repo: not run: project server not approved in Claude Code" in capsys.readouterr().err
+    assert _source(tmp_path, "repo")["tools"] == {}
+    assert asked == []

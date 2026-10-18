@@ -60,7 +60,8 @@ def _plan(pending: List[Server], configs: sc.Configs
             outcomes[name] = f"not enumerated: {reason}"
         else:
             outcomes[name] = reason
-            unresolved.append(server)
+            if reason == sc.NO_CONFIG:  # hermes runs its own config, never the repo's command
+                unresolved.append(server)
     return jobs, outcomes, unresolved
 
 

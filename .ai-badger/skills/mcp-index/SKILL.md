@@ -220,14 +220,17 @@ Where the command or URL comes from (`scripts/server_configs.py`), first match w
 | scope | file |
 |---|---|
 | local | `~/.claude.json` → `projects[<target or nearest parent>].mcpServers` |
-| project | `<target>/.mcp.json`, minus `disabledMcpjsonServers`; only `enabledMcpjsonServers` when that list is non-empty |
+| project | `<target>/.mcp.json` — **only servers you approved**: named in `enabledMcpjsonServers` or covered by `enableAllProjectMcpServers`, and not in `disabledMcpjsonServers` (from the `~/.claude.json` project entry, `<target>/.claude/settings{,.local}.json`, `~/.claude/settings.json`) |
 | user | `~/.claude.json` → `mcpServers` |
 | plugin | `plugin:<p>:<s>` → `~/.claude/plugins/installed_plugins.json` `<p>@<market>` install path's `.mcp.json` or `.claude-plugin/plugin.json` `mcpServers`, `${CLAUDE_PLUGIN_ROOT}` expanded |
 
 Transports: **stdio** and **unauthenticated streamable HTTP** (static `headers` from the config are
 sent, `${VAR}` / `${VAR:-default}` expanded, only to that URL — redirects are refused). One stderr
 line per server says what happened: `enumerated N tool(s)`, `no config`, `needs authorization`,
-`timed out`, `failed: <reason>`, or `not run: pending approval in Claude Code`.
+`timed out`, `failed: <reason>` (any error — a bad URL included — fails that server only), `not run:
+project server not approved in Claude Code`, or `not run: pending approval in Claude Code`. A stdio
+server runs in its own process group, which is killed afterwards, so an `npx`/`uvx` launcher's child
+does not outlive the call; a single message over 16 MiB is `failed: response too large`.
 
 What stays unenumerated, keeps `tools_known` False and falls back to the catalog seed:
 `claude.ai <Name>` connectors (OAuth, host-managed — named `not enumerated: host-managed connector
