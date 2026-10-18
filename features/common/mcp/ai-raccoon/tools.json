@@ -4,9 +4,16 @@
   "tools": [
     {"name": "memory_write", "intent": "Persist a durable, project-scoped fact with its source path — one fact per entry, never raw chatter.", "tags": ["write"]},
     {"name": "memory_search", "intent": "Search project/shared memory (scope=all, project, or shared) with 2-3 formulations before web or code search.", "tags": ["search", "semantic"]},
+    {"name": "memory_get", "intent": "Read one memory entry's full content by the content hash a memory_search or memory_write returned — fetch a full note after a search snippet, not to find notes.", "tags": ["read"]},
+    {"name": "code_get", "intent": "Read one indexed code chunk's full source by its content hash from a kind=code or kind=both memory_search hit — the code twin of memory_get.", "tags": ["read"]},
+    {"name": "memory_record_followthrough", "intent": "Record that the agent opened a file a prior memory_search served, keyed by its correlationId — search-quality telemetry, not a memory write.", "tags": ["write"]},
+    {"name": "memory_record_grade", "intent": "Grade a prior memory_search call's usefulness 1-5 by its correlationId, with an optional note — human search-quality feedback, not entry rating.", "tags": ["write"]},
     {"name": "memory_list", "intent": "List entries in a project's memory bank, optionally filtered.", "tags": ["read"]},
     {"name": "memory_stats", "intent": "Report bank size and entry counts for a project.", "tags": ["read"]},
     {"name": "memory_share", "intent": "Promote a durable, cross-project entry to the shared tier — curated and never swept.", "tags": ["write"]},
+    {"name": "memory_share_extract", "intent": "Scan committed project memories and queue ranked candidates for sharing into the propose tier, or promote the top queued ones — the batch path behind memory_share.", "tags": ["write", "batch"]},
+    {"name": "memory_promotion_list", "intent": "List the propose tier: candidates queued by memory_share_extract and waiting for promotion review, ranked by score, previews by default.", "tags": ["read"]},
+    {"name": "memory_promotion_discard", "intent": "Drop a queued promotion candidate without sharing it, or clear the project's whole propose-tier queue when no hash is given.", "tags": ["write", "unsafe"]},
     {"name": "memory_delete", "intent": "Delete a specific memory entry by id.", "tags": ["write", "unsafe"]},
     {"name": "memory_delete_context", "intent": "Delete entries by context; requires full access mode.", "tags": ["write", "unsafe"]},
     {"name": "memory_ingest_file", "intent": "Bulk-load a file's contents into project memory as entries.", "tags": ["write", "files", "batch"]},
@@ -17,9 +24,13 @@
     {"name": "memory_workspace_consolidate", "intent": "Finish a workspace: keep durable facts, promote cross-project ones with memory_share, drop the rest.", "tags": ["write"]},
     {"name": "memory_workspace_discard", "intent": "Discard an active workspace and its outbox without consolidating.", "tags": ["write", "unsafe"]},
     {"name": "memory_sweep", "intent": "Remove old, low-rated project entries; shared entries are exempt.", "tags": ["write", "batch"]},
+    {"name": "memory_set_ttl", "intent": "Set or clear one entry's per-entry TTL in days, the age half of the sweep rule; an entry still needs a low rating before memory_sweep removes it.", "tags": ["write"]},
     {"name": "memory_sync", "intent": "Exchange memory snapshots with cloud storage when configured.", "tags": ["run"]},
     {"name": "memory_watch_add", "intent": "Register an absolute path to mirror into memory; the initial scan runs in the background.", "tags": ["write", "files"]},
     {"name": "memory_watch_status", "intent": "Report watch state (scanning/healthy/retrying/stopped) for a project; empty when none.", "tags": ["read"]},
-    {"name": "memory_watch_remove", "intent": "Stop mirroring a watched path; a no-op when the path is not watched.", "tags": ["write", "files"]}
+    {"name": "memory_watch_remove", "intent": "Stop mirroring a watched path; a no-op when the path is not watched.", "tags": ["write", "files"]},
+    {"name": "memory_performance", "intent": "Report this project's server self-instrumentation: per-tool and per-search-phase latency percentiles and counts over a time window, for diagnosing slow memory calls.", "tags": ["read", "diagnostic"]},
+    {"name": "project_id_get", "intent": "Look up the project id registered under an exact, case-sensitive project name; call it before minting, since every other tool takes that id.", "tags": ["read"]},
+    {"name": "project_id_token_get", "intent": "Mint and register a new project id (guidv7) once per project, only after project_id_get found no match for the name.", "tags": ["write"]}
   ]
 }

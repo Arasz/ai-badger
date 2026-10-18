@@ -32,6 +32,17 @@ AI_RACCOON_TOOLS = {
     "memory_watch_add",
     "memory_watch_status",
     "memory_watch_remove",
+    "memory_get",
+    "code_get",
+    "memory_record_followthrough",
+    "memory_record_grade",
+    "memory_share_extract",
+    "memory_promotion_list",
+    "memory_promotion_discard",
+    "memory_set_ttl",
+    "memory_performance",
+    "project_id_get",
+    "project_id_token_get",
 }
 
 
@@ -259,7 +270,7 @@ def test_catalog_validation_remains_green(root, load_script):
     assert validate.validate_all(root) == 0
 
 
-def test_ai_raccoon_tools_json_carries_the_nineteen_curated_intents(root, load_script):
+def test_ai_raccoon_tools_json_carries_one_curated_intent_per_live_tool(root, load_script):
     bl = load_script("engine/badger_lib.py")
     tools = bl.load_json(root / "features" / "common" / "mcp" / AI_RACCOON / "tools.json")
     taxonomy = bl.load_json(root / "features" / "common" / "mcp-tags.json")

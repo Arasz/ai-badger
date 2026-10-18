@@ -74,7 +74,7 @@ def test_tools_json_validates_against_schema():
 
 
 def test_tools_json_has_11_tools():
-    """tools.json lists exactly 11 tools (get_graph_analytics excluded — broken in 0.6.5)."""
+    """tools.json lists exactly 11 tools: the live server's 12 minus the broken get_graph_analytics."""
     tools = json.loads(_catalog_file("tools.json").read_text(encoding="utf-8"))
     assert len(tools["tools"]) == 11
 
@@ -121,7 +121,11 @@ def test_tools_json_has_core_tools():
 
 
 def test_broken_tool_not_present():
-    """get_graph_analytics is known broken in 0.6.5 and must not be listed."""
+    """get_graph_analytics is broken (0.6.5, and 0.6.6 on 2026-10-18) and must not be listed.
+
+    Measured live on semantica 0.6.6: the call returns
+    `PageRank calculation failed: 'dict' object is not callable`.
+    """
     tools = json.loads(_catalog_file("tools.json").read_text(encoding="utf-8"))
     names = {t["name"] for t in tools["tools"]}
     assert "get_graph_analytics" not in names
