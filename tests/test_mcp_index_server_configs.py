@@ -207,3 +207,86 @@ def test_a_disabled_project_server_stays_off_even_when_all_are_enabled(sc, tmp_p
            {"enableAllProjectMcpServers": True, "disabledMcpjsonServers": ["repo"]})
 
     assert sc.lookup(sc.load(target, home), "repo")[0] is None
+
+
+SYNCED_ACCOUNT = "org-uuid_user-uuid"
+
+
+def _synced(home: Path, layout: dict, manifest=None) -> Path:
+    """A claude.ai-synced account dir: `{dir name: server command}` plus an optional manifest.
+
+    Each dir gets a bare `.mcp.json` server map, the shape the synced browser-use plugin ships,
+    and the `.meta.json` / `.in_use` siblings Claude Code writes beside it.
+    """
+    account = home / ".claude" / "plugins" / "synced" / SYNCED_ACCOUNT
+    for directory, command in layout.items():
+        _write(account / directory / ".mcp.json",
+               {"browser-use": {"command": command, "args": ["--root", "${CLAUDE_PLUGIN_ROOT}"]}})
+        _write(account / directory / ".claude-plugin" / "plugin.json",
+               {"name": directory.split("~", 1)[0], "description": "synced"})
+        (account / directory / ".in_use").mkdir(exist_ok=True)
+        _write(account / f"{directory}.meta.json", {"marketplace_name": "knowledge-work-plugins"})
+    if manifest is not None:
+        _write(account / "manifest.json", {"lastUpdated": 1, "plugins": manifest})
+    return account
+
+
+def _entry(name: str, generation: int) -> dict:
+    return {"pluginId": "plugin_x", "name": name, "version": "0013",
+            "marketplaceName": "knowledge-work-plugins", "installationPreference": "available",
+            "generation": generation}
+
+
+def test_a_synced_plugin_resolves_from_its_manifest_generation_dir(sc, tmp_path):
+    """`claude mcp list` prints `plugin:browser-use:browser-use` for a claude.ai-synced plugin."""
+    home, target = _dirs(tmp_path)
+    account = _synced(home, {"browser-use": "/bin/bare", "browser-use~g1": "/bin/g1",
+                             "browser-use~g2": "/bin/g2"},
+                      manifest=[_entry("browser-use", 1)])
+
+    spec, reason = sc.lookup(sc.load(target, home), "plugin:browser-use:browser-use")
+
+    root = str(account / "browser-use~g1")
+    assert reason == "" and spec["command"] == "/bin/g1"
+    assert spec["args"] == ["--root", root]
+    assert spec["env"]["CLAUDE_PLUGIN_ROOT"] == root
+
+
+def test_a_synced_plugin_without_a_manifest_entry_takes_its_highest_generation(sc, tmp_path):
+    home, target = _dirs(tmp_path)
+    _synced(home, {"browser-use": "/bin/bare", "browser-use~g2": "/bin/g2",
+                   "browser-use~g10": "/bin/g10"}, manifest=[_entry("other", 1)])
+
+    spec, _ = sc.lookup(sc.load(target, home), "plugin:browser-use:browser-use")
+
+    assert spec["command"] == "/bin/g10"
+
+
+def test_a_synced_plugin_with_no_generation_dir_falls_back_to_the_bare_dir(sc, tmp_path):
+    home, target = _dirs(tmp_path)
+    _synced(home, {"browser-use": "/bin/bare"})
+
+    spec, _ = sc.lookup(sc.load(target, home), "plugin:browser-use:browser-use")
+
+    assert spec["command"] == "/bin/bare"
+
+
+def test_a_manifest_generation_whose_dir_is_missing_falls_back_to_the_highest(sc, tmp_path):
+    home, target = _dirs(tmp_path)
+    _synced(home, {"browser-use~g2": "/bin/g2"}, manifest=[_entry("browser-use", 7)])
+
+    spec, _ = sc.lookup(sc.load(target, home), "plugin:browser-use:browser-use")
+
+    assert spec["command"] == "/bin/g2"
+
+
+def test_an_installed_plugin_wins_over_a_synced_one_of_the_same_name(sc, tmp_path):
+    home, target = _dirs(tmp_path)
+    _synced(home, {"browser-use~g2": "/bin/synced"}, manifest=[_entry("browser-use", 2)])
+    installed = tmp_path / "installed" / "browser-use"
+    _write(installed / ".mcp.json", {"browser-use": _stdio("installed")})
+    _plugin(home, "browser-use@some-market", installed)
+
+    spec, _ = sc.lookup(sc.load(target, home), "plugin:browser-use:browser-use")
+
+    assert spec["command"] == "/bin/installed"
