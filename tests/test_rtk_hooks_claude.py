@@ -70,6 +70,21 @@ def test_one_marked_bash_handler_is_added_beside_user_keys_and_hooks(arm, tmp_pa
     assert _marked(data) == [("Bash", {"type": "command", "command": COMMAND, "timeout": 5})]
 
 
+def test_the_marked_group_is_moved_last_after_a_framework_group_is_appended(arm, tmp_path):
+    arm.adjust(_context(tmp_path))
+    data = json.loads(_settings(tmp_path).read_text())
+    framework = {"matcher": "Bash", "hooks": [{"type": "command", "command": "echo guard"}]}
+    data["hooks"]["PreToolUse"].append(framework)
+    _write(tmp_path, data)
+
+    arm.adjust(_context(tmp_path))
+
+    groups = json.loads(_settings(tmp_path).read_text())["hooks"]["PreToolUse"]
+    assert groups[0] == framework
+    assert [h["command"] for h in groups[-1]["hooks"]] == [COMMAND]
+    assert len(_marked(json.loads(_settings(tmp_path).read_text()))) == 1
+
+
 def test_a_rerun_changes_no_byte_and_leaves_no_backup(arm, tmp_path):
     _write(tmp_path, {"model": "opus"})
     arm.adjust(_context(tmp_path))
@@ -81,17 +96,14 @@ def test_a_rerun_changes_no_byte_and_leaves_no_backup(arm, tmp_path):
     assert _backups(tmp_path) == backups
 
 
-def test_a_correct_handler_stays_in_place_ahead_of_later_hooks(arm, tmp_path):
-    later = {"matcher": "Bash", "hooks": [{"type": "command", "command": "echo later"}]}
+def test_a_handler_already_last_is_left_untouched(arm, tmp_path):
     arm.adjust(_context(tmp_path))
-    data = json.loads(_settings(tmp_path).read_text())
-    data["hooks"]["PreToolUse"].append(later)
-    _write(tmp_path, data)
     before = _settings(tmp_path).read_bytes()
 
     arm.adjust(_context(tmp_path))
 
     assert _settings(tmp_path).read_bytes() == before
+    assert _backups(tmp_path) == []
 
 
 def test_a_stale_marked_command_is_replaced_not_duplicated(arm, tmp_path):
@@ -204,38 +216,55 @@ def _base_config(agents=("claude",), tools=None):
     return config
 
 
-def test_two_full_scaffolds_keep_exactly_one_handler_beside_the_framework_hooks(
-        load_script, root, tmp_path, monkeypatch):
-    plain = _scaffold(load_script, root, tmp_path / "plain", monkeypatch, _base_config())
-    assert plain["hooks"].get("PreToolUse"), "no framework PreToolUse hook to compose with"
-    opted = _base_config(tools={"rtk": {"hooks": ["claude"]}})
-
-    _scaffold(load_script, root, tmp_path / "rtk", monkeypatch, opted)
-    data = _scaffold(load_script, root, tmp_path / "rtk", monkeypatch, opted)
-
-    assert len(_marked(data)) == 1
-    without_marked = {event: [g for g in groups
-                              if not any(MARKER in h.get("command", "") for h in g["hooks"])]
-                      for event, groups in data["hooks"].items()}
-    assert without_marked == plain["hooks"]
-
-
-@pytest.mark.parametrize("opt_out", [
+@pytest.mark.parametrize("route", [
+    {},
     {"tools": {}},
     {"tools": {"rtk": {"hooks": []}}},
     {"agents": ["codex"]},
-], ids=["tool-removed", "claude-not-in-hooks", "claude-deselected"])
-def test_every_opt_out_route_through_the_scaffold_restores_the_settings(
-        load_script, root, tmp_path, monkeypatch, opt_out):
+], ids=["still-opted-in", "tool-removed", "claude-not-in-hooks", "claude-deselected"])
+def test_a_scaffold_removes_the_handler_an_earlier_native_release_wired(
+        load_script, root, tmp_path, monkeypatch, route):
+    """rtk is propose-only for Claude, so a handler 0.194.0 wired goes on every refresh route."""
     before = _scaffold(load_script, root, tmp_path, monkeypatch, _base_config())
     before["model"] = "opus"
     before["hooks"].setdefault("Stop", []).append(
         {"hooks": [{"type": "command", "command": "echo operator"}]})
-    _write(tmp_path, before)
+    wired = json.loads(json.dumps(before))
+    wired["hooks"].setdefault("PreToolUse", []).append(
+        {"matcher": "Bash", "hooks": [{"type": "command", "command": COMMAND, "timeout": 5}]})
+    _write(tmp_path, wired)
     config = _base_config(tools={"rtk": {"hooks": ["claude"]}})
-    assert len(_marked(_scaffold(load_script, root, tmp_path, monkeypatch, config))) == 1
+    config.update(route)
 
-    config.update(opt_out)
-    _scaffold(load_script, root, tmp_path, monkeypatch, config)
+    after = _scaffold(load_script, root, tmp_path, monkeypatch, config)
 
-    assert json.loads(_settings(tmp_path).read_text()) == before
+    assert _marked(after) == []
+    assert after == before
+
+
+# -- propose mode: the rewrite escapes permissions.ask, so nothing is wired ------------------
+
+def test_a_propose_arm_removes_the_wired_handler_and_says_why(arm, tmp_path):
+    _write(tmp_path, {"hooks": {"PreToolUse": [
+        {"matcher": "Bash", "hooks": [{"type": "command", "command": COMMAND}]}]}})
+    context = _context(tmp_path)
+    context["tools"]["rtk"]["agents"]["claude"] = {"mode": "propose", "arg": "claude"}
+
+    result = arm.adjust(context)
+
+    assert _marked(json.loads(_settings(tmp_path).read_text())) == []
+    assert "permissions.ask" in result["notes"]
+    # A local `rtk init` wires no Claude hook: only the user-wide init does, so say so.
+    assert "`rtk init -g`" in result["notes"] and "user-wide" in result["notes"]
+    assert "--agent" not in result["notes"] and "config.tools.rtk.hooks" in result["notes"]
+
+
+def test_a_propose_arm_on_a_fresh_project_writes_no_settings_but_still_notes(arm, tmp_path):
+    context = _context(tmp_path, commands=())
+    context["tools"] = {"rtk": {"meta": {"name": "rtk"}, "check_ok": None, "agents": {
+        "claude": {"mode": "propose", "arg": "claude"}}}}
+
+    result = arm.adjust(context)
+
+    assert not _settings(tmp_path).exists()
+    assert "permissions.ask" in result["notes"]

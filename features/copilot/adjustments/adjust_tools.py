@@ -11,8 +11,9 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 HOOKS = '.github/hooks'
-NOTE = ('{files}: VS Code Copilot Chat and Copilot CLI >= 1.0.73 apply the rewrite '
-        'transparently; JetBrains Copilot gets deny-with-suggestion instead')
+NOTE = ('{files}: rtk answers VS Code Copilot Chat with updatedInput and Copilot CLI with '
+        'modifiedArgs (a rewrite), though its own install text calls Copilot CLI '
+        'deny-with-suggestion; live Copilot behaviour is unverified')
 
 
 def _modules(framework_root: Path):

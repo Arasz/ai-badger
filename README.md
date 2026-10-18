@@ -226,6 +226,12 @@ features/<stack>/<feature>/<item>
   `meta.json` that declares its prerequisite. What a server is *for* travels with the catalog
   whatever route the server arrived by; `features/{stack}/stack-mcp.json` separately declares
   the ones ai-badger may launch (see [ADR-0014](docs/adr/0014-mcp-support-is-configuration-not-retrieval.md)).
+- **tools.** One directory per external CLI at `features/<stack>/tools/{tool}/`: a `meta.json`
+  (`schemas/tool.schema.json`), a `tool.md` rendered into every agent file, and `check`/`install`
+  scripts. Nothing is wired until the project names the tool in `config.tools`; each agent's
+  `adjust_tools` then adds the tool's marked hook, or prints a proposal where the tool declares
+  one (rtk on Claude, Codex and Hermes). The first entry is `rtk`, which compresses
+  shell output (see [ADR-0039](docs/adr/0039-tools-feature-type.md)).
 - **data** and **retrieval.** `features/common/data/model-groups.json` maps a persona's `model:`
   lane to a real model id, and `features/common/retrieval/` holds the BM25 matcher, tokenizer
   and eval fixtures behind the MCP tool index (ADR-0012). Both are catalog content the

@@ -53,7 +53,7 @@ held two files numbered 0002. That collision was resolved in 0.22.0. One number,
 
 | [0038](0038-codex-harness-delivery.md) | Deliver Codex through project-native surfaces | Accepted (2026-10-11) | Add Codex detection and scaffold delivery through AGENTS.md, symlinked skills, TOML personas and MCP, plus a bounded native hook subset; preserve operator config and trust; reconcile pi override precedence |
 
-| [0039](0039-tools-feature-type.md) | A `tools` feature type, and per-harness wiring for rtk | Accepted (2026-10-17) | New `tools` registry row with rtk as first member; opt-in `config.tools.<name>.hooks`; ai-badger writes marked (`AI_BADGER_TOOL=rtk`), guarded hooks for Claude/Codex/Copilot, pi runs `rtk init --agent pi` gated on install+check, Hermes proposal-only; POSIX-only; records the Codex approval bypass and three UNVERIFIED hook compositions |
+| [0039](0039-tools-feature-type.md) | A `tools` feature type, and per-harness wiring for rtk | Accepted (2026-10-17) | New `tools` registry row with rtk as first member; opt-in `config.tools.<name>.hooks`; ai-badger writes a marked (`AI_BADGER_TOOL=rtk`), guarded hook for Copilot, pi runs `rtk init --agent pi` gated on install+check; Claude, Codex and Hermes are proposal-only (amended 0.195.1: live check found Claude's `permissions.ask` bypassed by the rewrite, and Codex's `allow` skips approval); POSIX-only; Codex and Copilot compositions remain unverified |
 
 ## Writing a new one
 

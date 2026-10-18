@@ -196,3 +196,4 @@ the first plain-markdown record here.
 | `2026-10-11-codex-harness-research.md` | Native Codex harness research: instruction precedence, skills, TOML personas, MCP configuration, supported hook subset and delivery boundaries, with official sources and local CLI evidence. |
 | `2026-10-17-hookless-limited-mode-research.md` | Research on an ai-badger limited mode for Claude Code sessions whose hooks an enterprise policy blocks: which hook behaviours survive, and through which non-hook mechanism. |
 | `2026-10-17-rtk-integration-research.md` | Research record for shipping rtk, the CLI output-compression proxy, as the first catalog `tools` feature: install checks and opt-in per-harness hook wiring. |
+| `2026-10-17-rtk-live-verification.md` | Live Claude and pi checks of the rtk hook: deny holds, `permissions.ask` is bypassed (the 0.195.1 propose switch), pi not verified, Codex/Copilot/Hermes absent. |

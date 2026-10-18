@@ -1,7 +1,7 @@
 # ADR-0039 — A `tools` feature type, and per-harness wiring for rtk
 
 **Date:** 2026-10-17
-**Status:** Accepted
+**Status:** Accepted; amended 2026-10-17 (0.195.1, Claude arm to propose)
 
 ## Context
 
@@ -47,6 +47,21 @@ Three plan reviews (security, harness, structure) then tightened the guard and t
    rtk itself writes (no matcher, no camelCase key). Claude and Codex carry `timeout: 5`. Each
    adjustment declares `cleanupOnDeselection`, so dropping the agent or the tool removes only
    the marked entry.
+
+   **Amended 0.195.1: Claude is `propose`, not `native`.** The live check found that Claude
+   matches project `permissions.ask` rules against the hook's `updatedInput` only, so a
+   `Bash(git push:*)` ask rule stopped prompting once rtk rewrote the command, and the push ran.
+   rtk's meta now declares Claude `propose`. The Claude arm wires nothing, removes a handler
+   0.194.0 wired, and prints the reason. The native Claude merge stays in the arm for a tool
+   whose rewrite preserves ask rules.
+
+   **Codex is `propose` as well, by the same rule.** ai-badger does not wire a hook that weakens
+   the harness's own approval. rtk's Codex hook always answers `allow`, so a rewritten command
+   skips the approval prompt and the safe/dangerous classifiers (the Codex approval bypass
+   below). That was disclosed rather than silent, but it is the same class of bypass. The Codex
+   arm removes an entry 0.195.0 or earlier wired and prints the user-wide `rtk init -g --codex`
+   for an operator who accepts it; a local init would edit the generated `AGENTS.md`. Copilot
+   stays native: its hook rewrites without granting approval.
 4. **pi: rtk writes its own extension.** The pi arm runs `rtk init --agent pi` with the target
    repo as cwd, stdin from `/dev/null`, and `RTK_TELEMETRY_DISABLED=1`. It never passes
    `--auto-patch` or `-g`. It runs only when install is enabled and `check.py` passed; otherwise
@@ -107,14 +122,24 @@ application-support directory whatever ai-badger does; `tool.md` documents
 `tracking.enabled=false`, `RTK_DB_PATH` and `RTK_RECALL=0`. A different `rtk` first on PATH
 runs with the user's shell trust, and its non-JSON output is discarded by the guard.
 
-Open, to be settled by the live verification step and amended here:
+Settled by the live check on 2026-10-17 (Claude Code 2.1.302, rtk 1.0.1); evidence in
+`docs/work/2026-10-17-rtk-live-verification.md`:
 
-- UNVERIFIED: whether Claude applies a parallel hook's deny, and the user's `permissions.deny` /
-  `ask` rules, to a call rtk rewrote with `updatedInput`.
-- UNVERIFIED: how Codex aggregates a deny from ai-badger's guards with rtk's `allow` on the same
-  call.
-- UNVERIFIED: whether a camelCase `preToolUse` deny in `ai-badger-hooks.json` stops Copilot from
-  chaining into rtk's PascalCase `PreToolUse` hook, and whether every Copilot surface reads both.
+- VERIFIED, Claude: a parallel PreToolUse hook's deny blocks a call rtk rewrote, and that hook
+  sees the original command. Project `permissions.deny` is matched against both the original and
+  the rewritten command, and it holds. Project `permissions.ask` is matched against the
+  rewritten command only, so it is bypassed. That bypass is the reason for the 0.195.1 amendment.
+- UNVERIFIED, Codex: no codex binary was available. How Codex aggregates a guard's deny with rtk's
+  `allow` is untested. Codex is propose-only from 0.195.1, so the question no longer gates a
+  merge; the arm still keeps a native tool's entry last, after the guards, as a precaution.
+- UNVERIFIED, Copilot: no copilot binary was available. Offline, `rtk hook copilot` answers a
+  Copilot CLI payload with `modifiedArgs` (a rewrite) and a VS Code payload with `updatedInput`,
+  though rtk's install text calls Copilot CLI deny-with-suggestion. Whether a camelCase
+  `preToolUse` deny stops chaining into rtk's PascalCase hook, and whether every surface reads
+  both files, remains open.
+- NOT VERIFIED, pi: the headless run had no model with credits, and it was stopped after pi wrote
+  under `$HOME`. From the code, both rtk extensions skip a command that already starts with
+  `rtk `, so stacking them should not double-prefix.
 
 ## Alternatives
 

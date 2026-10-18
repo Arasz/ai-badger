@@ -10,6 +10,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from codex_paths import symlink_parent  # pylint: disable=wrong-import-position
 
 EVENT = 'PreToolUse'
+PROPOSAL = ('{tool} is not wired for Codex: its hook answers permissionDecision allow, so a '
+            'rewritten command skips the Codex approval prompt and its safe/dangerous classifiers. '
+            'A local `{tool} init --{arg}` edits the generated AGENTS.md; `{tool} init -g --{arg}` '
+            'wires it user-wide, for every project. Run it only if that approval does not matter.')
 NOTE = ('Codex tool hooks need project trust and /hooks approval; rtk-wrapped commands are '
         'auto-allowed (permissionDecision allow) and bypass the Codex approval prompt and its '
         'safe/dangerous classifiers; optional: if rtk history fails with SQLITE_CANTOPEN in the '
@@ -41,28 +45,37 @@ def _entry(command: str) -> dict[str, Any]:
 
 
 def _merge(hooks: dict[str, Any], wanted: list[dict[str, Any]], is_ours) -> None:
-    """Keep wanted entries in place, drop other marked handlers, append what is missing."""
-    missing = list(wanted)
+    """Drop every marked entry, then append the wanted ones last.
+
+    Last, so the rewriter never sits ahead of a guard; the hooks adjustment inserts its groups
+    ahead of a marked group, so a rerun yields the same bytes. The tool's event keeps its key.
+    """
     for event, groups in list(hooks.items()):
         clean = []
         for group in groups:
-            if event == EVENT and group in missing:
-                missing.remove(group)
-                clean.append(group)
-                continue
             handlers = [h for h in group.get('hooks', []) if not is_ours(h.get('command'))]
             if handlers or not group.get('hooks'):
                 clean.append(group if handlers == group.get('hooks', []) else dict(group, hooks=handlers))
-        if clean or not groups:
+        if clean or not groups or (event == EVENT and wanted):
             hooks[event] = clean
         else:
             del hooks[event]
-    if missing:
-        hooks.setdefault(EVENT, []).extend(missing)
+    if wanted:
+        hooks.setdefault(EVENT, []).extend(wanted)
 
 
 def adjust(context: dict[str, Any]) -> dict[str, Any]:
-    """Add one marked Bash entry per tool with a Codex arm; remove marked entries without one."""
+    """Add one marked entry per native Codex arm, remove the rest, and note each proposal."""
+    result = _wire(context)
+    proposals = [PROPOSAL.format(tool=name, arg=arm.get('arg', 'codex'))
+                 for name, tool in (context.get('tools') or {}).items()
+                 if (arm := (tool.get('agents') or {}).get('codex')) and arm.get('mode') == 'propose']
+    if proposals:
+        result['notes'] = '; '.join([result['notes'], *proposals])
+    return result
+
+
+def _wire(context: dict[str, Any]) -> dict[str, Any]:
     _scripts(Path(context['framework_root']))
     import config_guard  # pylint: disable=import-outside-toplevel
     from tool_hooks import is_ours  # pylint: disable=import-outside-toplevel

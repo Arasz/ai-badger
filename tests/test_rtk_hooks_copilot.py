@@ -21,9 +21,11 @@ def test_writes_the_pascal_case_shape_rtk_writes(load_script, tmp_path):
         {'type': 'command', 'command': COMMAND, 'cwd': '.', 'timeout': 5}]}}
     assert 'matcher' not in dst.read_text() and 'preToolUse' not in dst.read_text()
     assert result['applied'] and result['files'] == ['.github/hooks/rtk-rewrite.json']
-    for fragment in ('VS Code', 'Copilot CLI', '1.0.73', 'transparent', 'JetBrains',
-                     'deny-with-suggestion'):
+    # What rtk 1.0.1 emits and says, as measured live; no version floor nobody sourced.
+    for fragment in ('VS Code', 'Copilot CLI', 'modifiedArgs', 'deny-with-suggestion',
+                     'unverified'):
         assert fragment in result['notes']
+    assert '1.0.73' not in result['notes'] and 'JetBrains' not in result['notes']
 
 
 def test_idempotent(load_script, tmp_path):

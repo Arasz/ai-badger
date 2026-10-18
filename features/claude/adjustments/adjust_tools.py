@@ -11,6 +11,10 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
 EVENT = "PreToolUse"
+PROPOSAL = ("{tool} is not wired for Claude: its hook rewrites the command before Claude matches "
+            "project permissions.ask rules, so a rewritten command runs without the prompt. A local "
+            "`{tool} init` wires no Claude hook; `{tool} init -g` does, user-wide, for every project. "
+            "Run it only if no ask rule matters anywhere, and remove claude from config.tools.{tool}.hooks.")
 
 
 def _modules(framework_root: Path):
@@ -45,33 +49,31 @@ def _shape_error(settings: Dict[str, Any]) -> Optional[str]:
 
 def _merge(settings: Dict[str, Any], wanted: List[Dict[str, Any]],
            is_ours: Callable[[object], bool]) -> None:
-    """Keep wanted entries in place, drop every other marked handler, append what is missing.
+    """Drop every marked handler, then append the wanted ones last.
+
+    Last, so the rewriter never sits ahead of a guard; HookWiring inserts its framework hooks
+    ahead of a marked group, so a rerun yields the same bytes and writes nothing.
 
     A group, event or ``hooks`` key emptied by a removal goes with it; one that was already
-    empty stays, because it was the operator's.
+    empty stays, because it was the operator's. The tool's own event keeps its key position.
     """
     hooks = settings.get("hooks", {})
     was_empty = not hooks
-    missing = list(wanted)
     for event in list(hooks):
         kept = []
         for group in hooks[event]:
-            if event == EVENT and group in missing:
-                missing.remove(group)
-                kept.append(group)
-                continue
             handlers = group.get("hooks", [])
             remaining = [h for h in handlers if not is_ours(h.get("command"))]
             if len(remaining) == len(handlers):
                 kept.append(group)
             elif remaining:
                 kept.append(dict(group, hooks=remaining))
-        if kept or not hooks[event]:
+        if kept or not hooks[event] or (event == EVENT and wanted):
             hooks[event] = kept
         else:
             del hooks[event]
-    if missing:
-        hooks.setdefault(EVENT, []).extend(missing)
+    if wanted:
+        hooks.setdefault(EVENT, []).extend(wanted)
     if hooks or was_empty:
         settings["hooks"] = hooks
     else:
@@ -79,11 +81,22 @@ def _merge(settings: Dict[str, Any], wanted: List[Dict[str, Any]],
 
 
 def adjust(context: Dict[str, Any]) -> Dict[str, Any]:
-    """Wire one marked handler per tool with a Claude arm; remove marked handlers without one.
+    """Wire one marked handler per native Claude arm, remove the rest, and note each proposal.
 
     Returns:
         {'applied': bool, 'files': [], 'notes': str} — settings.json is merged into, never owned.
     """
+    result = _wire(context)
+    proposals = [PROPOSAL.format(tool=name, arg=arm.get("arg", "claude"))
+                 for name, tool in (context.get("tools") or {}).items()
+                 if (arm := (tool.get("agents") or {}).get("claude"))
+                 and arm.get("mode") == "propose"]
+    if proposals:
+        result["notes"] = "; ".join([result["notes"], *proposals])
+    return result
+
+
+def _wire(context: Dict[str, Any]) -> Dict[str, Any]:
     guard, tool_hooks = _modules(Path(context["framework_root"]))
     commands = [arm["command"] for tool in (context.get("tools") or {}).values()
                 if (arm := (tool.get("agents") or {}).get("claude"))

@@ -31,6 +31,7 @@ Each feature item is a small, self-describing unit:
 | `hooks` | `hooks-manifest.json` + hook files | at most one manifest per stack |
 | `adjustments` | `adjustment.json` + scripts | per-agent, at most one descriptor |
 | `mcp` | directory | any subdir of `features/<stack>/mcp/` containing a `meta.json`; one MCP server each |
+| `tools` | directory | any subdir of `features/<stack>/tools/` containing a `meta.json` (`schemas/tool.schema.json`); one external CLI each, wired only when `config.tools` names it (ADR-0039) |
 | `data` (`common` only) | file/dir | every top-level entry. `model-groups.json` maps a persona's `model:` lane to a real model id |
 | `retrieval` (`common` only) | `*.py` | the BM25 matcher, tokenizer and eval fixtures behind the MCP tool index (ADR-0012) |
 | `templates` (`common` only) | file/dir | every top-level entry |
