@@ -39,6 +39,9 @@ _MARKER_LINE = re.compile(r"(?:^|\s)#\s*memory-checked\s*$")
 SEARCH_SECONDS = 4.0
 HITS_MAX_CHARS = 2000
 QUERY_MAX_CHARS = 500
+# Seconds the searched-pattern store waits on a lock: a read and a write per call stay well
+# inside the 10 s hook timeout.
+STORE_TIMEOUT_SECONDS = 1.0
 
 _STATE_TABLE = "hook_state"
 _STATE_PREFIX = "memory_first.searched."
@@ -346,7 +349,7 @@ def searched(project: str) -> Set[str]:
     out: Set[str] = set()
     if badger_store is not None:
         try:
-            store = badger_store.open_audit()
+            store = badger_store.open_audit(timeout=STORE_TIMEOUT_SECONDS)
             try:
                 value = store.kv_get(_STATE_TABLE, _STATE_PREFIX + project, [])
             finally:
@@ -374,7 +377,7 @@ def remember(project: str, entries: Iterable[str], kind: str = PATTERN_KIND) -> 
         return False
     if badger_store is not None:
         try:
-            store = badger_store.open_audit()
+            store = badger_store.open_audit(timeout=STORE_TIMEOUT_SECONDS)
             try:
                 store.kv_update(
                     _STATE_TABLE, _STATE_PREFIX + project,
@@ -575,24 +578,30 @@ def deny_reason(project: str, unseen: List[str], hits: Optional[str]) -> str:
 
 def decide(host: str, tool_name: Any, tool_input: Any, session_id: Optional[str],
            cwd: str = "") -> Dict[str, Any]:
-    """The per-host deny payload for a search call that has not earned its pass, else {}."""
+    """The per-host deny payload for a search call that has not earned its pass, else {}.
+
+    Fails open when the project id cannot be persisted or the searched patterns cannot be
+    recorded: a pattern the gate cannot remember would be denied forever.
+    """
     started = time.monotonic()
     patterns = search_patterns(tool_name, tool_input)
     if patterns is None:
         return {}
     project = project_id(cwd)
+    if not _persistable(project):
+        return {}
     unseen = unsearched(project, patterns)
     if not unseen and has_marker(tool_input):
         return {}
     hits = None
-    if unseen and _persistable(project):
+    if unseen:
         try:
             hits = memory_hits(search_query(unseen), project, session_id,
                                SEARCH_SECONDS - (time.monotonic() - started))
         except Exception:  # pylint: disable=broad-exception-caught  # a gate never raises
             hits = None
-        if hits is not None:
-            remember(project, unseen)
+        if hits is not None and not remember(project, unseen):
+            return {}
     return build_decision(host, tool_name, tool_input, session_id, cwd,
                           reason=deny_reason(project, unseen, hits))
 

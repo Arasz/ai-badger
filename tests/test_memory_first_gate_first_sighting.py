@@ -416,3 +416,50 @@ def test_a_marker_the_lexer_reads_as_a_word_is_refused(env, monkeypatch, capsys)
     assert _bash(env, monkeypatch, capsys, "git log | grep foo f \\\t# memory-checked") is not None
     assert _bash(env, monkeypatch, capsys, "grep foo f\\ # memory-checked") is not None
     assert _bash(env, monkeypatch, capsys, "grep foo f\n# memory-checked") is None
+
+
+# ------------------------------------------------------------------ fail open
+@pytest.mark.parametrize("host", ["claude", "copilot", "hermes"])
+def test_an_unknown_project_fails_open_on_every_host(env, monkeypatch, host):
+    """Mutation: deny when the project id cannot be persisted -> red."""
+    monkeypatch.setattr(env.gate, "project_id", lambda _cwd="": "unknown")
+
+    assert env.gate.decide(host, "Bash", {"command": "grep -n foo f"}, "s1") == {}
+    assert not env.calls
+
+
+def test_a_search_that_cannot_be_recorded_fails_open(env, monkeypatch):
+    """Mutation: ignore remember()'s False and deny -> red (the pattern could never pass)."""
+    monkeypatch.setattr(env.gate, "remember", lambda *_a, **_k: False)
+
+    assert env.gate.decide("claude", "Bash", {"command": "grep -n foo f"}, "s1") == {}
+    assert len(env.calls) == 1
+
+
+def test_the_searched_store_opens_with_a_short_timeout(env, monkeypatch):
+    """Mutation: open the store with its 5 s default -> red; a locked store could eat the
+    hook's 10 s budget twice over (read, then write)."""
+    seen = []
+    real = badger_store.open_audit
+
+    def spy(*args, **kwargs):
+        seen.append(kwargs.get("timeout"))
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(badger_store, "open_audit", spy)
+    env.gate.remember(PROJECT, ["foo"])
+    env.gate.searched(PROJECT)
+
+    assert len(seen) == 2
+    assert all(t is not None and 0 < t <= 1.0 for t in seen)
+    assert env.gate.STORE_TIMEOUT_SECONDS <= 1.0
+    assert "p:foo" in env.gate.searched(PROJECT)
+
+
+def test_open_audit_honours_the_timeout(monkeypatch, tmp_path):
+    monkeypatch.setenv(badger_store.DEBUG_DIR_ENV, str(tmp_path / "debug"))
+    store = badger_store.open_audit(timeout=0.5)
+    try:
+        assert store.conn.execute("PRAGMA busy_timeout").fetchone()[0] == 500
+    finally:
+        store.close()
