@@ -10,7 +10,7 @@ built out of BM25 rather than the two more obvious alternatives, and — the par
 leave out — how we can tell whether it is working at all.
 
 - **The pieces:** [`features/common/retrieval/`](../features/common/retrieval) — `tokenizer.py`,
-  `bm25.py`, `mcp_matcher.py`, `context_enrichment.py`, and two eval fixture sets; the runner is
+  `bm25.py`, `mcp_matcher.py`, `context_enrichment.py`, four eval fixture sets and a frozen eval index (`eval/eval_index.json`); the runner is
   [`tooling/retrieval_eval.py`](../tooling/retrieval_eval.py).
 - **The decisions:** [ADR-0004](adr/0004-mcp-tool-index.md) introduced the tool index;
   [ADR-0012](adr/0012-bm25-retrieval-with-a-falsifiable-eval.md) replaced its keyword matcher.
@@ -21,11 +21,9 @@ leave out — how we can tell whether it is working at all.
 
 ## 1. The problem
 
-A project that connects a handful of MCP servers can easily reach a hundred tools. In this
-repository's own index there are **98 tools**, spread very unevenly across 18 configured
-sources — four of them carry all 98 (41, 30, 24 and 3), and the other fourteen carry none at
-all. (Those two numbers come from `.ai-badger/mcp-tools.json` in this checkout, which records
-whatever MCP servers this repo is configured against; re-derive rather than quote.) Each one
+A project that connects a handful of MCP servers can easily reach a hundred tools, and a few
+servers carry most of them. (This repository's `.ai-badger/mcp-tools.json` is the live example;
+its counts change whenever a server is added, so read the file instead of quoting a number.) Each one
 carries a name, a
 description, and a schema; all of it is loaded whether or not the conversation will ever touch
 it. The same pressure applies to skills, where hosts have started shipping explicit budgets — a
@@ -48,7 +46,7 @@ able to prove afterwards which of those silences were correct.
 ```mermaid
 flowchart LR
     subgraph project["The project"]
-        idx[".ai-badger/mcp-tools.json<br/>98 tools · 4 sources that carry any"]
+        idx[".ai-badger/mcp-tools.json<br/>the tool index"]
     end
 
     subgraph retrieval["features/common/retrieval/"]
@@ -108,7 +106,7 @@ flowchart TD
     F --> C["tokenize the query"]
     C --> D{"any usable terms?"}
     D -- no --> E2["event: no_terms<br/>nothing was scored at all"]
-    D -- yes --> G["BM25 rank all 98"]
+    D -- yes --> G["BM25 rank every tool"]
     G --> H{"coverage ≥ 0.20<br/>(denominator capped at the<br/>6 highest-idf terms)<br/>and ≥1 matched term?"}
     H -- no --> E3["event: gate<br/>scored, and deliberately silent"]
     H -- yes --> I["take top 3"]
@@ -296,7 +294,7 @@ reinterpreted as another.
 
 [`eval/mcp_queries.jsonl`](../features/common/retrieval/eval/mcp_queries.jsonl) is the regression
 gate: **58 fixtures — 43 queries with an expected tool, 15 that must return nothing.** A test runs
-it against the repository's real index on every suite run, so a change that improves top-1 by
+it against the frozen `eval/eval_index.json` (138 tools across 26 sources at 0.200.2) on every suite run, so a change that improves top-1 by
 wrecking silence fails immediately.
 
 [`eval/mcp_queries_hard.jsonl`](../features/common/retrieval/eval/mcp_queries_hard.jsonl) is the
@@ -331,9 +329,11 @@ against a named fixture file and a named index. That matters more than it sounds
 claimed "100% accuracy on a 16-query spike suite" whose script lived in another repository, could
 not be run, and could not fail. A number nobody can reproduce is not a measurement.
 
-Re-measured at 0.54.4 against this repository's index (**98 tools across 4 servers**), because
-the previously published easy- and long-set figures no longer reproduce — see the note below
-the table.
+Historical: measured at 0.54.4 against this repository's live `.ai-badger/mcp-tools.json`
+(a 98-tool index across 4 servers), because the previously published easy- and long-set figures no
+longer reproduced — see the note below the table. The runner now defaults to the frozen
+`eval/eval_index.json`, so these figures are not what it prints today; re-run it per set to
+refresh them.
 
 | Metric | Easy set (58) | Hard set (70) | Long set (48) | Observed set (11) |
 |---|---|---|---|---|
@@ -345,8 +345,8 @@ the table.
 
 Three cells moved since they were last written down: easy recall@1 (0.930 → 0.907), long
 recall@1 (0.938 → 0.969) and long false fire (0.000 → 0.062). Nothing in the matcher changed;
-the *index* did. Every number here is a function of a corpus that lives in
-`.ai-badger/mcp-tools.json` and changes whenever a server is added or its descriptions are
+the *index* did. Every number here is a function of a corpus (then `.ai-badger/mcp-tools.json`, now the frozen
+`eval/eval_index.json`) that changes whenever a server is added or its descriptions are
 edited — so a figure in this file is a reading taken on a date, not a constant. Reproduce with:
 
 ```console
@@ -459,7 +459,7 @@ so treat the gap between them as the finding, not the third decimal of either.
 A retrieval layer that recommends nothing looks identical, from the outside, to one that is not
 running. This is the failure mode that hides itself: everything appears fine, forever.
 
-So every terminal state writes a record under the `ai_badger_hooks/mcp_retrieval` component:
+So every terminal state writes a record under the `ai_badger_hooks/mcp_retrieval` component (the Hermes and the Claude/Copilot hooks use the same name):
 
 | Event | Means | The mistake it prevents |
 |---|---|---|
@@ -502,7 +502,7 @@ sequenceDiagram
     participant H as pre_llm_inject_context
     participant M as mcp_matcher
     participant D as debug_log
-    participant A as audit.jsonl
+    participant A as audit.db hook_audit
 
     U->>H: message
     H->>H: load index
@@ -564,7 +564,7 @@ It classifies every record and proposes only what survives:
 | non-retrieval | Another component's record. Counted, never read. |
 | tool check | `known` / `unknown` / `server_unindexed` — about a call, not a query. Carries no `q`. |
 | redacted | `AI_BADGER_DEBUG_REDACT` was set at write time. The text was never on disk. |
-| clipped | The stored text hit the 200-char field cap, so it is a prefix, not the query. |
+| clipped | The stored text hit the field cap, so it is a prefix, not the query. The query cap is 2000 characters; other fields stay at 200. |
 | machine | Tag-shaped (`<system-reminder>`, `<task-notification>`) — a harness turn, not a person. |
 | harvestable | Everything else, deduplicated, with a `seen` count. |
 
@@ -578,7 +578,7 @@ replaces the query with its SHA-256 so runs can be joined and counted with the t
 the machine; and `--include-queries`, which writes the text for the reviewer. The `project` field
 is always a 12-character digest of the project path — a path names a client.
 
-**What the first real run showed.** Against a 1269-record log: 74 retrieval records, 0 redacted,
+**What the first real run showed** (historical; the figures are unverified since). Against a 1269-record log: 74 retrieval records, 0 redacted,
 0 machine-shaped, and **57 clipped** — 77% of real retrieval traffic is longer than the 200-char
 field cap. The obstacle to harvesting is not the redaction switch anyone worried about; it is
 that real messages are long and the log stores a prefix of them. Twelve distinct queries survived.
@@ -588,9 +588,10 @@ the fixture corpus should be observed rather than authored: **a proportion is th
 The longest authored set averages 15.3 tokens; the traffic that gets clipped is several times
 that, and it is exactly the regime where the coverage-gate defect of issue #165 did its damage.
 Until the observed subset reaches that regime at all, no percentage of observed fixtures makes
-the distribution right. Raising the query cap — the record budget is `PIPE_BUF` at 4096 bytes, and
-one 200-char field is nowhere near it — is the prerequisite, and it is a change to `debug_log.py`
-in every deployment shape, not to the harvester.
+the distribution right. Raising the query cap was the prerequisite, and it has since landed:
+`MAX_QUERY_CHARS` in `debug_log.py` is now 2000 (the 200-char cap remains for other fields), well
+inside the `PIPE_BUF` 4096-byte record budget. The clipped fraction has not been re-measured since;
+rerun `tooling/fixture_harvest.py` on a fresh log to get a current figure.
 
 ## 7. What this has cost, and what it has taught
 
