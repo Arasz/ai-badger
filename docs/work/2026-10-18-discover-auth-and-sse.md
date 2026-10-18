@@ -5,10 +5,10 @@
 
 ## Questions (verbatim)
 
-1. **Auth.** How should `--discover` enumerate MCP servers that need authorization (HTTP 401) or a user login? Today these report `needs authorization`: plugin:context7, plugin:figma, plugin:huggingface-skills, plugin:canva, tinyfish. The 8 `claude.ai *` connectors are named `host-managed connector (OAuth)` and skipped. Cover: (a) what the MCP authorization spec requires (2025-06-18 and any newer revision): OAuth 2.1 + PKCE, RFC 9728 protected-resource metadata via `WWW-Authenticate: resource_metadata`, RFC 8414 AS metadata, dynamic client registration RFC 7591, client ID metadata documents, the loopback redirect; (b) MEASURE what each 401 server actually returns: status, `WWW-Authenticate` header, `/.well-known/oauth-protected-resource` and AS metadata, whether DCR is offered — plain unauthenticated GET/POST only, never send credentials; (c) whether any of them accepts a static API key or header instead (context7 API key, tinyfish key, HF token), citing their docs; (d) where Claude Code keeps MCP OAuth tokens (keychain item names, `~/.claude/.credentials.json`, `mcpOAuth` keys) — existence and metadata only, never secret values — and whether reusing them is appropriate (default stance: do not); (e) how claude.ai connectors are reached (proxy, account auth), and whether a third-party client can enumerate them at all; (f) design options, ranked: our own interactive OAuth login (browser + loopback + PKCE + DCR, token storage via the OS keychain using platform APIs, refresh); static headers from env; skip and report — for each the cost, the security surface, and what it would unlock.
-2. **SSE.** Is any MCP server configured on this machine with the legacy HTTP+SSE transport (`"type": "sse"`, or a URL ending `/sse`)? MEASURE by scanning every config source `server_configs.py` reads, plus `claude mcp list` from `/Users/arasz/RiderProjects/ai-raccoon`; report counts per source, name each SSE server, say whether supporting SSE would unlock anything here; READ the spec status of SSE to judge whether support is worth adding.
+1. **Auth.** How should `--discover` enumerate MCP servers that need authorization (HTTP 401) or a user login? Today these report `needs authorization`: plugin:context7, plugin:figma, plugin:huggingface-skills, plugin:canva, tinyfish. The 8 `claude.ai *` connectors are named `host-managed connector (OAuth)` and skipped. Cover: (a) what the MCP authorization spec requires (2025-06-18 and any newer revision): OAuth 2.1 + PKCE, RFC 9728 protected-resource metadata via `WWW-Authenticate: resource_metadata`, RFC 8414 AS metadata, dynamic client registration RFC 7591, client ID metadata documents, the loopback redirect; (b) MEASURE what each 401 server actually returns: status, `WWW-Authenticate` header, `/.well-known/oauth-protected-resource` and AS metadata, whether DCR is offered, plain unauthenticated GET/POST only, never send credentials; (c) whether any of them accepts a static API key or header instead (context7 API key, tinyfish key, HF token), citing their docs; (d) where Claude Code keeps MCP OAuth tokens (keychain item names, `~/.claude/.credentials.json`, `mcpOAuth` keys), existence and metadata only, never secret values, and whether reusing them is appropriate (default stance: do not); (e) how claude.ai connectors are reached (proxy, account auth), and whether a third-party client can enumerate them at all; (f) design options, ranked: our own interactive OAuth login (browser + loopback + PKCE + DCR, token storage via the OS keychain using platform APIs, refresh); static headers from env; skip and report, for each the cost, the security surface, and what it would unlock.
+2. **SSE.** Is any MCP server configured on this machine with the legacy HTTP+SSE transport (`"type": "sse"`, or a URL ending `/sse`)? MEASURE by scanning every config source `server_configs.py` reads, plus `claude mcp list` from `~/RiderProjects/ai-raccoon`; report counts per source, name each SSE server, say whether supporting SSE would unlock anything here; READ the spec status of SSE to judge whether support is worth adding.
 
-All probes ran once, 2026-10-18 ~14:20 UTC, on MacBook-Air-Arasz (Darwin 27.0.0), Claude Code 2.1.302, from a home network. Scripts and raw output live in the session scratchpad, not in the repo.
+All probes ran once, 2026-10-18 ~14:20 UTC, on a macOS laptop (arm64, Darwin 27.0.0), Claude Code 2.1.302, from a home network. Scripts and raw output live in the session scratchpad, not in the repo.
 
 ## Per-server 401 table
 
@@ -40,9 +40,9 @@ tinyfish, 1, 1, 1, 0, 1, 0
 | `~/.claude.json` project scopes | 1 | 0 | 0 |
 | installed plugins (`.mcp.json` / `plugin.json`) | 14 | 0 | 2 (product-legal: Atlassian, Asana; plugin disabled) |
 | synced plugins | 1 | 0 | 0 |
-| `/Users/arasz/RiderProjects/*/.mcp.json` | 54 | 0 | 0 |
+| `~/RiderProjects/*/.mcp.json` | 54 | 0 | 0 |
 | `*/.claude/settings*.json`, `~/.claude/settings*.json` | 1 | 0 | 0 |
-| `~/.hermes/config.yaml` | absent | — | — |
+| `~/.hermes/config.yaml` | absent | n/a | n/a |
 | `claude mcp list` (ai-raccoon) | 24 rows | 0 | 0 |
 
 ## Design options
@@ -63,7 +63,7 @@ reuse CC tokens, 2, 4, 3
 
 Servers MUST serve RFC 9728 metadata and point to it from `WWW-Authenticate` on a 401. Clients MUST use PRM to find the authorization server and RFC 8414 metadata for its endpoints. They MUST use PKCE and send RFC 8707 `resource` on both authorization and token requests. Redirect URIs MUST be localhost or HTTPS. DCR (RFC 7591) is a SHOULD. Tokens go in `Authorization: Bearer`, never in the query string, and clients MUST store them securely.
 
-**Evidence:** https://modelcontextprotocol.io/specification/2025-06-18/basic/authorization — Overview items 1-4, "Authorization Server Location", "Resource Parameter Implementation", "Communication Security", "Authorization Code Protection".
+**Evidence:** https://modelcontextprotocol.io/specification/2025-06-18/basic/authorization (Overview items 1-4, "Authorization Server Location", "Resource Parameter Implementation", "Communication Security", "Authorization Code Protection").
 
 ### F2 — Later revisions rank client registration as pre-registration, then CIMD, then DCR; 2026-07-28 deprecates DCR [READ]
 
@@ -139,7 +139,7 @@ Claude Code fetches the connector list itself and connects through `https://mcp-
 
 `claude mcp list` shows context7, figma, huggingface-skills and tinyfish as `✔ Connected`, and canva as `! Needs authentication`. Microsoft 365, Calendly and Indeed connectors also need authentication. So `--discover`'s "needs authorization" means "ai-badger has no token", not "the user is signed out".
 
-**Evidence:** `claude mcp list` from `/Users/arasz/RiderProjects/ai-raccoon` → `mcplist.out` (27 lines, 24 servers).
+**Evidence:** `claude mcp list` from `~/RiderProjects/ai-raccoon` → `mcplist.out` (27 lines, 24 servers).
 
 ### F15 — `server_configs`/`mcp_client` ignore `headersHelper`, which Claude Code supports for http/sse/ws servers [READ]
 
@@ -160,7 +160,7 @@ From F3, F9, F11, F12 and F14, the options rank:
 
 Checked on 2.1.302 only. No documentation found that commits to the `tools` array's shape.
 
-### F18 — No configured MCP server uses the legacy HTTP+SSE transport [MEASURED]
+### F18 — No enabled MCP server requires the legacy HTTP+SSE transport [MEASURED]
 
 No entry in any config source has `"type": "sse"`. Two URLs end in `/sse`: product-legal's Atlassian (`https://mcp.atlassian.com/v1/sse`) and Asana (`https://mcp.asana.com/sse`). Both are typed `"http"`, sit in a plugin that `enabledPlugins` has set to `false`, and are absent from `claude mcp list`. `claude mcp list` shows no SSE transport; every remote server reads `(HTTP)`. There is no `~/.hermes/config.yaml`. Counts per source are in the SSE table.
 
