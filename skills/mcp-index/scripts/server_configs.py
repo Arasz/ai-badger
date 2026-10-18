@@ -27,6 +27,8 @@ NO_CONFIG = "no config"
 NOT_APPROVED = "not run: project server not approved in Claude Code"
 CONNECTOR_PREFIX = "claude.ai "
 PLUGIN_ROOT_VAR = "CLAUDE_PLUGIN_ROOT"
+PLUGIN_DATA_VAR = "CLAUDE_PLUGIN_DATA"
+SYNCED_DATA_SUFFIX = "synced"
 GENERATION_MARK = "~g"
 
 Spec = Dict[str, Any]
@@ -105,14 +107,16 @@ def _admitted(servers: Dict[str, Spec], approval: Tuple[bool, Set[str], Set[str]
     return admitted, waiting
 
 
-def _substitute(value: Any, root: str) -> Any:
-    """`${CLAUDE_PLUGIN_ROOT}` replaced by the install path, through strings, lists and maps."""
+def _substitute(value: Any, plugin_vars: Dict[str, str]) -> Any:
+    """`${CLAUDE_PLUGIN_ROOT}` and `${CLAUDE_PLUGIN_DATA}` expanded through strings, lists, maps."""
     if isinstance(value, str):
-        return value.replace("${" + PLUGIN_ROOT_VAR + "}", root)
+        for name, text in plugin_vars.items():
+            value = value.replace("${" + name + "}", text)
+        return value
     if isinstance(value, list):
-        return [_substitute(item, root) for item in value]
+        return [_substitute(item, plugin_vars) for item in value]
     if isinstance(value, dict):
-        return {key: _substitute(item, root) for key, item in value.items()}
+        return {key: _substitute(item, plugin_vars) for key, item in value.items()}
     return value
 
 
@@ -128,24 +132,39 @@ def _plugin_servers(root: Path) -> Dict[str, Spec]:
     return servers
 
 
-def _add_plugin(configs: Dict[str, Spec], plugin: str, root: str) -> None:
-    """The plugin's servers under `plugin:<plugin>:<server>`; a name already present stays."""
+def _data_dir(home: Path, label: str) -> str:
+    """`~/.claude/plugins/data/<label>`, never created here.
+
+    Claude Code labels it `<plugin>-<marketplace>` for an installed plugin (`ai-badger@ai-badger`
+    → `ai-badger-ai-badger`) and `<plugin>-synced` for a claude.ai-synced one (`browser-use-synced`).
+    """
+    return str(home / ".claude" / "plugins" / "data" / label)
+
+
+def _add_plugin(configs: Dict[str, Spec], plugin: str, root: str, data: str) -> None:
+    """The plugin's servers under `plugin:<plugin>:<server>`; a name already present stays.
+
+    The host launches plugin servers with CLAUDE_PLUGIN_ROOT and CLAUDE_PLUGIN_DATA set; the
+    config's own env wins on a clash.
+    """
+    plugin_vars = {PLUGIN_ROOT_VAR: root, PLUGIN_DATA_VAR: data}
     for name, spec in _plugin_servers(Path(root)).items():
-        spec = _substitute(spec, root)
-        spec["env"] = {**(spec.get("env") or {}), PLUGIN_ROOT_VAR: root}
+        spec = _substitute(spec, plugin_vars)
+        spec["env"] = {**plugin_vars, **(spec.get("env") or {})}
         configs.setdefault(f"plugin:{plugin}:{name}", spec)
 
 
-def _installed_roots(home: Path) -> Dict[str, str]:
-    """`installed_plugins.json`: plugin name (marketplace dropped) → its first install path."""
+def _installed_roots(home: Path) -> Dict[str, Tuple[str, str]]:
+    """`installed_plugins.json`: plugin name (marketplace dropped) → (first install path, data dir)."""
     installed = _read_json(home / ".claude" / "plugins" / "installed_plugins.json")
     plugins = installed.get("plugins") if isinstance(installed, dict) else None
-    roots: Dict[str, str] = {}
+    roots: Dict[str, Tuple[str, str]] = {}
     for key, installs in (plugins or {}).items() if isinstance(plugins, dict) else ():
         install = next((i for i in installs or [] if isinstance(i, dict)
                         and i.get("installPath")), None) if isinstance(installs, list) else None
         if install is not None:
-            roots.setdefault(str(key).split("@", 1)[0], str(install["installPath"]))
+            roots.setdefault(str(key).split("@", 1)[0], (
+                str(install["installPath"]), _data_dir(home, str(key).replace("@", "-", 1))))
     return roots
 
 
@@ -170,13 +189,13 @@ def _synced_root(account: Path, plugin: str, generation: Any) -> Optional[Path]:
     return bare if bare.is_dir() else None
 
 
-def _synced_roots(home: Path) -> Dict[str, str]:
+def _synced_roots(home: Path) -> Dict[str, Tuple[str, str]]:
     """claude.ai-synced plugins (`synced/<org>_<user>/`): plugin name → its live generation dir.
 
     `manifest.json` names each plugin and the generation in use; a dir with no manifest entry
     still counts, by its own name. Listings key these `plugin:<plugin>:<server>`, no marketplace.
     """
-    roots: Dict[str, str] = {}
+    roots: Dict[str, Tuple[str, str]] = {}
     synced = home / ".claude" / "plugins" / "synced"
     try:
         accounts = sorted(d for d in synced.iterdir() if d.is_dir())
@@ -193,7 +212,8 @@ def _synced_roots(home: Path) -> Dict[str, str]:
         for plugin in sorted(names):
             root = _synced_root(account, plugin, generations.get(plugin))
             if root is not None:
-                roots.setdefault(plugin, str(root))
+                roots.setdefault(plugin, (str(root), _data_dir(
+                    home, f"{plugin}-{SYNCED_DATA_SUFFIX}")))
     return roots
 
 
@@ -205,8 +225,8 @@ def _plugins(home: Path) -> Dict[str, Spec]:
     """
     configs: Dict[str, Spec] = {}
     for roots in (_installed_roots(home), _synced_roots(home)):
-        for plugin, root in roots.items():
-            _add_plugin(configs, plugin, root)
+        for plugin, (root, data) in roots.items():
+            _add_plugin(configs, plugin, root, data)
     return configs
 
 

@@ -290,3 +290,52 @@ def test_an_installed_plugin_wins_over_a_synced_one_of_the_same_name(sc, tmp_pat
     spec, _ = sc.lookup(sc.load(target, home), "plugin:browser-use:browser-use")
 
     assert spec["command"] == "/bin/installed"
+
+
+def _uses_both_vars():
+    return {"command": "${CLAUDE_PLUGIN_ROOT}/bin/serve",
+            "args": ["--data", "${CLAUDE_PLUGIN_DATA}"],
+            "env": {"STORE": "${CLAUDE_PLUGIN_DATA}/db"}}
+
+
+def test_an_installed_plugin_gets_its_data_dir_expanded_and_in_env(sc, tmp_path):
+    """Claude Code names an installed plugin's data dir `<plugin>-<marketplace>`."""
+    home, target = _dirs(tmp_path)
+    root = tmp_path / "plugins" / "graph"
+    _write(root / ".mcp.json", {"graph": _uses_both_vars()})
+    _plugin(home, "ai-badger@ai-badger", root)
+
+    spec, _ = sc.lookup(sc.load(target, home), "plugin:ai-badger:graph")
+
+    data = str(home / ".claude" / "plugins" / "data" / "ai-badger-ai-badger")
+    assert spec["args"] == ["--data", data]
+    assert spec["env"]["STORE"] == f"{data}/db"
+    assert spec["env"]["CLAUDE_PLUGIN_DATA"] == data
+    assert spec["env"]["CLAUDE_PLUGIN_ROOT"] == str(root)
+    assert not (home / ".claude" / "plugins" / "data").exists()
+
+
+def test_a_synced_plugin_data_dir_is_name_dash_synced(sc, tmp_path):
+    home, target = _dirs(tmp_path)
+    account = home / ".claude" / "plugins" / "synced" / SYNCED_ACCOUNT
+    _write(account / "browser-use~g2" / ".mcp.json", {"browser-use": _uses_both_vars()})
+
+    spec, _ = sc.lookup(sc.load(target, home), "plugin:browser-use:browser-use")
+
+    data = str(home / ".claude" / "plugins" / "data" / "browser-use-synced")
+    assert spec["args"] == ["--data", data]
+    assert spec["env"]["CLAUDE_PLUGIN_DATA"] == data
+    assert spec["env"]["CLAUDE_PLUGIN_ROOT"] == str(account / "browser-use~g2")
+
+
+def test_a_plugin_config_env_wins_over_the_host_set_plugin_vars(sc, tmp_path):
+    home, target = _dirs(tmp_path)
+    root = tmp_path / "plugins" / "graph"
+    _write(root / ".mcp.json", {"graph": {"command": "/bin/x", "env": {
+        "CLAUDE_PLUGIN_DATA": "/custom/data", "CLAUDE_PLUGIN_ROOT": "/custom/root"}}})
+    _plugin(home, "p@m", root)
+
+    spec, _ = sc.lookup(sc.load(target, home), "plugin:p:graph")
+
+    assert spec["env"]["CLAUDE_PLUGIN_DATA"] == "/custom/data"
+    assert spec["env"]["CLAUDE_PLUGIN_ROOT"] == "/custom/root"
