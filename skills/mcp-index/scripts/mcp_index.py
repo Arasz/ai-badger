@@ -222,12 +222,12 @@ def _discover_tools(servers: list[dict[str, Any]], target: str,
     for line in lines:
         print(f"  {line}", file=sys.stderr)
     if unresolved:
-        for note in hl.enrich_with_hermes_test(unresolved):
+        for note in hl.enrich_with_hermes_test(unresolved, run=hl.runner_in(target)):
             print(f"  ({note})", file=sys.stderr)
 
 
-def _fetch_mcp_tools(from_json: Optional[str] = None,
-                     host: Optional[str] = None) -> list[dict[str, Any]]:
+def _fetch_mcp_tools(from_json: Optional[str] = None, host: Optional[str] = None,
+                     target: Optional[str] = None) -> list[dict[str, Any]]:
     """The servers a host CLI reports, or a refusal naming every source that was asked.
 
     `from_json` takes the JSON *text* of a `hermes mcp list --json` document directly, not a
@@ -246,7 +246,7 @@ def _fetch_mcp_tools(from_json: Optional[str] = None,
                   "key, not a JSON list or scalar.", file=sys.stderr)
             sys.exit(2)
 
-    listing = hl.discover(host)
+    listing = hl.discover(host, run=hl.runner_in(target))
     if not listing.servers:
         tried = "".join(f"\n  - {note}" for note in listing.notes)
         print(f"ERROR: no host CLI listed any MCP server.{tried}\n"
@@ -469,7 +469,7 @@ def cmd_init(target: str, from_json: Optional[str] = None,
              host: Optional[str] = None, discover: bool = False, *,
              discover_timeout: float = DISCOVER_TIMEOUT) -> int:
     """Create a new index from the current MCP tool list."""
-    servers = _fetch_mcp_tools(from_json, host)
+    servers = _fetch_mcp_tools(from_json, host, target)
     if discover:
         _discover_tools(servers, target, discover_timeout)
     catalog = load_catalog(FRAMEWORK_ROOT)
@@ -641,7 +641,7 @@ def cmd_update(target: str, from_json: Optional[str] = None,
         print("No existing index. Running init instead.", file=sys.stderr)
         return cmd_init(target, from_json, host, discover, discover_timeout=discover_timeout)
 
-    servers = _fetch_mcp_tools(from_json, host)
+    servers = _fetch_mcp_tools(from_json, host, target)
     if discover:
         _discover_tools(servers, target, discover_timeout)
     catalog = load_catalog(FRAMEWORK_ROOT)

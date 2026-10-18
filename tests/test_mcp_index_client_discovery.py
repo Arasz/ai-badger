@@ -179,3 +179,42 @@ def test_a_server_description_outside_the_intent_bounds_still_indexes(tmp_path, 
 
         intent = _source(tmp_path, "fake")["tools"]["solo"]["intent"]
         assert 10 <= len(intent) <= 200
+
+
+def test_update_discover_from_another_cwd_lists_the_targets_servers(tmp_path, load_script,
+                                                                    monkeypatch):
+    """Host CLIs run in --target, not the caller's cwd. From elsewhere `claude mcp list` named a
+    different, enumerable server, the listing then carried tool detail, and every one of the
+    target's real servers went `absent` (PR #602 live smoke)."""
+    mod = load_script(SCRIPT)
+    _no_hermes(mod, monkeypatch)
+    target, elsewhere, bindir = tmp_path / "repo", tmp_path / "elsewhere", tmp_path / "bin"
+    for path in (target, elsewhere, bindir):
+        path.mkdir()
+    _mcp_json(target, fake="solo")
+    home = Path.home()
+    (home / ".claude.json").write_text(json.dumps({"mcpServers": {
+        "other": {"command": sys.executable, "args": [FAKE, "solo"]}}}), encoding="utf-8")
+    seen = tmp_path / "cwd-seen"
+    claude = bindir / "claude"
+    claude.write_text(
+        f"#!{sys.executable}\nimport os, pathlib\n"
+        f"pathlib.Path({str(seen)!r}).write_text(os.getcwd())\n"
+        f"name = 'fake' if pathlib.Path(os.getcwd(), '.mcp.json').exists() else 'other'\n"
+        "print(f'{name}: python fake.py - \\u2714 Connected')\n", encoding="utf-8")
+    claude.chmod(0o755)
+    monkeypatch.setenv("PATH", f"{bindir}:{__import__('os').environ['PATH']}")
+    try:
+        assert mod.main(["init", "--target", str(target), "--host", "claude"]) == 0
+        monkeypatch.chdir(elsewhere)
+
+        assert mod.main(["update", "--target", str(target), "--host", "claude",
+                         "--discover"]) == 0
+    finally:
+        (home / ".claude.json").unlink()
+
+    assert Path(seen.read_text()).resolve() == target.resolve()
+    names = [s["name"] for s in _index(target)["sources"]]
+    assert names == ["fake"]
+    assert _source(target, "fake")["status"] == "ok"
+    assert "solo" in _source(target, "fake")["tools"]
