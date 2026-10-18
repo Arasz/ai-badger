@@ -1,0 +1,6 @@
+import json,subprocess,sys,time,statistics,os
+e=json.dumps({"tool_name":"Bash","cwd":os.getcwd(),"tool_input":{"command":"git status"}})
+t=[]
+for _ in range(15):
+    s=time.perf_counter(); subprocess.run([sys.executable,sys.argv[1],"codex"],input=e,capture_output=True,text=True); t.append((time.perf_counter()-s)*1000)
+print(f"guard codex, one user rule: min={min(t):.0f} median={statistics.median(t):.0f} max={max(t):.0f} ms")

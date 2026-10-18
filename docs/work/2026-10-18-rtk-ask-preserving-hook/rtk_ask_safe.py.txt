@@ -1,0 +1,33 @@
+"""PreToolUse Bash hook: rtk rewrite that never lets a rewrite escape a permissions.ask rule.
+
+Mode A: an ask-matched command is left unrewritten. Mode B: it is rewritten with permissionDecision ask.
+"""
+import json, os, subprocess, sys
+
+def rewrite(cmd, cwd, host):
+    env = {k: v for k, v in os.environ.items() if k != "RTK_REWRITE_HOST"}
+    if host:
+        env["RTK_REWRITE_HOST"] = host
+    p = subprocess.run(["rtk", "rewrite", cmd], cwd=cwd, env=env, capture_output=True, text=True, timeout=4)
+    return p.returncode, p.stdout.strip()
+
+def main():
+    mode = sys.argv[1]
+    payload = json.load(sys.stdin)
+    cmd = (payload.get("tool_input") or {}).get("command") or ""
+    cwd = payload.get("cwd") or os.getcwd()
+    code, out = rewrite(cmd, cwd, None)
+    if code not in (0, 3) or not out or out == cmd:
+        return
+    decision = "allow" if code == 0 else None
+    if code == 3 and rewrite(cmd, cwd, "openclaw")[0] == 3:      # an ask rule matched
+        if mode == "A":
+            return
+        decision = "ask"
+    hso = {"hookEventName": "PreToolUse", "updatedInput": dict(payload["tool_input"], command=out)}
+    if decision:
+        hso["permissionDecision"] = decision
+        hso["permissionDecisionReason"] = "rtk rewrite"
+    print(json.dumps({"hookSpecificOutput": hso}))
+
+main()

@@ -1,0 +1,4 @@
+{"tool_use": "Bash", "input": {"command": "git status", "description": "Show working tree status"}}
+{"tool_result": "* main...origin/main\n?? .ai-badger/\n?? .claude/\n?? .gitignore\n?? .mcp.json\n?? .pi/\n?? .rtkdb\n?? AGENTS.override.md\n?? CLAUDE.md", "is_error": false}
+{"result": "success", "permission_denials": []}
+{"post_tool_use_executed": "rtk git status"}

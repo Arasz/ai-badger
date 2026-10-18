@@ -1,0 +1,5 @@
+v0-native-ask hook=native ask=1 | remote main=d3f445ac | executed=['rtk git push origin main'] | denials=0 | home unchanged
+v1-A-ask hook=A ask=1 | remote main=NONE | executed=[] | denials=1 | home unchanged
+v2-B-ask hook=B ask=1 | remote main=NONE | executed=[] | denials=1 | home unchanged
+v3-A-status hook=A ask=1 | remote main=NONE | executed=['rtk git status'] | denials=0 | home unchanged
+v4-B-status hook=B ask=1 | remote main=NONE | executed=['rtk git status'] | denials=0 | home unchanged

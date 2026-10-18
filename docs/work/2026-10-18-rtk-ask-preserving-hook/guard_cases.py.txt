@@ -1,0 +1,54 @@
+"""Offline cases for rtk_guard.py codex: fresh temp repo + temp CODEX_HOME per case.
+
+Usage: python3 guard_cases.py <rtk_guard.py> <native codex binary>
+"""
+import json
+import os
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+GUARD, CODEX = sys.argv[1], sys.argv[2]
+PUSH = 'prefix_rule(pattern=["git","push"], decision="prompt")'
+FORBID = 'prefix_rule(pattern=["git","push"], decision="forbidden")'
+CASES = [
+    # name, user rules, project rules, command, codex available, expect rewrite
+    ("no rules", None, None, "git push origin main", True, True),
+    ("user prompt rule", PUSH, None, "git push origin main", True, False),
+    ("project forbidden rule", None, FORBID, "git push origin main", True, False),
+    ("rule elsewhere, other cmd", PUSH, None, "git status", True, True),
+    ("rule in chain", PUSH, None, "git status && git push origin main", True, False),
+    ("rule, env assignment", PUSH, None, "FOO=1 git push origin main", True, False),
+    ("rules, codex missing", PUSH, None, "git status", False, False),
+    ("subdir cwd, project rule", None, PUSH, "git push origin main", True, False),
+    ("rule on a second line", PUSH, None, "git status\ngit push origin main", True, False),
+    ("rule elsewhere, env assignment", PUSH, None, "FOO=1 git status", True, False),
+    ("rule elsewhere, glob", PUSH, None, "git add *.py", True, False),
+]
+
+for name, user, project, cmd, has_codex, expect in CASES:
+    with tempfile.TemporaryDirectory() as tmp:
+        repo, home = Path(tmp, "r"), Path(tmp, "codex-home")
+        (repo / ".git").mkdir(parents=True)
+        cwd = repo
+        if name.startswith("subdir"):
+            cwd = repo / "sub"
+            cwd.mkdir()
+        for layer, text in ((home, user), (repo / ".codex", project)):
+            if text:
+                (layer / "rules").mkdir(parents=True)
+                (layer / "rules" / "default.rules").write_text(text + "\n")
+        env = {**os.environ, "CODEX_HOME": str(home), "RTK_TELEMETRY_DISABLED": "1",
+               "RTK_DB_PATH": str(Path(tmp, "rtk.db")), "PATH": os.environ["PATH"]}
+        env["RTK_GUARD_CODEX"] = CODEX if has_codex else str(Path(tmp, "absent"))
+        if not has_codex:
+            env["PATH"] = "/opt/homebrew/bin:/usr/bin:/bin"
+        event = {"hook_event_name": "PreToolUse", "tool_name": "Bash", "cwd": str(cwd),
+                 "tool_input": {"command": cmd}}
+        run = subprocess.run([sys.executable, GUARD, "codex"], input=json.dumps(event),
+                             capture_output=True, text=True, env=env, check=False)
+        out = json.loads(run.stdout)["hookSpecificOutput"] if run.stdout.strip() else None
+        got = out["updatedInput"]["command"] if out else "(unchanged)"
+        ok = bool(out) == expect
+        print(f"{'PASS' if ok else 'FAIL'}\t{name}\t{cmd!r}\t-> {got!r}\t{run.stderr.strip()[:80]}")
