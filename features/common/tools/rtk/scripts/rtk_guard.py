@@ -16,6 +16,8 @@ from pathlib import Path
 
 CHAIN = {"&&", "||", ";", "|"}
 ASSIGN = re.compile(r"[A-Za-z_][A-Za-z0-9_]*=")
+KEYWORDS = {"if", "then", "elif", "else", "fi", "for", "while", "until", "do", "done", "case",
+            "esac", "select", "function", "{", "}", "!", "[[", "]]"}
 TIMEOUT = 4
 
 
@@ -30,10 +32,10 @@ def rewrite(cmd, cwd, host=None):
 
 
 def segments(cmd):
-    """The argv of each command in a plain one-line chain, minus leading NAME=value words.
+    """The argv of each command in a one-line chain of plain words, the text Codex splits itself.
 
     None when the text is anything else: a newline, a redirect, a subshell, a background job,
-    an expansion or an unterminated quote.
+    an expansion, a glob, a leading NAME=value, control flow or an unterminated quote.
     """
     if "\n" in cmd or "\r" in cmd:
         return None
@@ -48,12 +50,13 @@ def segments(cmd):
         if tok in CHAIN:
             out.append(cur)
             cur = []
-        elif set(tok) <= set("&|;<>()") or "$" in tok or "`" in tok:
+        elif set(tok) <= set("&|;<>()") or set(tok) & set("$`*?"):
+            return None
+        elif not cur and (ASSIGN.match(tok) or tok in KEYWORDS):
             return None
         else:
             cur.append(tok)
     out.append(cur)
-    out = [s[next((i for i, t in enumerate(s) if not ASSIGN.match(t)), len(s)):] for s in out]
     return out if all(out) else None
 
 

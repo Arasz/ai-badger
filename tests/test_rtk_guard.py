@@ -229,9 +229,15 @@ def test_codex_a_chain_with_one_matched_segment_is_left_unrewritten(box):
         ["git", "status"], ["git", "push", "origin", "main"]]
 
 
-def test_codex_a_leading_env_assignment_is_dropped_before_the_check(box):
-    box.rule(box.codex_home, "git push")
-    assert box.run("codex", "GIT_TRACE=1 FOO=bar git push origin main") is None
+@pytest.mark.parametrize("command", [
+    "FOO=1 git status", "git status && GIT_TRACE=1 git log", "git add *.py", "ls src/?.txt",
+    "if true; then git status; fi", "for f in a; do git status; done",
+])
+def test_codex_text_codex_does_not_split_is_left_unrewritten(box, command):
+    """Review-driven: Codex judges assignments, globs and control flow as one shell invocation."""
+    box.rule(box.codex_home, "rm")
+    assert box.run("codex", command) is None
+    assert not [c for c in box.calls() if c[0] == "codex"]
 
 
 def test_codex_a_second_line_is_never_hidden_from_the_rules(box):
