@@ -43,6 +43,9 @@ QUERY_MAX_CHARS = 500
 
 _STATE_TABLE = "hook_state"
 _STATE_PREFIX = "memory_first.searched."
+# Stored entry kinds: a pattern the gate searched for, a query an agent's memory_search ran.
+PATTERN_KIND = "p:"
+QUERY_KIND = "q:"
 _UNKNOWN_PROJECT = "unknown"
 _GATE_SESSION = "memory-first-gate"
 
@@ -360,11 +363,13 @@ def searched(project: str) -> Set[str]:
     return out
 
 
-def remember(project: str, entries: Iterable[str]) -> bool:
-    """Record *entries* as memory-searched for the project; False for `unknown` or on failure."""
+def remember(project: str, entries: Iterable[str], kind: str = PATTERN_KIND) -> bool:
+    """Record *entries* of *kind* (PATTERN_KIND or QUERY_KIND) as memory-searched for the
+    project; False for `unknown`, nothing to record, or on failure."""
     if not _persistable(project):
         return False
-    new = sorted({normalize(e) for e in entries if isinstance(e, str)} - {""})
+    new = sorted({kind + key for key in (normalize(e) for e in entries if isinstance(e, str))
+                  if key})
     if not new:
         return False
     if badger_store is not None:
@@ -391,9 +396,16 @@ def remember(project: str, entries: Iterable[str]) -> bool:
         return False
 
 
+def _in_query(key: str, query: str) -> bool:
+    """True when *key* is a contiguous whole-word run of *query* (both normalized)."""
+    return re.search(r"(?<!\w)" + re.escape(key) + r"(?!\w)", query) is not None
+
+
 def unsearched(project: str, patterns: Iterable[str]) -> List[str]:
-    """The patterns not yet memory-searched: neither recorded nor inside a recorded query."""
+    """The patterns not yet memory-searched: neither a recorded pattern exactly nor a
+    whole-word run inside a recorded query."""
     known = searched(project)
+    queries = [entry[len(QUERY_KIND):] for entry in known if entry.startswith(QUERY_KIND)]
     out: List[str] = []
     seen_keys: Set[str] = set()
     for pattern in patterns:
@@ -401,14 +413,14 @@ def unsearched(project: str, patterns: Iterable[str]) -> List[str]:
         if not key or key in seen_keys:
             continue
         seen_keys.add(key)
-        if key not in known and not any(key in entry for entry in known):
+        if PATTERN_KIND + key not in known and not any(_in_query(key, q) for q in queries):
             out.append(pattern)
     return out
 
 
 def record_query(project: str, query: Any) -> bool:
     """Record an agent memory_search query as searched; False when blank or not persisted."""
-    return isinstance(query, str) and remember(project, [query])
+    return isinstance(query, str) and remember(project, [query], QUERY_KIND)
 
 
 # ------------------------------------------------------------------ session telemetry

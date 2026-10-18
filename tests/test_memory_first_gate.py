@@ -47,8 +47,10 @@ def test_hermes_terminal_first_token_decides(gate):
     assert gate.is_text_search("terminal", {"command": "rg foo"})
     assert gate.is_text_search("terminal", {"command": "find . -name x"})
     assert not gate.is_text_search("terminal", {"command": "dotnet build"})
-    # every segment of a compound command counts, a piped grep included
-    assert gate.is_text_search("terminal", {"command": "git status | grep x"})
+    # every segment of a compound command counts, a piped grep included, except a grep over
+    # an EXCLUDED_UPSTREAM program's live output
+    assert gate.is_text_search("terminal", {"command": "cat f | grep x"})
+    assert not gate.is_text_search("terminal", {"command": "git status | grep x"})
     assert not gate.is_text_search("terminal", {"command": "git status | head -3"})
 
 

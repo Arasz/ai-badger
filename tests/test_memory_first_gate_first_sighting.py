@@ -257,7 +257,7 @@ def test_searched_patterns_live_in_the_hook_state_row(env, monkeypatch, capsys):
         row = store.kv_get("hook_state", "memory_first.searched." + PROJECT)
     finally:
         store.close()
-    assert "foo" in row
+    assert "p:foo" in row
 
 
 def test_store_missing_falls_back_to_the_file(env, monkeypatch, capsys):
@@ -269,7 +269,7 @@ def test_store_missing_falls_back_to_the_file(env, monkeypatch, capsys):
 
     assert _bash(env, monkeypatch, capsys, "grep -n foo f" + MARK) is None
     lines = (env.tmp / "memory-first-searched" / PROJECT).read_text().splitlines()
-    assert "foo" in lines
+    assert "p:foo" in lines
 
 
 def test_seen_pattern_survives_a_new_session(env, monkeypatch, capsys):
@@ -374,3 +374,27 @@ def test_excluded_upstream_is_a_module_constant(env):
     assert env.gate.EXCLUDED_UPSTREAM == (
         "git", "gh", "ps", "ls", "env", "printenv", "history", "docker", "kubectl", "pip",
         "npm", "lsof", "brew", "dotnet")
+
+
+# ------------------------------------------------------------------ what counts as searched
+def test_a_query_unlocks_whole_word_runs_not_substrings(env):
+    """Mutation: restore `key in entry` -> `def`, `con`, `oade` count as searched -> red."""
+    env.gate.record_query(PROJECT, "how does the default config loader handle a missing file")
+
+    assert env.gate.unsearched(PROJECT, ["def", "con", "oade", "config loader", "missing file",
+                                         "loader handle a"]) == ["def", "con", "oade"]
+
+
+def test_a_recorded_pattern_unlocks_only_itself(env):
+    """Mutation: let a recorded pattern match by containment like a query -> red."""
+    env.gate.remember(PROJECT, ["def merge_hooks"])
+
+    assert env.gate.unsearched(PROJECT, ["merge", "merge_hooks", "def merge_hooks"]) == [
+        "merge", "merge_hooks"]
+
+
+def test_stored_entries_carry_their_kind(env):
+    env.gate.remember(PROJECT, ["Foo"])
+    env.gate.record_query(PROJECT, "Bar baz")
+
+    assert env.gate.searched(PROJECT) == {"p:foo", "q:bar baz"}
