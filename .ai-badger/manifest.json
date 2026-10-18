@@ -1,7 +1,7 @@
 {
   "$schema": "../schemas/manifest.schema.json",
   "frameworkVersion": "0.196.0",
-  "frameworkCommit": "84308cd03fbc95a9a4ae120e362fd1b050aad2dd",
+  "frameworkCommit": "54845f0a36818bcf1a0a0a9ad32e4910f81dc06d",
   "frameworkDirty": true,
   "frameworkRoot": ".",
   "generatedAt": null,
@@ -560,12 +560,12 @@
       "source": "features/common/skills/ai-raccoon-memory",
       "target": ".ai-badger/skills/ai-raccoon-memory",
       "frameworkVersion": "0.196.0",
-      "hash": "b755bcd343f194ddb448eb519531eaf4c70f4947140242845101a065ecb4836a",
+      "hash": "f32e9d564bfbc6a36992934bae3d3ba789d47a5a4335df069449cce11f32db76",
       "dirMeta": {
         "file_count": 11,
         "dir_count": 1
       },
-      "sourceHash": "b755bcd343f194ddb448eb519531eaf4c70f4947140242845101a065ecb4836a",
+      "sourceHash": "f32e9d564bfbc6a36992934bae3d3ba789d47a5a4335df069449cce11f32db76",
       "sourceMeta": {
         "file_count": 11,
         "dir_count": 1
@@ -938,12 +938,12 @@
       "source": "features/common/skills/git-work",
       "target": ".ai-badger/skills/git-work",
       "frameworkVersion": "0.196.0",
-      "hash": "55dcc5a2c4d68f7c7e819cf7979f0dc5ea973f6f4b8d020cc0326b7618e365d3",
+      "hash": "3e79e840dcdb6032f34edfa970e2e2e614105db18f27649fe6868d47de9d1ac2",
       "dirMeta": {
         "file_count": 6,
         "dir_count": 2
       },
-      "sourceHash": "55dcc5a2c4d68f7c7e819cf7979f0dc5ea973f6f4b8d020cc0326b7618e365d3",
+      "sourceHash": "3e79e840dcdb6032f34edfa970e2e2e614105db18f27649fe6868d47de9d1ac2",
       "sourceMeta": {
         "file_count": 6,
         "dir_count": 2
@@ -1572,12 +1572,12 @@
       "source": "features/common/skills/worktree-agent-isolation",
       "target": ".ai-badger/skills/worktree-agent-isolation",
       "frameworkVersion": "0.196.0",
-      "hash": "af60ffc4ec993e7c4e642967400c63ed952973cfc9f126a944724e21c736cfd8",
+      "hash": "f6684f3ac4065c9ee2d4505bc016a819ecfed19c4dbcf8b4e6bde04cb703f407",
       "dirMeta": {
         "file_count": 15,
         "dir_count": 2
       },
-      "sourceHash": "af60ffc4ec993e7c4e642967400c63ed952973cfc9f126a944724e21c736cfd8",
+      "sourceHash": "f6684f3ac4065c9ee2d4505bc016a819ecfed19c4dbcf8b4e6bde04cb703f407",
       "sourceMeta": {
         "file_count": 15,
         "dir_count": 2
@@ -1614,12 +1614,12 @@
       "source": "features/claude/skills/auto-wm",
       "target": ".ai-badger/skills/auto-wm",
       "frameworkVersion": "0.196.0",
-      "hash": "f552ba34c58e79225925ce34d4b69c69a6a8eee617c41b49ec4c64e17bdadace",
+      "hash": "b9449cdda7b5bbb76551f5e863d311167216037d9350d979aa22940ce215d97c",
       "dirMeta": {
         "file_count": 7,
         "dir_count": 2
       },
-      "sourceHash": "f552ba34c58e79225925ce34d4b69c69a6a8eee617c41b49ec4c64e17bdadace",
+      "sourceHash": "b9449cdda7b5bbb76551f5e863d311167216037d9350d979aa22940ce215d97c",
       "sourceMeta": {
         "file_count": 7,
         "dir_count": 2
@@ -2916,7 +2916,7 @@
       "target": ".ai-badger/hooks/memory_first_gate.py",
       "frameworkVersion": "0.196.0",
       "hash": "c3af0003f21768f8e415b8e7e8adc908f75ab5ff4b51fd4fc04b980c93528f0f",
-      "outputHash": "3506a7cf02a065378a55c470a25828e5f121d8ee78a51428f75514172a51f85d"
+      "outputHash": "1a82b7e8c14f9ba99323c8df01b5b8708a52c241d1eb4e464527f077c91d1d8e"
     },
     {
       "feature": "adjustments",
@@ -2946,7 +2946,7 @@
       "target": ".ai-badger/hooks/shell_parser.py",
       "frameworkVersion": "0.196.0",
       "hash": "c3af0003f21768f8e415b8e7e8adc908f75ab5ff4b51fd4fc04b980c93528f0f",
-      "outputHash": "7077f4b7ded4b6aa5f2acb14d7dd6ce5cc5c0c79e2d3aa69a8c44caa98c2918d"
+      "outputHash": "915febee56ce59a0f135c78b42abd662f45f2bb3737ca3e5569776ec4152360f"
     },
     {
       "feature": "adjustments",

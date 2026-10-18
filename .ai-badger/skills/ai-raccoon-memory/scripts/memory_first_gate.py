@@ -105,6 +105,11 @@ _VALUE_LONG = {
 }
 _FIND_PATTERN_FLAGS = ("-name", "-iname", "-path", "-ipath", "-regex", "-iregex")
 
+# A grep/rg that reads a pipe from one of these programs filters live command output, which
+# memory cannot answer: the segment is not repo search. Only the immediate upstream counts.
+EXCLUDED_UPSTREAM = ("git", "gh", "ps", "ls", "env", "printenv", "history", "docker", "kubectl",
+                     "pip", "npm", "lsof", "brew", "dotnet")
+
 _MCP_PREFIX = "mcp__"
 _DOUBLE_UNDERSCORE = "__"
 _PI_MCP_PREFIX = "mcp_"
@@ -142,11 +147,15 @@ _REASON = (
 
 
 # ------------------------------------------------------------------ search-call matching
-def _commands(command: str) -> List[Tuple[str, Tuple[str, ...], Tuple[str, ...]]]:
-    """(program, args, every word) per simple command; shlex as one segment without the lexer."""
+_Segment = Tuple[str, Tuple[str, ...], Tuple[str, ...], Optional[Any]]
+
+
+def _commands(command: str) -> List[_Segment]:
+    """(program, args, every word, parsed command) per simple command; without the lexer,
+    shlex as one segment with no parsed command (so nothing downstream of a pipe is known)."""
     if shell_parser is not None:
         try:
-            return [(c.program.lower(), tuple(c.args), tuple(c.words))
+            return [(c.program.lower(), tuple(c.args), tuple(c.words), c)
                     for c in shell_parser.parse(command)]
         except Exception:  # pylint: disable=broad-exception-caught
             return []
@@ -158,7 +167,7 @@ def _commands(command: str) -> List[Tuple[str, Tuple[str, ...], Tuple[str, ...]]
         words = [w for w in words[1:] if not w.startswith("-")]
     if not words:
         return []
-    return [(words[0].rsplit("/", 1)[-1].lower(), tuple(words[1:]), tuple(words))]
+    return [(words[0].rsplit("/", 1)[-1].lower(), tuple(words[1:]), tuple(words), None)]
 
 
 def _split(pattern: str, extended: bool) -> List[str]:
@@ -169,13 +178,16 @@ def _split(pattern: str, extended: bool) -> List[str]:
     return parts
 
 
-def _grep_patterns(program: str, args: Tuple[str, ...]) -> List[str]:
-    """`-e`/`--regexp` values, else the first operand after the options that take a value."""
+def _grep_parse(program: str, args: Tuple[str, ...]) -> Tuple[List[str], List[str], bool]:
+    """(patterns, file operands, walks) of a grep/rg call: the `-e`/`--regexp` values, else the
+    first operand after the options that take a value; every other operand (all of them under
+    `-e`/`-f`) is a file; *walks* when it recurses (`-r`, `-R`, `-d recurse`) or lists files."""
     family = "rg" if program.startswith("rg") else "grep"
     shorts, longs = _VALUE_SHORT[family], _VALUE_LONG[family]
     explicit: List[str] = []
     operands: List[str] = []
     extended = family == "rg" or program == "egrep"
+    from_file = walks = False
     index = 0
     while index < len(args):
         arg = args[index]
@@ -186,16 +198,20 @@ def _grep_patterns(program: str, args: Tuple[str, ...]) -> List[str]:
         if arg.startswith("--"):
             name, equals, value = arg.partition("=")
             extended = extended or name in ("--extended-regexp", "--perl-regexp")
+            walks = walks or name in ("--recursive", "--dereference-recursive", "--files")
             if name in longs:
                 if not equals:
                     value = args[index] if index < len(args) else ""
                     index += 1
                 if name == "--regexp":
                     explicit.append(value)
+                from_file = from_file or name == "--file"
+                walks = walks or (name == "--directories" and value == "recurse")
             continue
         if arg.startswith("-") and len(arg) > 1:
             for position, letter in enumerate(arg[1:], 1):
                 extended = extended or (family == "grep" and letter in "EP")
+                walks = walks or (family == "grep" and letter in "rR")
                 if letter in shorts:
                     value = arg[position + 1:]
                     if not value:
@@ -203,10 +219,38 @@ def _grep_patterns(program: str, args: Tuple[str, ...]) -> List[str]:
                         index += 1
                     if letter == "e":
                         explicit.append(value)
+                    from_file = from_file or letter == "f"
+                    walks = walks or (family == "grep" and letter == "d" and value == "recurse")
                     break
             continue
         operands.append(arg)
-    return [part for raw in (explicit or operands[:1]) for part in _split(raw, extended)]
+    files = operands if (explicit or from_file) else operands[1:]
+    patterns = [part for raw in (explicit or operands[:1]) for part in _split(raw, extended)]
+    return patterns, files, walks
+
+
+def _feeding_program(upstream: Any) -> str:
+    """The program writing into a pipe: what runs past rtk/sudo/env wrappers, else the first
+    word that is not an assignment (`env` alone prints the environment)."""
+    if upstream.program:
+        return upstream.program.lower()
+    for word in upstream.words:
+        if not shell_parser.ASSIGNMENT.match(word):
+            return word.rsplit("/", 1)[-1].lower()
+    return ""
+
+
+def _reads_excluded_pipe(command: Any, files: List[str], walks: bool) -> bool:
+    """True when a grep/rg segment filters the stdin an EXCLUDED_UPSTREAM program pipes it:
+    no file operand, no recursion, no input redirect, not run by xargs."""
+    upstream = getattr(command, "upstream", None)
+    if upstream is None or files or walks:
+        return False
+    if any(op.startswith("<") for op, _ in command.redirects):
+        return False
+    if any(word.rsplit("/", 1)[-1] == "xargs" for word in command.words[:command.start]):
+        return False
+    return _feeding_program(upstream) in EXCLUDED_UPSTREAM
 
 
 def _find_patterns(args: Tuple[str, ...]) -> List[str]:
@@ -242,11 +286,15 @@ def search_patterns(tool_name: Any, tool_input: Any) -> Optional[List[str]]:
     if not isinstance(command, str):
         return None
     found: Optional[List[str]] = None
-    for program, args, words in _commands(command):
+    for program, args, words, parsed in _commands(command):
         if program not in _SEARCH_PROGRAMS:
             continue
-        extracted = (_find_patterns(args) if program == "find"
-                     else _grep_patterns(program, args))
+        if program == "find":
+            extracted = _find_patterns(args)
+        else:
+            extracted, files, walks = _grep_parse(program, args)
+            if _reads_excluded_pipe(parsed, files, walks):
+                continue
         found = (found or []) + ([p for p in extracted if normalize(p)] or [" ".join(words)])
     return found
 
@@ -268,7 +316,7 @@ def has_marker(tool_input: Any) -> bool:
     lines = command.rstrip().splitlines()
     if not lines or not _MARKER_LINE.search(lines[-1]):
         return False
-    return not any(_MARKER_WORD in word for _, _, words in _commands(command) for word in words)
+    return not any(_MARKER_WORD in word for _, _, words, _ in _commands(command) for word in words)
 
 
 # ------------------------------------------------------------------ the searched-pattern store

@@ -302,3 +302,75 @@ def test_copilot_string_tool_args_on_both_hooks(env, monkeypatch, capsys):
                         "toolArgs": json.dumps({"command": "grep -n gizmo f" + MARK})})
     assert env.pre.main([]) == 0
     assert capsys.readouterr().out == ""
+
+
+# ------------------------------------------------------------------ excluded upstream programs
+def test_grep_over_git_log_passes_without_search_or_marker(env, monkeypatch, capsys):
+    """Owner rule: memory cannot answer a filter over live command output.
+    Mutation: return [] instead of skipping the segment -> the marker is demanded -> red."""
+    assert _bash(env, monkeypatch, capsys, "git log | grep fix") is None
+    assert not env.calls
+    assert env.gate.unsearched(PROJECT, ["fix"]) == ["fix"]
+
+
+@pytest.mark.parametrize("command", [
+    "git log | grep fix",
+    "git log |& grep fix",
+    "rtk git log | grep fix",
+    "sudo docker ps | grep fix",
+    "env | grep PATH",
+    "printenv | egrep 'A|B'",
+    "ps aux | rg python",
+    "git log | grep -e fix",
+    "git log | grep -i -A 2 fix",
+    "kubectl get pods | fgrep Running",
+    "/usr/bin/git log | grep fix",
+])
+def test_piped_grep_over_an_excluded_program_is_not_text_search(env, command):
+    """Mutation: drop the wrapper resolution (`rtk`/`sudo` read as the upstream) -> red."""
+    assert env.gate.search_patterns("Bash", {"command": command}) is None
+
+
+@pytest.mark.parametrize("command", [
+    "cat f | grep x",                              # cat is not listed
+    "git log --oneline | head -50 | grep fix",     # only the immediate upstream counts
+    "git log | grep fix file.txt",                 # a file operand of its own
+    "git log | grep -e fix file.txt",              # with -e every operand is a file
+    "git log | grep fix -",                        # an explicit stdin operand is an operand
+    "git log | grep -r fix",                       # recursion searches the tree
+    "git log | grep -R fix",
+    "git log | grep -rn fix",
+    "git log | grep --recursive fix",
+    "git log | grep -d recurse fix",
+    "git log | grep --directories=recurse fix",
+    "ls | rg --files",
+    "ls | rg fix src",                             # rg with a path
+    "ls | find . -name x",                         # find never reads stdin
+    "git ls-files | xargs grep foo",               # xargs turns stdin into file operands
+    "ls | xargs rg foo",
+    "git log | grep foo < f",                      # stdin redirected away from the pipe
+    "git log | grep foo <<< text",
+    "git log | bash -c 'grep x'",                  # nested script: its stdin is not proven
+    "git log || grep fix",
+    "git log; grep fix",
+])
+def test_piped_grep_that_is_still_repo_search_stays_gated(env, command):
+    """Mutations, one per row family: drop the upstream check; read the whole pipeline back;
+    ignore operands; ignore -r/-R/--recursive/-d recurse; ignore rg --files; exempt under
+    xargs; ignore an input redirect."""
+    assert env.gate.search_patterns("Bash", {"command": command})
+
+
+def test_excluded_segment_does_not_exempt_a_file_grep_beside_it(env, monkeypatch, capsys):
+    reason = _bash(env, monkeypatch, capsys, "git log | grep fix && grep -rn fix src/")
+
+    assert reason is not None
+    assert env.calls and "fix" in env.calls[0][0]
+    assert env.gate.search_patterns(
+        "Bash", {"command": "git log | grep alpha && grep -rn beta src/"}) == ["beta"]
+
+
+def test_excluded_upstream_is_a_module_constant(env):
+    assert env.gate.EXCLUDED_UPSTREAM == (
+        "git", "gh", "ps", "ls", "env", "printenv", "history", "docker", "kubectl", "pip",
+        "npm", "lsof", "brew", "dotnet")
