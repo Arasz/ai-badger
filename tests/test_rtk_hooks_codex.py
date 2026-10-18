@@ -182,4 +182,6 @@ def test_a_propose_arm_removes_the_wired_entry_and_says_why(load_script, tmp_pat
     result = load_script('features/codex/adjustments/adjust_tools.py').adjust(ctx)
 
     assert 'AI_BADGER_TOOL' not in dst.read_text()
-    assert 'approval' in result['notes'] and 'rtk init --codex' in result['notes']
+    # A local `rtk init --codex` edits the generated AGENTS.md; only the user-wide init is safe.
+    assert 'approval' in result['notes'] and '`rtk init -g --codex`' in result['notes']
+    assert 'user-wide' in result['notes'] and 'edits the generated AGENTS.md' in result['notes']

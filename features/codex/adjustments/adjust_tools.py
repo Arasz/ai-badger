@@ -12,7 +12,8 @@ from codex_paths import symlink_parent  # pylint: disable=wrong-import-position
 EVENT = 'PreToolUse'
 PROPOSAL = ('{tool} is not wired for Codex: its hook answers permissionDecision allow, so a '
             'rewritten command skips the Codex approval prompt and its safe/dangerous classifiers. '
-            'Wire it yourself with `{tool} init --{arg}` only if that approval does not matter.')
+            'A local `{tool} init --{arg}` edits the generated AGENTS.md; `{tool} init -g --{arg}` '
+            'wires it user-wide, for every project. Run it only if that approval does not matter.')
 NOTE = ('Codex tool hooks need project trust and /hooks approval; rtk-wrapped commands are '
         'auto-allowed (permissionDecision allow) and bypass the Codex approval prompt and its '
         'safe/dangerous classifiers; optional: if rtk history fails with SQLITE_CANTOPEN in the '

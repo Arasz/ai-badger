@@ -59,8 +59,9 @@ Three plan reviews (security, harness, structure) then tightened the guard and t
    the harness's own approval. rtk's Codex hook always answers `allow`, so a rewritten command
    skips the approval prompt and the safe/dangerous classifiers (the Codex approval bypass
    below). That was disclosed rather than silent, but it is the same class of bypass. The Codex
-   arm removes an entry 0.195.0 or earlier wired and prints `rtk init --codex` for an operator
-   who accepts it. Copilot stays native: its hook rewrites without granting approval.
+   arm removes an entry 0.195.0 or earlier wired and prints the user-wide `rtk init -g --codex`
+   for an operator who accepts it; a local init would edit the generated `AGENTS.md`. Copilot
+   stays native: its hook rewrites without granting approval.
 4. **pi: rtk writes its own extension.** The pi arm runs `rtk init --agent pi` with the target
    repo as cwd, stdin from `/dev/null`, and `RTK_TELEMETRY_DISABLED=1`. It never passes
    `--auto-patch` or `-g`. It runs only when install is enabled and `check.py` passed; otherwise

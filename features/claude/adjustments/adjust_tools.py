@@ -12,8 +12,9 @@ from typing import Any, Callable, Dict, List, Optional
 
 EVENT = "PreToolUse"
 PROPOSAL = ("{tool} is not wired for Claude: its hook rewrites the command before Claude matches "
-            "project permissions.ask rules, so a rewritten command runs without the prompt. "
-            "Wire it yourself with `{tool} init --agent {arg}` only if no ask rule matters.")
+            "project permissions.ask rules, so a rewritten command runs without the prompt. A local "
+            "`{tool} init` wires no Claude hook; `{tool} init -g` does, user-wide, for every project. "
+            "Run it only if no ask rule matters anywhere, and drop claude from config.tools.{tool}.")
 
 
 def _modules(framework_root: Path):
