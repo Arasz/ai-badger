@@ -327,8 +327,10 @@ def has_marker(tool_input: Any) -> bool:
 
 # ------------------------------------------------------------------ the searched-pattern store
 def normalize(text: str) -> str:
-    """Comparable form: regex escapes undone (`\\.` -> `.`), `^ $ \\b` dropped, lowercase."""
+    """Comparable form: regex escapes undone (`\\.` -> `.`), `^ $ \\b` and grouping
+    parentheses dropped, lowercase."""
     text = re.sub(r"\\[bB<>]", "", text)
+    text = re.sub(r"(?<!\\)[()]", "", text)
     text = re.sub(r"\\(.)", r"\1", text)
     text = text.replace("^", "").replace("$", "")
     return " ".join(text.lower().split())
@@ -554,9 +556,17 @@ def memory_hits(query: str, project: str, session_id: Optional[str],
                                 context.Budget(seconds))
 
 
-def search_query(patterns: Iterable[str]) -> str:
-    """The memory query for a set of unsearched patterns."""
-    return " ".join(dict.fromkeys(p.strip() for p in patterns))[:QUERY_MAX_CHARS]
+def search_query(patterns: Iterable[str]) -> Tuple[str, List[str]]:
+    """The memory query for a set of unsearched patterns, capped at QUERY_MAX_CHARS, and the
+    patterns that made it into it whole (only those may be recorded as searched)."""
+    included: List[str] = []
+    for pattern in dict.fromkeys(p.strip() for p in patterns):
+        if len(" ".join(included + [pattern])) > QUERY_MAX_CHARS:
+            break
+        included.append(pattern)
+    if not included:
+        return next(iter(dict.fromkeys(p.strip() for p in patterns)), "")[:QUERY_MAX_CHARS], []
+    return " ".join(included), included
 
 
 def deny_reason(project: str, unseen: List[str], hits: Optional[str]) -> str:
@@ -595,12 +605,13 @@ def decide(host: str, tool_name: Any, tool_input: Any, session_id: Optional[str]
         return {}
     hits = None
     if unseen:
+        query, queried = search_query(unseen)
         try:
-            hits = memory_hits(search_query(unseen), project, session_id,
+            hits = memory_hits(query, project, session_id,
                                SEARCH_SECONDS - (time.monotonic() - started))
         except Exception:  # pylint: disable=broad-exception-caught  # a gate never raises
             hits = None
-        if hits is not None and not remember(project, unseen):
+        if hits is not None and queried and not remember(project, queried):
             return {}
     return build_decision(host, tool_name, tool_input, session_id, cwd,
                           reason=deny_reason(project, unseen, hits))

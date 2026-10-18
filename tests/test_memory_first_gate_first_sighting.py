@@ -463,3 +463,26 @@ def test_open_audit_honours_the_timeout(monkeypatch, tmp_path):
         assert store.conn.execute("PRAGMA busy_timeout").fetchone()[0] == 500
     finally:
         store.close()
+
+
+# ------------------------------------------------------------------ the capped query
+def test_only_patterns_inside_the_capped_query_are_recorded(env):
+    """Mutation: remember every unseen pattern -> the ones past the 500-char cap count as
+    searched though memory never saw them -> red."""
+    patterns = [f"pattern{n:03d}x" for n in range(60)]  # 12 chars + a space each: ~780 chars
+    command = "grep " + " ".join(f"-e {p}" for p in patterns) + " f"
+
+    assert env.gate.decide("claude", "Bash", {"command": command}, "s1")
+
+    query = env.calls[0][0]
+    assert len(query) <= env.gate.QUERY_MAX_CHARS
+    left = env.gate.unsearched(PROJECT, patterns)
+    assert left and all(p not in query.split() for p in left)
+    assert [p for p in patterns if p not in left] == query.split()
+
+
+def test_grouping_parens_are_not_part_of_a_key(env):
+    """Mutation: keep `(`/`)` in normalize -> keys `(foo` and `bar)baz` -> red."""
+    found = env.gate.search_patterns("Bash", {"command": "grep -E '(foo|bar)baz' f"})
+
+    assert [env.gate.normalize(p) for p in found] == ["foo", "barbaz"]
