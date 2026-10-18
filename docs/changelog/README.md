@@ -19,6 +19,7 @@ When cutting a release:
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
+| 0.200.2 | [semantica catalog covers the tools 0.6.8 serves](0.200.2-semantica-catalog-current-tools.md) |
 | 0.200.1 | [`--discover` finds claude.ai-synced plugins; ai-raccoon and semantica catalogs refreshed](0.200.1-synced-plugins-and-catalog-refresh.md) |
 | 0.200.0 | [`mcp-index --discover` asks servers for their tools without hermes](0.200.0-stdlib-mcp-client-discovery.md) |
 | 0.199.0 | [the /task skill no longer probes for usage limits](0.199.0-remove-usage-limit-probe.md) |
