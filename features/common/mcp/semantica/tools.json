@@ -4,6 +4,9 @@
   "tools": [
     {"name": "get_graph_summary", "intent": "Orientation entry point: graph statistics, entity/relation counts, domain overview — before any specific query.", "tags": ["read"]},
     {"name": "get_graph_analytics", "intent": "PageRank centrality and community detection over the whole graph; fails on semantica 0.6.6 with a PageRank error, so use get_graph_summary for orientation.", "tags": ["read", "diagnostic"]},
+    {"name": "query_graph", "intent": "Fetch one node by id, traverse its neighbours, or keyword-search nodes — look up specific entities, unlike get_graph_summary's counts.", "tags": ["search", "navigation"]},
+    {"name": "update_node", "intent": "Merge new properties onto an existing graph node and persist the change — correct or enrich a node instead of adding a duplicate.", "tags": ["write"]},
+    {"name": "delete_node", "intent": "Soft-delete a node: it stays in the graph for history but is marked archived and persisted — retire stale entities, not hard removal.", "tags": ["write", "unsafe"]},
     {"name": "extract_entities", "intent": "Named entity extraction from arbitrary text — feed in a document, conversation excerpt, or design spec and get structured entities back.", "tags": ["write", "search"]},
     {"name": "extract_relations", "intent": "Extract triplet relations (subject-predicate-object) from text — builds the graph's edge structure from unstructured content.", "tags": ["write", "search"]},
     {"name": "add_entity", "intent": "Manually add a knowledge graph node with properties — for facts already known but not present in text to extract.", "tags": ["write"]},
