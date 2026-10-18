@@ -2,7 +2,8 @@
 
 **Date:** 2026-10-17
 **Status:** Accepted; amended 2026-10-17 (0.195.1, Claude arm to propose); amended 2026-10-18
-(0.197.0, the rtk guard hook, Claude arm back to native)
+(0.197.0, the rtk guard hook, Claude arm back to native); amended 2026-10-18 (0.198.0, the
+user-scope guard hook)
 
 ## Context
 
@@ -101,6 +102,13 @@ Three plan reviews (security, harness, structure) then tightened the guard and t
 10. **Licence is the user's choice.** `install.py --run` prints the BUSL-1.1 line and the
     `rtk-oss` alternatives (`RTK_EDITION=oss`, `brew install rtk-ai/tap/rtk-oss`, cargo without
     default features) before it installs. No recipe pipes a download into `sh`.
+11. **The user-scope guard is an operator command** (0.198.0). `scripts/user_hook.py` prints the
+    same inlined guarded command for `~/.claude/settings.json` (or `$CLAUDE_CONFIG_DIR`), and
+    writes it only on an explicit `--apply`, with a backup. A hook that points at a checkout's
+    `rtk_guard.py` goes silent when the checkout moves or an older branch is checked out; the
+    inline form has no such path. This narrows ADR-0014 decision 6 to what the scaffold and the
+    adjusters do: they still never write user-global configuration, while a command the operator
+    runs by name may, as `install.py --run` already changes machine state on an explicit flag.
 
 ## Consequences
 
