@@ -73,10 +73,20 @@ def test_tools_json_validates_against_schema():
     jsonschema.validate(tools, schema)
 
 
-def test_tools_json_has_12_tools():
-    """tools.json lists all 12 tools the live semantica 0.6.6 server offers."""
+# Verified 2026-10-18: semantica 0.6.6 lists the first 12; 0.6.8 (PyPI latest) and the v0.7.0
+# docs/reference/mcp_server.md list all 15. The install is unpinned, so the catalog is the union.
+SEMANTICA_TOOLS = {
+    "get_graph_summary", "get_graph_analytics", "extract_entities", "extract_relations",
+    "add_entity", "add_relationship", "record_decision", "query_decisions", "find_precedents",
+    "get_causal_chain", "run_reasoning", "export_graph",
+    "query_graph", "update_node", "delete_node",
+}
+
+
+def test_tools_json_names_exactly_the_tools_semantica_serves():
+    """tools.json names every tool semantica 0.6.6, 0.6.8 or v0.7.0 serves, and no other."""
     tools = json.loads(_catalog_file("tools.json").read_text(encoding="utf-8"))
-    assert len(tools["tools"]) == 12
+    assert {t["name"] for t in tools["tools"]} == SEMANTICA_TOOLS
 
 
 def test_tool_names_are_unique():
