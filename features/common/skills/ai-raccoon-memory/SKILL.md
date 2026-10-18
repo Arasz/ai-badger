@@ -169,9 +169,17 @@ The first time a pattern is seen, the call is denied and the hook runs one `memo
 it itself; the hits come back in the deny reason and the pattern is recorded. Read them, then
 re-issue the call with the marker if you still need the grep. When the hook could not search
 (no `ai-raccoon`, timeout), it records nothing and asks you to run `memory_search` with that
-pattern as the query; your search's query is recorded, and any pattern it contains counts as
-searched (comparison ignores case, `^ $ \b` and regex escapes such as `\.`). Searched patterns
-persist per project and are never reset. The marker inside a quoted argument does not count.
+pattern as the query; your search's query is recorded, and a pattern that is a whole-word run
+of it counts as searched (comparison ignores case, `^ $ \b`, grouping parentheses and regex
+escapes such as `\.`). Searched patterns persist per project and are never reset. A marker the
+shell reads as part of a word (quoted, or after an escaped blank) does not count.
+
+**Excluded list.** A grep/egrep/fgrep/rg reading a pipe from git, gh, ps, ls, env, printenv,
+history, docker, kubectl, pip, npm, lsof, brew, dotnet is not repo search:
+`git log | grep fix` passes with no search and no marker, through `rtk`/`sudo` wrappers too.
+Only the program immediately before the grep counts (`git log | head -50 | grep fix` is gated:
+`head` is not listed). A grep with a file operand, `-r`/`-R`/`-d recurse`, `rg --files`, an
+input redirect, or run by `xargs` stays gated, as does any file grep elsewhere in the command.
 
 **Search log.** Each enriched prompt, and each planned query, is a real `memory_search` and
 lands in ai-raccoon's search log like any other search.
