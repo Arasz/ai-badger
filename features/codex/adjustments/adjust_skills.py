@@ -33,6 +33,7 @@ def adjust(context: Dict[str, Any]) -> Dict[str, Any]:
     target_dir = context["target_dir"]
     target = context["target"]
     skills = context.get("skills", [])
+    config = context.get("config", {})
 
     agent_skills = target / ".agents" / "skills"
     if symlink_parent(agent_skills, target):
@@ -40,7 +41,8 @@ def adjust(context: Dict[str, Any]) -> Dict[str, Any]:
 
     skills_root = target_dir / "skills"
     owned_targets = _manifest_targets(target_dir)
-    if "codex" not in context.get("config", {}).get("agents", []):
+    if ("codex" not in config.get("agents", [])
+            or config.get("codexScope", "project") == "user"):
         return _deselect(agent_skills, skills_root, owned_targets)
     agent_skills.mkdir(parents=True, exist_ok=True)
 

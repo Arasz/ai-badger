@@ -31,6 +31,66 @@ def test_distinctive_detection(load_script, tmp_path, monkeypatch):
     assert 'codex' in detect.detect_agents(tmp_path)
 
 
+def test_codex_plugin_publishes_user_skills_and_native_hooks(root):
+    plugin = json.loads((root / '.codex-plugin/plugin.json').read_text())
+    assert plugin['skills'] == './skills/'
+    assert plugin['hooks'] == './hooks/codex-hooks.json'
+    assert (root / 'skills/welcome-ai-badger/SKILL.md').is_file()
+    hooks = json.loads((root / plugin['hooks'][2:]).read_text())['hooks']
+    assert {'UserPromptSubmit', 'SessionStart', 'PreToolUse', 'PostToolUse'} <= set(hooks)
+    commands = [handler['command'] for groups in hooks.values() for group in groups
+                for handler in group['hooks']]
+    assert all('${PLUGIN_ROOT}' in command for command in commands)
+    assert all('CLAUDE_PROJECT_DIR' not in command for command in commands)
+    from importlib.util import spec_from_file_location, module_from_spec
+    spec = spec_from_file_location('codex_adjust_hooks',
+        root / 'features/codex/adjustments/adjust_hooks.py')
+    adjustment = module_from_spec(spec)
+    spec.loader.exec_module(adjustment)
+    bundled_scripts = {command.split('${PLUGIN_ROOT}/skills/', 1)[1].split('"', 1)[0]
+                       for command in commands if '${PLUGIN_ROOT}/skills/' in command
+                       and 'features/codex/adjustments/memory_first_gate_post_hook.py'
+                       not in command}
+    post_hook = 'ai-raccoon-memory/scripts/memory_first_gate_post_hook.py'
+    assert bundled_scripts == set(adjustment.SCRIPTS) - {post_hook}
+    assert all((root / 'skills' / relative).is_file() for relative in bundled_scripts)
+    assert any('features/codex/adjustments/memory_first_gate_post_hook.py' in command
+               and f'${{PLUGIN_ROOT}}/skills/{post_hook}' in command
+               for command in commands)
+    packaged_skills = {path.parent.name for path in (root / 'skills').glob('*/SKILL.md')}
+    catalog_skills = {path.parent.name for path in
+                      (root / 'features/common/skills').glob('*/SKILL.md')
+                      if 'scope: optIn' not in path.read_text()}
+    assert catalog_skills <= packaged_skills
+    marketplace = json.loads((root / '.agents/plugins/marketplace.json').read_text())
+    assert marketplace['name'] == 'ai-badger-codex'
+    assert marketplace['plugins'][0]['name'] == plugin['name']
+    plugin_root = root / marketplace['plugins'][0]['source']['path'][2:]
+    assert plugin_root == root
+    assert (plugin_root / '.codex-plugin/plugin.json').is_file()
+    for relative in (plugin['skills'], plugin['hooks']):
+        assert (plugin_root / relative.removeprefix('./')).exists()
+
+
+def test_codex_instruction_scaffold_targets_only_agents_file(root):
+    data = json.loads((root / 'features/codex/scaffolding.json').read_text())
+    assert [entry['target'] for entry in data['files']] == ['AGENTS.md']
+
+
+def test_every_codex_adjusted_hook_resolves_to_catalog_registration(load_script, root):
+    arm = load_script('features/codex/adjustments/adjust_hooks.py')
+    registrations = json.loads(
+        (root / 'features/common/hooks/hooks.json').read_text())['hooks']
+    registered = {
+        handler['command']
+        for groups in registrations.values()
+        for group in groups
+        for handler in group.get('hooks', [])
+    }
+    for relative in arm.SCRIPTS:
+        assert any(command.endswith(f'/features/common/skills/{relative}"')
+                   for command in registered)
+        assert (root / 'features/common/skills' / relative).is_file()
 def test_skills_links_preserve_user_and_prune_owned(load_script, tmp_path):
     arm = load_script('features/codex/adjustments/adjust_skills.py')
     for name in ['first', 'stale', 'user']:
@@ -45,6 +105,49 @@ def test_skills_links_preserve_user_and_prune_owned(load_script, tmp_path):
     assert (tmp_path / '.agents/skills/first').is_symlink()
     assert not (tmp_path / '.agents/skills/stale').is_symlink()
     assert (user / 'SKILL.md').read_text() == 'operator'
+
+
+def test_user_plugin_scope_removes_project_skill_links(load_script, tmp_path):
+    arm = load_script('features/codex/adjustments/adjust_skills.py')
+    skill = tmp_path / '.ai-badger/skills/shared'
+    skill.mkdir(parents=True)
+    (skill / 'SKILL.md').write_text('shared')
+    arm.adjust(context(tmp_path, skills=['shared']))
+    assert (tmp_path / '.agents/skills/shared').is_symlink()
+
+    ctx = context(tmp_path, skills=['shared'])
+    ctx['config']['codexScope'] = 'user'
+    arm.adjust(ctx)
+
+    assert not (tmp_path / '.agents/skills/shared').exists()
+
+
+def test_catalog_skills_have_one_delivery_for_selected_scope(load_script, root, tmp_path,
+                                                             monkeypatch):
+    import badger_lib as bl
+    from scaffold_helpers import _config, build_scaffolder
+    index = load_script('tooling/index_build.py').build_index(root)
+    monkeypatch.setattr(bl, 'read_index', lambda _: index)
+    module = load_script('features/common/skills/welcome-ai-badger/scripts/scaffold.py')
+    skills = sorted(path.parent.name for path in
+                    (root / 'features/common/skills').glob('*/SKILL.md')
+                    if 'scope: optIn' not in path.read_text())
+    config = _config(stacks=['python'], agents=['codex'])
+
+    build_scaffolder(module, root=root, target=tmp_path, config=config,
+                     skills=skills).run()
+    links = tmp_path / '.agents/skills'
+    assert {entry.name for entry in links.iterdir()} == set(skills)
+    assert all(entry.is_symlink() for entry in links.iterdir())
+
+    config['codexScope'] = 'user'
+    build_scaffolder(module, root=root, target=tmp_path, config=config,
+                     skills=skills).run()
+    assert list(links.iterdir()) == []
+    plugin_skills = {path.parent.name for path in (root / 'skills').glob('*/SKILL.md')}
+    assert set(skills) <= plugin_skills
+    effective = set(entry.name for entry in links.iterdir()) | (set(skills) & plugin_skills)
+    assert effective == set(skills)
 
 
 def test_native_persona_inherits_model_preserves_collision(load_script, tmp_path):
@@ -119,11 +222,135 @@ def test_hook_subset_and_user_preservation(load_script, tmp_path):
     assert 'PreToolUse' not in parsed
     delivered = parsed['UserPromptSubmit'][0]['hooks'][0]['command']
     assert '${CLAUDE_PROJECT_DIR}' not in delivered
+    assert 'CLAUDE_PROJECT_DIR' not in arm.RUNNER
+    assert 'CLAUDE_HOME' not in arm.RUNNER
     assert str(tmp_path.resolve()) in delivered
     assert 'python3 -I -c' in delivered
     assert 'AI_BADGER_CODEX_HOOK=1' in delivered
     arm.adjust(context(tmp_path))
     assert dst.read_text() == first
+
+
+def test_memory_first_gate_uses_native_pre_tool_hook(load_script, tmp_path, monkeypatch, capsys):
+    arm = load_script('features/codex/adjustments/adjust_hooks.py')
+    hook = load_script(
+        'features/common/skills/ai-raccoon-memory/scripts/memory_first_gate_hook.py')
+    target_dir = tmp_path / '.ai-badger'
+    scripts = target_dir / 'skills/ai-raccoon-memory/scripts'
+    scripts.mkdir(parents=True)
+    (scripts / 'memory_first_gate_hook.py').write_text('adapter')
+
+    arm.adjust(context(tmp_path, target_dir=target_dir,
+                       skills=['ai-raccoon-memory']))
+
+    hooks = json.loads((tmp_path / '.codex/hooks.json').read_text())['hooks']
+    pre = next(group for group in hooks['PreToolUse'] if group.get('matcher') == '^Bash$')
+    assert 'memory_first_gate_hook.py' in pre['hooks'][0]['command']
+
+    seen = {}
+    denial = {'hookSpecificOutput': {'hookEventName': 'PreToolUse',
+              'permissionDecision': 'deny', 'permissionDecisionReason': 'memory first'}}
+    def deny(host, tool_name, tool_input, session_id, cwd=''):
+        seen.update(host=host, tool_name=tool_name, tool_input=tool_input, cwd=cwd)
+        return denial
+    monkeypatch.setattr(hook.gate, 'decide', deny)
+    monkeypatch.setattr('sys.stdin', __import__('io').StringIO(json.dumps({
+        'hook_event_name': 'PreToolUse', 'tool_name': 'Bash',
+        'tool_input': {'command': 'rg secret'}, 'cwd': str(tmp_path)})))
+    assert hook.main() == 0
+    assert json.loads(capsys.readouterr().out) == denial
+    assert seen == {'host': 'claude', 'tool_name': 'Bash',
+                    'tool_input': {'command': 'rg secret'}, 'cwd': str(tmp_path)}
+
+
+def test_memory_first_gate_post_hook_credits_codex_mcp_search(load_script, monkeypatch):
+    hook = load_script(
+        'features/common/skills/ai-raccoon-memory/scripts/memory_first_gate_post_hook.py')
+    seen = {}
+    monkeypatch.setattr(hook.gate, 'record_search', lambda session: seen.update(session=session))
+    monkeypatch.setattr(hook.gate, 'project_id', lambda cwd: f'project:{cwd}')
+    monkeypatch.setattr(hook.gate, 'credit_search',
+                        lambda project, args, failed: seen.update(
+                            project=project, args=args, failed=failed))
+    monkeypatch.setattr('sys.stdin', __import__('io').StringIO(json.dumps({
+        'hook_event_name': 'PostToolUse', 'tool_name': 'mcp__ai_raccoon__memory_search',
+        'tool_input': {'query': 'memory first gate'}, 'session_id': 'turn-1',
+        'cwd': '/repo'})))
+
+    assert hook.main() == 0
+    assert seen == {'session': 'turn-1', 'project': 'project:/repo',
+                    'args': {'query': 'memory first gate'}, 'failed': False}
+
+
+def test_project_post_hook_uses_codex_adjustment_adapter(load_script, tmp_path):
+    arm = load_script('features/codex/adjustments/adjust_hooks.py')
+    target_dir = tmp_path / '.ai-badger'
+    hooks_dir = target_dir / 'hooks'
+    hooks_dir.mkdir(parents=True)
+    shared = target_dir / 'skills/ai-raccoon-memory/scripts/memory_first_gate_post_hook.py'
+    shared.parent.mkdir(parents=True)
+    shared.write_text('pass')
+    hooks_file = hooks_dir / 'hooks.json'
+    hooks_file.write_text(json.dumps({'hooks': {'PostToolUse': [{
+        'matcher': '^(mcp__.+__)?memory_search$', 'hooks': [{
+            'type': 'command', 'command': f'python3 "${{CLAUDE_PLUGIN_ROOT}}/features/common/skills/{shared.relative_to(target_dir / "skills")}"'
+        }]}]}}))
+
+    arm.adjust(context(tmp_path, target_dir=target_dir, skills=['ai-raccoon-memory']))
+
+    adapter = hooks_dir / 'codex_memory_first_gate_post_hook.py'
+    assert adapter.is_file()
+    registered = json.loads((tmp_path / '.codex/hooks.json').read_text())['hooks']['PostToolUse'][0]
+    assert registered['matcher'] == '^(mcp__.+__)?memory_search$'
+    assert 'hooks/codex_memory_first_gate_post_hook.py' in registered['hooks'][0]['command']
+    assert str(shared) in registered['hooks'][0]['command']
+
+
+@pytest.mark.parametrize('response,should_forward', [
+    ({'isError': True, 'content': []}, False),
+    ({'isError': False, 'content': []}, True),
+])
+def test_codex_memory_credit_adapter_filters_failed_tool_response(
+        load_script, tmp_path, monkeypatch, response, should_forward):
+    import io
+    adapter = load_script('features/codex/adjustments/memory_first_gate_post_hook.py')
+    observed = tmp_path / 'observed.json'
+    shared = tmp_path / 'shared.py'
+    shared.write_text(
+        'import json, os, sys\n'
+        'from pathlib import Path\n'
+        'Path(os.environ["OBSERVED"]).write_text(sys.stdin.read())\n')
+    payload = {'hook_event_name': 'PostToolUse', 'tool_name': 'mcp__ai_raccoon__memory_search',
+               'tool_input': {'query': 'needle'}, 'tool_response': response}
+    monkeypatch.setenv('OBSERVED', str(observed))
+    monkeypatch.setattr('sys.stdin', io.StringIO(json.dumps(payload)))
+    monkeypatch.setattr('sys.argv', ['codex_adapter.py', str(shared)])
+
+    assert adapter.main() == 0
+    assert observed.exists() is should_forward
+    if should_forward:
+        assert json.loads(observed.read_text()) == payload
+
+
+def test_user_plugin_scope_removes_project_hooks_but_keeps_operator_hooks(
+        load_script, tmp_path):
+    arm = load_script('features/codex/adjustments/adjust_hooks.py')
+    dst = tmp_path / '.codex/hooks.json'
+    dst.parent.mkdir()
+    operator = {'type': 'command', 'command': 'operator-hook'}
+    managed = {'type': 'command', 'command': arm.PREFIX + 'python3 example.py prompt-markers/scripts/user_prompt_hook.py'}
+    dst.write_text(json.dumps({'hooks': {
+        'Stop': [{'hooks': [operator]}],
+        'UserPromptSubmit': [{'hooks': [managed]}]
+    }}))
+    ctx = context(tmp_path)
+    ctx['config']['codexScope'] = 'user'
+
+    arm.adjust(ctx)
+
+    hooks = json.loads(dst.read_text())['hooks']
+    assert hooks['Stop'][0]['hooks'] == [operator]
+    assert hooks.get('UserPromptSubmit', []) == []
 
 
 @pytest.mark.parametrize('agents', [['codex'], ['codex', 'pi'], ['pi', 'codex']])

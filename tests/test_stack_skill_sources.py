@@ -64,7 +64,7 @@ class TestDeclaredSupportIsSubstantiated:
     failure class this catalog has been bitten by before.
     """
 
-    AGENTS = ("claude", "copilot", "hermes")
+    AGENTS = ("claude", "copilot", "hermes", "codex")
 
     @pytest.mark.parametrize("stack", _stacks_with_skills())
     def test_no_source_claims_an_agent_that_cannot_install_it(self, stack):
@@ -81,11 +81,8 @@ class TestDeclaredSupportIsSubstantiated:
                     f"support for '{agent}', which has no '{source['type']}' instruction in "
                     f"features/{agent}/plugins-instructions.json")
 
-    def test_marketplaces_are_claude_only(self):
-        """A plugin marketplace is a Claude Code concept; no other agent installer reads one."""
-        for agent in self.AGENTS:
-            if agent != "claude":
-                assert "marketplace" not in _agent_source_types(agent)
+    def test_codex_has_marketplace_install_instructions(self):
+        assert "marketplace" in _agent_source_types("codex")
 
 
 class TestFirstPartyStackMarketplaces:
@@ -112,7 +109,7 @@ class TestFirstPartyStackMarketplaces:
         source = declared[name]
         assert source["type"] == "marketplace"
         assert source["source"] == url
-        assert source["support"] == ["claude"]
+        assert source["support"] == ["claude", "codex"]
 
     @pytest.mark.parametrize("stack", sorted(EXPECTED))
     def test_the_stack_installs_the_expected_plugins(self, stack):
@@ -130,7 +127,7 @@ class TestTheCommandsTheseProduce:
 
     def _result(self, load_script, stacks):
         install_plugins = load_script("tooling/install_plugins.py")
-        config = {"agents": ["claude", "copilot", "hermes"], "stacks": stacks,
+        config = {"agents": ["claude", "copilot", "hermes", "codex"], "stacks": stacks,
                   "skillScope": "default"}
         result = install_plugins.install_skills(ROOT, config, dry_run=True)
         return install_plugins, result
@@ -148,4 +145,23 @@ class TestTheCommandsTheseProduce:
     def test_no_warnings_for_the_new_stacks(self, load_script):
         _, result = self._result(load_script, ["dotnet", "aspire"])
 
+        assert result["warnings"] == []
+
+    def test_codex_installs_marketplace_plugins_with_native_commands(self, load_script):
+        stacks = ["common", "python", "dotnet"]
+        install_plugins, result = self._result(load_script, stacks)
+        rendered = [install_plugins.printable(command) for command in result["commands"]]
+        expected = {}
+        for stack in stacks:
+            sources = {source["name"]: source for source in _sources(stack)}
+            for skill in _skills(stack):
+                source = sources[skill["source"]]
+                if source["type"] == "marketplace" and "codex" in source["support"]:
+                    expected.setdefault((source["name"], source["source"]), set()).add(
+                        skill["name"])
+        for (name, url), plugins in expected.items():
+            assert rendered.count(f"codex plugin marketplace add {url}") == 1
+            for plugin in plugins:
+                assert f"codex plugin add {plugin}@{name}" in rendered
+        assert "--scope" not in " ".join(rendered)
         assert result["warnings"] == []

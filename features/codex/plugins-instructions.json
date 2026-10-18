@@ -1,0 +1,13 @@
+{
+  "agent": "codex",
+  "instructions": {
+    "marketplace": {
+      "description": "Add a Codex-compatible marketplace, then install its plugin by name",
+      "scopeFlag": false,
+      "commands": [
+        "codex plugin marketplace add {source}",
+        "codex plugin add {name}@{sourceName}"
+      ]
+    }
+  }
+}

@@ -52,6 +52,17 @@ class TestInstallSkills:
             }
         }))
 
+        (features / "codex").mkdir(parents=True)
+        _test_write(features / "codex" / "plugins-instructions.json", json.dumps({
+            "agent": "codex",
+            "instructions": {
+                "marketplace": {"commands": [
+                    "codex plugin marketplace add {source}",
+                    "codex plugin add {name}@{sourceName}"
+                ], "scopeFlag": False}
+            }
+        }))
+
         (features / "hermes").mkdir(parents=True)
         _test_write(features / "hermes" / "plugins-instructions.json", json.dumps({
             "agent": "hermes",
@@ -73,6 +84,35 @@ class TestInstallSkills:
         cmds = [ip.printable(c) for c in result["commands"]]
         assert any("claude plugin marketplace add" in c for c in cmds)
         assert any("skill-a" in c for c in cmds)
+
+    def test_generates_codex_marketplace_commands_for_user_plugins(self, tmp_path, root, load_script):
+        ip = load_script("tooling/install_plugins.py")
+        fw = self._setup_framework(tmp_path, root)
+        sources = fw / "features/common/skills-source.json"
+        catalog = json.loads(sources.read_text())
+        catalog["sources"][0]["support"].append("codex")
+        sources.write_text(json.dumps(catalog))
+        config = {"agents": ["codex"], "stacks": ["common"], "skillScope": "default"}
+
+        result = ip.install_skills(fw, config, dry_run=True)
+
+        cmds = [ip.printable(c) for c in result["commands"]]
+        assert cmds.count("codex plugin marketplace add https://example.com/market") == 1
+        assert "codex plugin add skill-a@test-marketplace" in cmds
+
+    def test_codex_plugin_commands_do_not_receive_claude_scope_flag(
+            self, tmp_path, root, load_script):
+        ip = load_script("tooling/install_plugins.py")
+        fw = self._setup_framework(tmp_path, root)
+        sources = fw / "features/common/skills-source.json"
+        catalog = json.loads(sources.read_text())
+        catalog["sources"][0]["support"].append("codex")
+        sources.write_text(json.dumps(catalog))
+        config = {"agents": ["codex"], "stacks": ["common"], "skillScope": "local"}
+
+        result = ip.install_skills(fw, config, dry_run=True)
+
+        assert "--scope" not in " ".join(ip.printable(c) for c in result["commands"])
 
     def test_generates_hermes_commands(self, tmp_path, root, load_script):
         ip = load_script("tooling/install_plugins.py")
