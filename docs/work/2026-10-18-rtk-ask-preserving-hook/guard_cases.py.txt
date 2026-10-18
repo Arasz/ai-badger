@@ -23,6 +23,8 @@ CASES = [
     ("rules, codex missing", PUSH, None, "git status", False, False),
     ("subdir cwd, project rule", None, PUSH, "git push origin main", True, False),
     ("rule on a second line", PUSH, None, "git status\ngit push origin main", True, False),
+    ("rule elsewhere, env assignment", PUSH, None, "FOO=1 git status", True, False),
+    ("rule elsewhere, glob", PUSH, None, "git add *.py", True, False),
 ]
 
 for name, user, project, cmd, has_codex, expect in CASES:

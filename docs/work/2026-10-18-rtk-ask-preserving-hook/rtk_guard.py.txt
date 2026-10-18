@@ -14,6 +14,8 @@ from pathlib import Path
 
 CHAIN = {"&&", "||", ";", "|"}
 ASSIGN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
+KEYWORDS = {"if", "then", "elif", "else", "fi", "for", "while", "until", "do", "done", "case",
+            "esac", "select", "function", "{", "}", "!", "[[", "]]"}
 
 
 def rewrite(cmd, cwd, host=None):
@@ -27,7 +29,7 @@ def rewrite(cmd, cwd, host=None):
 
 
 def segments(cmd):
-    """The argv of each command in a plain chain, or None when the shell text is not one."""
+    """The argv of each command in a plain-word chain Codex splits itself, else None."""
     if "\n" in cmd or "\r" in cmd:
         return None
     try:
@@ -41,12 +43,13 @@ def segments(cmd):
         if tok in CHAIN:
             out.append(cur)
             cur = []
-        elif set(tok) <= set("&|;<>()"):
+        elif set(tok) <= set("&|;<>()") or set(tok) & set("$`*?"):
+            return None
+        elif not cur and (ASSIGN.match(tok) or tok in KEYWORDS):
             return None
         else:
             cur.append(tok)
     out.append(cur)
-    out = [s[next((i for i, t in enumerate(s) if not ASSIGN.match(t)), len(s)):] for s in out]
     return [s for s in out if s] or None
 
 

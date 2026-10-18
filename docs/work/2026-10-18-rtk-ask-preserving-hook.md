@@ -184,19 +184,22 @@ not compressed"), and answers anything else with 404.
 `rtk_guard.py.txt` runs `rtk rewrite` and emits the rewrite only when no host rule names the
 original command. Claude adapter: the F6 mode-A check (openclaw exit 3 means hand the original
 over). Codex adapter: find `.rules` files under `$CODEX_HOME` (default `~/.codex`) and under each
-`.codex/` from cwd up to the git root, split the original command into chain segments (dropping
-leading `NAME=value` words), and run `codex execpolicy check` on each. Any matched rule, of any
-decision, means hand the original over. It fails closed: when rule files exist but `codex` is
-missing, or the text is not a plain chain, the command passes through unrewritten. No rule files
+`.codex/` from cwd up to the git root, split the original command into chain segments, and run
+`codex execpolicy check` on each. Any matched rule, of any decision, means hand the original over. It fails closed: when rule files exist but `codex` is
+missing, or the text is not a chain of plain words (a leading `NAME=value`, a glob, control flow,
+a redirect or an expansion), the command passes through unrewritten. Codex itself does not split
+such text; it judges the whole `bash -lc` invocation, so a per-segment check would probe the wrong
+argv (Codex rules docs, "When Codex does not split the script"). No rule files
 means rewrite. Newlines are a fail-closed case in the Codex splitter, and the ordinary
-`rtk rewrite` call drops any inherited `RTK_REWRITE_HOST`. All 9 Codex cases pass: no rules; a
+`rtk rewrite` call drops any inherited `RTK_REWRITE_HOST`. All 11 Codex cases pass: no rules; a
 user `prompt` rule; a project `forbidden` rule; a rule for another command; a chain; an env
-assignment; codex missing; subdirectory cwd; a rule on a second line. All 5 Claude cases pass:
+assignment; codex missing; subdirectory cwd; a rule on a second line; an env assignment and a glob with an unrelated rule. All 5 Claude cases pass:
 `git push`, the chain and the second-line push left unchanged; `git status` rewritten; and no
-`allow` when the session already exports `RTK_REWRITE_HOST=openclaw`. Three cases went red before
-their fix: the env assignment (first draft), and the second-line command and inherited-variable
-cases (from the PR #591 review; the inherited variable made the guard emit `allow` for a
-command no rule covered). rtk's own Claude check already flags an ask rule on a second line
+`allow` when the session already exports `RTK_REWRITE_HOST=openclaw`. Five cases went red before
+their fix: the env assignment (first draft); the second-line command and inherited-variable
+cases (from the first PR #591 review; the inherited variable made the guard emit `allow` for a
+command no rule covered); and the assignment and glob with an unrelated rule (from the second
+review: the earlier draft stripped the assignment and rewrote, where now it fails closed). rtk's own Claude check already flags an ask rule on a second line
 (exit 3 under openclaw), so the newline gap was Codex-only.
 
 **Evidence:** `guard_cases.py.txt` (one temp repo and temp `CODEX_HOME` per case, Codex-shaped
