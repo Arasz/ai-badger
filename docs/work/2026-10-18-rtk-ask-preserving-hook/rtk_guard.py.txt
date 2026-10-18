@@ -18,6 +18,7 @@ ASSIGN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
 
 def rewrite(cmd, cwd, host=None):
     env = dict(os.environ)
+    env.pop("RTK_REWRITE_HOST", None)
     if host:
         env["RTK_REWRITE_HOST"] = host
     run = subprocess.run(["rtk", "rewrite", cmd], cwd=cwd, env=env,
@@ -27,6 +28,8 @@ def rewrite(cmd, cwd, host=None):
 
 def segments(cmd):
     """The argv of each command in a plain chain, or None when the shell text is not one."""
+    if "\n" in cmd or "\r" in cmd:
+        return None
     try:
         lex = shlex.shlex(cmd, posix=True, punctuation_chars=True)
         lex.whitespace_split = True

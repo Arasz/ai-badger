@@ -1,12 +1,16 @@
-PASS	no rules	git push origin main	-> rtk git push origin main	
-PASS	user prompt rule	git push origin main	-> (unchanged)	
-PASS	project forbidden rule	git push origin main	-> (unchanged)	
-PASS	rule elsewhere, other cmd	git status	-> rtk git status	
-PASS	rule in chain	git status && git push origin main	-> (unchanged)	
-PASS	rule, env assignment	FOO=1 git push origin main	-> (unchanged)	
-PASS	rules, codex missing	git status	-> (unchanged)	
-PASS	subdir cwd, project rule	git push origin main	-> (unchanged)	
-guard codex, one user rule: min=104 median=116 max=141 ms
-claude	git push origin main	-> (unchanged)
-claude	git status	-> {"hookSpecificOutput": {"hookEventName": "PreToolUse", "updatedInput": {"command": "rtk git status"}}}
-claude	git status && git push origin main	-> (unchanged)
+# codex adapter
+PASS	no rules	'git push origin main'	-> 'rtk git push origin main'	
+PASS	user prompt rule	'git push origin main'	-> '(unchanged)'	
+PASS	project forbidden rule	'git push origin main'	-> '(unchanged)'	
+PASS	rule elsewhere, other cmd	'git status'	-> 'rtk git status'	
+PASS	rule in chain	'git status && git push origin main'	-> '(unchanged)'	
+PASS	rule, env assignment	'FOO=1 git push origin main'	-> '(unchanged)'	
+PASS	rules, codex missing	'git status'	-> '(unchanged)'	
+PASS	subdir cwd, project rule	'git push origin main'	-> '(unchanged)'	
+PASS	rule on a second line	'git status\ngit push origin main'	-> '(unchanged)'	
+# claude adapter
+PASS	claude	ask rule	git push origin main	-> (unchanged)
+PASS	claude	no rule	git status	-> {"hookSpecificOutput": {"hookEventName": "PreToolUse", "updatedInput": {"command": "rtk git status"}}}
+PASS	claude	ask rule in chain	git status && git push origin main	-> (unchanged)
+PASS	claude	ask rule on a second line	git status;git push origin main	-> (unchanged)
+PASS	claude	inherited RTK_REWRITE_HOST, no rule	git status	-> {"hookSpecificOutput": {"hookEventName": "PreToolUse", "updatedInput": {"command": "rtk git status"}}}

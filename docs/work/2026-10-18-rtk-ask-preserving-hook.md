@@ -15,7 +15,8 @@ only, `--allowedTools Bash` as the broad allow, and a local bare remote for ever
 title: hook latency per Bash call, ms (15 runs each)
 native rtk hook claude: 12..12..14
 ask-preserving wrapper: 36..38..69
-rtk_guard codex, one rule file: 104..116..141
+rtk_guard codex, one rule file, run 1: 104..116..141
+rtk_guard codex, one rule file, run 2: 57..63..135
 codex execpolicy check, native binary: 11..11..20
 codex execpolicy check, npm launcher: 100..112..186
 ```
@@ -101,8 +102,11 @@ reason, "rtk rewrite". `~/.claude/settings.json` was unchanged across all five r
 and after).
 
 **Evidence:** `run.sh <name> <hook> <ask> <command>` with `case.py.txt`, rewiring
-`scratchpad/s13/R/.claude/settings.json` and a fresh bare remote per run; transcripts
-`v0…v4.jsonl`; summary lines in `live.txt`.
+`scratchpad/s13/R/.claude/settings.json` and a fresh bare remote per run, launched by
+`runclaude.sh`; summary lines in `live.txt`. Per-run extracts `v0-native-ask.events.jsonl` …
+`v4-B-status.events.jsonl` keep every tool call, tool result, the final `permission_denials` and the
+PostToolUse executed command, reduced from the full stream-json transcripts by `extract.py.txt`
+with the home and scratchpad paths replaced.
 
 ### F7 — The wrapper costs about 26 ms more per Bash call than rtk's native hook [MEASURED]
 
@@ -184,23 +188,31 @@ over). Codex adapter: find `.rules` files under `$CODEX_HOME` (default `~/.codex
 leading `NAME=value` words), and run `codex execpolicy check` on each. Any matched rule, of any
 decision, means hand the original over. It fails closed: when rule files exist but `codex` is
 missing, or the text is not a plain chain, the command passes through unrewritten. No rule files
-means rewrite. All 8 Codex cases passed: no rules; a user `prompt` rule; a project `forbidden`
-rule; a rule for another command; a chain; an env assignment; codex missing; subdirectory cwd. The
-env-assignment case failed on the first draft and passed after the fix. The 3 Claude cases repeat
-F6: `git push` and the chain unchanged, `git status` rewritten.
+means rewrite. Newlines are a fail-closed case in the Codex splitter, and the ordinary
+`rtk rewrite` call drops any inherited `RTK_REWRITE_HOST`. All 9 Codex cases pass: no rules; a
+user `prompt` rule; a project `forbidden` rule; a rule for another command; a chain; an env
+assignment; codex missing; subdirectory cwd; a rule on a second line. All 5 Claude cases pass:
+`git push`, the chain and the second-line push left unchanged; `git status` rewritten; and no
+`allow` when the session already exports `RTK_REWRITE_HOST=openclaw`. Three cases went red before
+their fix: the env assignment (first draft), and the second-line command and inherited-variable
+cases (from the PR #591 review; the inherited variable made the guard emit `allow` for a
+command no rule covered). rtk's own Claude check already flags an ask rule on a second line
+(exit 3 under openclaw), so the newline gap was Codex-only.
 
 **Evidence:** `guard_cases.py.txt` (one temp repo and temp `CODEX_HOME` per case, Codex-shaped
-`PreToolUse` payload) plus three Claude payloads against a temp repo with
-`ask: Bash(git push:*)`; results in `guard_cases.txt`.
+`PreToolUse` payload) and `claude_cases.sh` (temp repo and temp HOME with
+`ask: Bash(git push:*)`); results in `guard_cases.txt`.
 
-### F15 — The Codex adapter costs about 116 ms per Bash call, so it must call the native binary [MEASURED]
+### F15 — The Codex adapter costs 60–120 ms per Bash call, so it must call the native binary [MEASURED]
 
 `codex execpolicy check`: median 11 ms through the native binary, 112 ms through the npm launcher.
-The whole guard with one rule file: 104–141 ms, median 116 ms, across 15 runs. That is ten times rtk's native hook, so a shipped version wants the native binary
+The whole guard with one rule file, two runs of 15 calls each: median 116 ms (104–141), then
+median 63 ms (57–135) after the review fixes. The spread between runs is larger than any change
+the fixes could make, so read it as 60–120 ms. That is ten times rtk's native hook, so a shipped version wants the native binary
 path and one check per command.
 
 **Evidence:** `subprocess.run` loops, 15 runs each, Apple M4; results in `codex-latency.txt` and
-the last line of `guard_cases.txt`.
+`guard-latency.txt` (run 2; run 1 was printed to the session only), harness `glat.py.txt`.
 
 ### F16 — Replacing `rtk hook <agent>` in ai-badger is a one-function swap [READ]
 
@@ -233,8 +245,8 @@ carry the same copy.
   redirects, `bash -c` wrappers, and Claude's own compound-command splitting. F4 covers eight shapes
   and one chain.
 - The upstream fix: rtk's `hook claude` should emit `permissionDecision: "ask"`, or skip the
-  rewrite, when the openclaw check says an ask rule matched. Not filed yet; issue #1771 shows
-  pressure toward the opposite change.
+  rewrite, when the openclaw check says an ask rule matched. Filed as rtk-ai/rtk#4644, together with
+  the Codex case; issue #1771 shows pressure toward the opposite change.
 - Mode B with a sibling hook (anthropics/claude-code#75915) was not reproduced.
 - No live Codex run: codex is not logged in here. The Codex adapter is proven against
   `codex execpolicy check` offline. A real Codex session, with rtk running inside its sandbox and a

@@ -1,0 +1,45 @@
+"""Reduce a `claude -p --output-format stream-json` transcript to its permission-relevant events.
+
+Keeps tool_use inputs, tool_result text, the final result's permission_denials, and the PostToolUse
+log of executed commands; replaces $SCRATCH with <scratchpad> and the home directory with ~. Usage: extract.py <run.jsonl> <post.jsonl>
+"""
+import json
+import os
+import sys
+
+HOME = os.path.expanduser("~")
+SCRATCH = os.environ.get("SCRATCH", "/nonexistent")
+
+
+def scrub(value):
+    return json.loads(json.dumps(value).replace(SCRATCH, "<scratchpad>").replace(HOME, "~"))
+
+
+def events(path):
+    for line in open(path, encoding="utf-8"):
+        try:
+            event = json.loads(line)
+        except ValueError:
+            continue
+        if event.get("type") == "result":
+            yield {"result": event.get("subtype"), "permission_denials": event.get("permission_denials")}
+            continue
+        message = event.get("message")
+        content = message.get("content") if isinstance(message, dict) else None
+        for block in content or []:
+            if not isinstance(block, dict):
+                continue
+            if block.get("type") == "tool_use":
+                yield {"tool_use": block.get("name"), "input": block.get("input")}
+            elif block.get("type") == "tool_result":
+                text = block.get("content")
+                if isinstance(text, list):
+                    text = " ".join(c.get("text", "") for c in text if isinstance(c, dict))
+                yield {"tool_result": str(text)[:400], "is_error": block.get("is_error")}
+
+
+for out in events(sys.argv[1]):
+    print(json.dumps(scrub(out)))
+for line in open(sys.argv[2], encoding="utf-8"):
+    if line.strip():
+        print(json.dumps(scrub({"post_tool_use_executed": json.loads(line).get("command")})))

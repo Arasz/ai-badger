@@ -22,6 +22,7 @@ CASES = [
     ("rule, env assignment", PUSH, None, "FOO=1 git push origin main", True, False),
     ("rules, codex missing", PUSH, None, "git status", False, False),
     ("subdir cwd, project rule", None, PUSH, "git push origin main", True, False),
+    ("rule on a second line", PUSH, None, "git status\ngit push origin main", True, False),
 ]
 
 for name, user, project, cmd, has_codex, expect in CASES:
@@ -48,4 +49,4 @@ for name, user, project, cmd, has_codex, expect in CASES:
         out = json.loads(run.stdout)["hookSpecificOutput"] if run.stdout.strip() else None
         got = out["updatedInput"]["command"] if out else "(unchanged)"
         ok = bool(out) == expect
-        print(f"{'PASS' if ok else 'FAIL'}\t{name}\t{cmd}\t-> {got}\t{run.stderr.strip()[:80]}")
+        print(f"{'PASS' if ok else 'FAIL'}\t{name}\t{cmd!r}\t-> {got!r}\t{run.stderr.strip()[:80]}")

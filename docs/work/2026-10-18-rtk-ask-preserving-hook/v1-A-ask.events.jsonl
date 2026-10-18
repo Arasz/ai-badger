@@ -1,0 +1,3 @@
+{"tool_use": "Bash", "input": {"command": "git push origin main", "description": "Push local main to origin"}}
+{"tool_result": "Claude requested permissions to use Bash, but you haven't granted it yet.", "is_error": true}
+{"result": "success", "permission_denials": [{"tool_name": "Bash", "tool_use_id": "toolu_01MWXL6qQuEjjjS6dqy2Uuid", "tool_input": {"command": "git push origin main", "description": "Push local main to origin"}}]}

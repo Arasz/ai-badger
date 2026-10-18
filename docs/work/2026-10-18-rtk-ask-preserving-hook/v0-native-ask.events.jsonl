@@ -1,0 +1,4 @@
+{"tool_use": "Bash", "input": {"command": "git push origin main", "description": "Push local main to origin"}}
+{"tool_result": "To <scratchpad>/askfix/v0-native-ask.remote.git\n * [new branch]      main -> main\nok main", "is_error": false}
+{"result": "success", "permission_denials": []}
+{"post_tool_use_executed": "rtk git push origin main"}
