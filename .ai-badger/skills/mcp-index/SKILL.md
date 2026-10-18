@@ -208,6 +208,7 @@ client (`scripts/mcp_client.py`) — no hermes needed:
 ```bash
 python3 .ai-badger/skills/mcp-index/scripts/mcp_index.py init --target <project-root> --discover
 python3 .ai-badger/skills/mcp-index/scripts/mcp_index.py update --target <project-root> --discover --discover-timeout 30
+python3 .ai-badger/skills/mcp-index/scripts/mcp_index.py update --target <project-root> --discover --no-host-tools
 ```
 
 **It runs each server's configured command**, exactly as `claude mcp list` does when it
@@ -225,21 +226,71 @@ Where the command or URL comes from (`scripts/server_configs.py`), first match w
 | plugin | `plugin:<p>:<s>` → `~/.claude/plugins/installed_plugins.json` `<p>@<market>` install path's `.mcp.json` or `.claude-plugin/plugin.json` `mcpServers`; `${CLAUDE_PLUGIN_ROOT}` and `${CLAUDE_PLUGIN_DATA}` (`~/.claude/plugins/data/<p>-<market>`) expanded and set in the server's env, config env winning |
 | synced plugin | `plugin:<p>:<s>` → `~/.claude/plugins/synced/<org>_<user>/` (claude.ai-synced, "Dynamic config"): `manifest.json`'s `<p>~g<generation>` dir, else the highest `<p>~gN`, else bare `<p>`; same files and expansion as plugin, data dir `<p>-synced`. An installed plugin of the same name wins |
 
-Transports: **stdio** and **unauthenticated streamable HTTP** (static `headers` from the config are
-sent, `${VAR}` / `${VAR:-default}` expanded, only to that URL — redirects are refused). One stderr
-line per server says what happened: `enumerated N tool(s)`, `no config`, `needs authorization`,
-`timed out`, `failed: <reason>` (any error — a bad URL included — fails that server only), `not run:
-project server not approved in Claude Code`, or `not run: pending approval in Claude Code`. A stdio
-server runs in its own process group, which is killed afterwards, so an `npx`/`uvx` launcher's child
-does not outlive the call; a single message over 16 MiB is `failed: response too large`.
+Transports: **stdio** and **streamable HTTP without OAuth** (static `headers` from the config are
+sent, `${VAR}` / `${VAR:-default}` expanded, only to that URL — redirects are refused). A
+`headersHelper` runs the way Claude Code runs it: a shell command, given up on after 10s, whose
+stdout must be a JSON object of string headers that override static ones of the same name. Its cwd
+is `~/.claude` for a user-scope server, the project directory for a `.mcp.json` or local-scope one,
+and the plugin root for a plugin's; it gets `CLAUDE_CODE_MCP_SERVER_NAME` and `_URL` (and
+`CLAUDE_PLUGIN_ROOT`). A project or plugin helper runs **without credential-looking variables**
+(names with TOKEN, SECRET, PASSWORD, KEY or AUTH). A project or local helper runs only once that
+exact directory has accepted Claude Code's trust dialog (`projects[<dir>].hasTrustDialogAccepted`
+in `~/.claude.json`; a parent's trust does not count). Until then the server connects with its
+static headers alone. A failing helper fails that server only. One stderr line per server says what
+happened: `enumerated N tool(s)`, `no config`, `needs authorization (HTTP 401)` or `forbidden (HTTP
+403)` (with the challenge's `resource_metadata` and `scope` when the server sent them, and the fix:
+authenticate the server in Claude Code via `/mcp`, then rerun with host tools on), `timed out`,
+`failed: <reason>` (any error — a bad URL or a failing `headersHelper` included — fails that server
+only), `not run: project server not approved in Claude Code`, or `not run: pending approval in Claude
+Code`. A stdio server runs in its own process group, which is killed afterwards, so an `npx`/`uvx`
+launcher's child does not outlive the call; a single message over 16 MiB is `failed: response too
+large`.
 
-What stays unenumerated, keeps `tools_known` False and falls back to the catalog seed:
-`claude.ai <Name>` connectors (OAuth, host-managed — named `not enumerated: host-managed connector
-(OAuth)`), servers needing OAuth, legacy `sse` servers, managed enterprise config (not read), and
-any server that timed out or failed **anywhere** in its `tools/list` pages — a partial answer changes
-nothing. A server with no config is then offered to `hermes mcp test`, which **exits 0 even when it
-fails**, so only its printed `Tools discovered` block is treated as an answer (a missing hermes is
-just a note).
+### Host tools — names from Claude Code's own init event
+
+What the client cannot reach — servers answering 401/403, `claude.ai <Name>` connectors, servers
+with no config, or ones that failed — is then read from **Claude Code's headless init event**, when
+`claude` is on PATH (or `$MCP_INDEX_CLAUDE` names it; empty disables). `scripts/host_tools.py` runs,
+in `--target`:
+
+```bash
+claude -p --output-format stream-json --verbose --no-session-persistence \
+  --settings '{"disableAllHooks": true}' /cost
+```
+
+It reads stdout up to the `system/init` event and then kills the process group. The deadline is
+`--host-tools-timeout` (default 60s), and a line over 16 MiB is refused. It is **on by default**;
+`--no-host-tools` turns it off, and `--host-tools` asks for it explicitly, saying so if no `claude`
+is found. Measured on Claude Code 2.1.302 (2026-10-18):
+
+| cost | measured |
+|---|---|
+| wall time | ~5.5s to the init event (it waits for the host's own MCP connections) |
+| model turn / billing | none: `/cost` is a local command, 0 API requests, `total_cost_usd: 0` |
+| hooks | none: `disableAllHooks` ran 0 settings hooks (43 in the same project without it) |
+| transcript | none under `~/.claude/projects` (`--no-session-persistence`) |
+| other writes | Claude Code's own `~/.claude.json` bookkeeping and plugin-cache refresh, as any start does |
+
+The host does the authenticating, so ai-badger handles no credentials and never reads Claude Code's
+token stores. The event's tool names are `mcp__<server>__<tool>`, the server name with every
+character outside `[A-Za-z0-9_-]` turned into `_` (`claude.ai Exa` → `claude_ai_Exa`,
+`plugin:context7:context7` → `plugin_context7_context7`). Two names that normalize alike, or a tool
+two servers could own, refuse every server involved, because guessing would misfile tools. A server
+the event reports **`connected`** is the whole truth, like a direct answer: `tools_known` True, so
+seeded tools it lacks go `removed`. The event carries **names only**, so intents come from the
+catalog when it covers the tool, else a `TODO` heuristic, never an invented description. Any other
+host status (`needs-auth`, `failed`, `pending`) leaves the server's tools untouched and is noted
+(`no config; claude init reports needs-auth`), and becomes its status when the listing had none. A
+direct answer always wins over the host, servers refused for approval stay refused, and the host
+source never makes an unnamed source `absent`. A host run that fails (no init event, timeout,
+`claude` exiting) fails only the host source: `(claude init failed: <reason>)`.
+
+What stays unenumerated keeps `tools_known` False and falls back to the catalog seed. That covers
+servers neither the client nor the host could reach, legacy `sse` servers, managed enterprise config
+(not read), and any server that timed out or failed **anywhere** in its `tools/list` pages: a
+partial answer changes nothing. A server with no config is then offered to `hermes mcp test`, which
+**exits 0 even when it fails**, so only its printed `Tools discovered` block is treated as an answer
+(a missing hermes is just a note).
 
 A server that **did** answer is the whole truth: its tools replace the catalog seed, a seeded tool it
 did not list goes `status: removed` (curation kept) — though sources the listing does not name stay
