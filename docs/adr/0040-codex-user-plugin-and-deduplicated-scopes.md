@@ -25,6 +25,9 @@ hooks, and MCP configuration must use a Codex-supported interface.
 The memory-first gate runs synchronously on `PreToolUse` for shell search calls. Its denial
 uses Codex's native `hookSpecificOutput` response. A `PostToolUse` observer credits a memory
 search only after it succeeds; this observer records compliance but cannot prevent a search.
+The Codex PreToolUse adapter allows a search when the shared lookup reports that the backend
+is unavailable. A reachable backend with no hits still denies the first sighting. Other
+harnesses retain the shared gate policy.
 
 ## Consequences
 

@@ -31,7 +31,7 @@
           },
           {
             "type": "command",
-            "command": "python3 \"${PLUGIN_ROOT}/skills/ai-raccoon-memory/scripts/memory_first_gate_hook.py\"",
+            "command": "python3 \"${PLUGIN_ROOT}/features/codex/adjustments/memory_first_gate_codex_hook.py\" \"${PLUGIN_ROOT}/skills/ai-raccoon-memory/scripts/memory_first_gate_hook.py\"",
             "timeout": 10
           }
         ]

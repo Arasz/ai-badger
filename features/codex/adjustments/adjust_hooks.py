@@ -88,17 +88,26 @@ def adjust(context: dict[str, Any]) -> dict[str, Any]:
     declined = set(context['config'].get('exclude', {}).get('skills', []))
     is_tool = _is_tool(context['framework_root'])
     gate_adapter = context['target_dir'] / 'hooks/codex_memory_first_gate_post_hook.py'
+    pre_gate_adapter = context['target_dir'] / 'hooks/codex_memory_first_gate_hook.py'
     if selected and 'ai-raccoon-memory/scripts/memory_first_gate_post_hook.py' in SCRIPTS:
         adapter_source = (context['framework_root'] /
                           'features/codex/adjustments/memory_first_gate_post_hook.py')
         if adapter_source.is_file():
             gate_adapter.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(adapter_source, gate_adapter)
+    if selected and 'ai-raccoon-memory/scripts/memory_first_gate_hook.py' in SCRIPTS:
+        adapter_source = (context['framework_root'] /
+                          'features/codex/adjustments/memory_first_gate_codex_hook.py')
+        if adapter_source.is_file():
+            pre_gate_adapter.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(adapter_source, pre_gate_adapter)
     for script, (event, matcher) in (SCRIPTS.items() if selected else []):
         if script.split('/', maxsplit=1)[0] in declined:
             continue
         is_credit_observer = script.endswith('memory_first_gate_post_hook.py')
-        path = gate_adapter if is_credit_observer else context['target_dir'] / 'skills' / script
+        is_memory_gate = script.endswith('memory_first_gate_hook.py')
+        path = (gate_adapter if is_credit_observer else pre_gate_adapter if is_memory_gate
+                else context['target_dir'] / 'skills' / script)
         if not path.is_file():
             continue
         for group in incoming.get(event, []):
@@ -106,11 +115,15 @@ def adjust(context: dict[str, Any]) -> dict[str, Any]:
             if handler is None:
                 continue
             path_argument = ('hooks/codex_memory_first_gate_post_hook.py'
-                             if is_credit_observer else f'skills/{script}')
+                             if is_credit_observer else 'hooks/codex_memory_first_gate_hook.py'
+                             if is_memory_gate else f'skills/{script}')
             command = (PREFIX + 'python3 -I -c ' + shlex.quote(RUNNER) + ' '
                        + shlex.quote(str(context['target'].resolve())) + ' '
                        + shlex.quote(path_argument))
             if is_credit_observer:
+                shared_path = context['target_dir'] / 'skills' / script
+                command += ' ' + shlex.quote(str(shared_path.resolve()))
+            elif is_memory_gate:
                 shared_path = context['target_dir'] / 'skills' / script
                 command += ' ' + shlex.quote(str(shared_path.resolve()))
             delivered = {'type': 'command', 'command': command}

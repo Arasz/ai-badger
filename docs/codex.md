@@ -92,12 +92,15 @@ were delivered:
 | `prompt-markers/scripts/user_prompt_hook.py` | `UserPromptSubmit` | All submitted prompts |
 | `git-work/scripts/git_config_health_hook.py` | `SessionStart` | `startup|resume` |
 | `git-work/scripts/git_internals_guard.py` | `PreToolUse` | `^Bash$` |
-| `ai-raccoon-memory/scripts/memory_first_gate_hook.py` | `PreToolUse` | `^Bash$` |
+| Codex memory gate adapter for `ai-raccoon-memory` | `PreToolUse` | `^Bash$` |
 | `ai-raccoon-memory/scripts/memory_first_gate_post_hook.py` | `PostToolUse` | Memory search MCP tool names |
 
 The native shell tool matches `Bash`, including `exec_command`. The Codex PostToolUse adapter
-skips failed MCP results so an unsuccessful memory search cannot credit its query. User hook handlers are
-preserved; re-scaffolding refreshes owned registrations and removes declined ones.
+skips failed MCP results so an unsuccessful memory search cannot credit its query. Its
+PreToolUse adapter allows the search when the memory lookup is unavailable, while a reachable
+backend with no hits still enforces the gate. Other hosts keep the shared gate's existing
+policy. User hook handlers are preserved; re-scaffolding refreshes owned registrations and
+removes declined ones.
 Deselecting Codex removes its managed MCP block, recognized hook handlers, managed persona
 TOMLs and the `.agents/skills/` links that point at ai-badger's own skills, even while
 `codex` remains a detected stack; operator entries stay.

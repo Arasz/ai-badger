@@ -44,6 +44,9 @@ def test_codex_plugin_publishes_user_skills_and_native_hooks(root):
                 for handler in group['hooks']]
     assert all('${PLUGIN_ROOT}' in command for command in commands)
     assert all('CLAUDE_PROJECT_DIR' not in command for command in commands)
+    assert any('features/codex/adjustments/memory_first_gate_codex_hook.py' in command
+               and 'skills/ai-raccoon-memory/scripts/memory_first_gate_hook.py' in command
+               for command in commands)
     from importlib.util import spec_from_file_location, module_from_spec
     spec = spec_from_file_location('codex_adjust_hooks',
         root / 'features/codex/adjustments/adjust_hooks.py')
@@ -260,6 +263,7 @@ def test_memory_first_gate_uses_native_pre_tool_hook(load_script, tmp_path, monk
     arm = load_script('features/codex/adjustments/adjust_hooks.py')
     hook = load_script(
         'features/common/skills/ai-raccoon-memory/scripts/memory_first_gate_hook.py')
+    adapter = load_script('features/codex/adjustments/memory_first_gate_codex_hook.py')
     target_dir = tmp_path / '.ai-badger'
     scripts = target_dir / 'skills/ai-raccoon-memory/scripts'
     scripts.mkdir(parents=True)
@@ -270,7 +274,9 @@ def test_memory_first_gate_uses_native_pre_tool_hook(load_script, tmp_path, monk
 
     hooks = json.loads((tmp_path / '.codex/hooks.json').read_text())['hooks']
     pre = next(group for group in hooks['PreToolUse'] if group.get('matcher') == '^Bash$')
-    assert 'memory_first_gate_hook.py' in pre['hooks'][0]['command']
+    assert (target_dir / 'hooks/codex_memory_first_gate_hook.py').is_file()
+    assert 'codex_memory_first_gate_hook.py' in pre['hooks'][0]['command']
+    assert 'skills/ai-raccoon-memory/scripts/memory_first_gate_hook.py' in pre['hooks'][0]['command']
 
     seen = {}
     denial = {'hookSpecificOutput': {'hookEventName': 'PreToolUse',
@@ -282,10 +288,44 @@ def test_memory_first_gate_uses_native_pre_tool_hook(load_script, tmp_path, monk
     monkeypatch.setattr('sys.stdin', __import__('io').StringIO(json.dumps({
         'hook_event_name': 'PreToolUse', 'tool_name': 'Bash',
         'tool_input': {'command': 'rg secret'}, 'cwd': str(tmp_path)})))
-    assert hook.main() == 0
+    shared_path = (Path(__file__).resolve().parents[1] /
+                   'features/common/skills/ai-raccoon-memory/scripts/memory_first_gate_hook.py')
+    assert adapter.main([str(shared_path)]) == 0
     assert json.loads(capsys.readouterr().out) == denial
     assert seen == {'host': 'claude', 'tool_name': 'Bash',
                     'tool_input': {'command': 'rg secret'}, 'cwd': str(tmp_path)}
+
+
+@pytest.mark.parametrize(('backend_result', 'should_deny'), [
+    (None, False),
+    ('', True),
+    ('matching memory', True),
+])
+def test_codex_memory_gate_fails_open_only_when_backend_is_unavailable(
+        load_script, monkeypatch, capsys, backend_result, should_deny):
+    adapter = load_script('features/codex/adjustments/memory_first_gate_codex_hook.py')
+    shared_path = (Path(__file__).resolve().parents[1] /
+                   'features/common/skills/ai-raccoon-memory/scripts/memory_first_gate_hook.py')
+    gate = load_script(
+        'features/common/skills/ai-raccoon-memory/scripts/memory_first_gate.py')
+    monkeypatch.setitem(sys.modules, 'memory_first_gate', gate)
+    monkeypatch.setattr(gate, 'project_id', lambda _cwd: 'project')
+    monkeypatch.setattr(gate, '_persistable', lambda _project: True)
+    monkeypatch.setattr(gate, 'unsearched', lambda _project, patterns: list(patterns))
+    monkeypatch.setattr(gate, 'remember', lambda *_args: True)
+    monkeypatch.setattr(gate, 'memory_hits', lambda *_args, **_kwargs: backend_result)
+    monkeypatch.setattr('sys.stdin', __import__('io').StringIO(json.dumps({
+        'hook_event_name': 'PreToolUse', 'tool_name': 'Bash',
+        'tool_input': {'command': 'rg example'}, 'cwd': '/repo'})))
+
+    assert adapter.main([str(shared_path)]) == 0
+
+    output = capsys.readouterr().out
+    assert bool(output) is should_deny
+    if should_deny:
+        decision = json.loads(output)['hookSpecificOutput']
+        assert decision['hookEventName'] == 'PreToolUse'
+        assert decision['permissionDecision'] == 'deny'
 
 
 def test_memory_first_gate_post_hook_credits_codex_mcp_search(load_script, monkeypatch):
