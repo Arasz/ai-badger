@@ -642,14 +642,16 @@ def cmd_update(target: str, from_json: Optional[str] = None,
         return cmd_init(target, from_json, host, discover, discover_timeout=discover_timeout)
 
     servers = _fetch_mcp_tools(from_json, host, target)
+    # A listing with no tool detail of its own cannot tell "this server is gone" from "this is a
+    # different host's listing", and calling it gone marks every tool in the source removed
+    # (issue #188). Decided before --discover: enumerating a named server proves its tools, not
+    # that the listing names every server.
+    absence_is_evidence = hl.carries_tool_detail(servers)
     if discover:
         _discover_tools(servers, target, discover_timeout)
     catalog = load_catalog(FRAMEWORK_ROOT)
     _note_missing_catalog(catalog)
     listed = {s.get("name", ""): s for s in servers}
-    # A listing with no tool detail cannot tell "this server is gone" from "this is a different
-    # host's listing", and calling it gone marks every tool in the source removed (issue #188).
-    absence_is_evidence = hl.carries_tool_detail(servers)
 
     changes = 0
     redescribed: list[str] = []

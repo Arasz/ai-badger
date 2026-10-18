@@ -218,3 +218,22 @@ def test_update_discover_from_another_cwd_lists_the_targets_servers(tmp_path, lo
     assert names == ["fake"]
     assert _source(target, "fake")["status"] == "ok"
     assert "solo" in _source(target, "fake")["tools"]
+
+
+def test_enumeration_does_not_make_unnamed_sources_absent(tmp_path, load_script, monkeypatch):
+    """Enumerating Y proves Y's tools, not that the listing names every server: a source the
+    listing does not name (here a hermes-sourced X) stays untouched."""
+    mod = load_script(SCRIPT)
+    _no_hermes(mod, monkeypatch)
+    _mcp_json(tmp_path, y="solo")
+    native = json.dumps({"servers": [
+        {"name": "x", "tools": [{"name": "xt", "description": "Hermes-listed tool."}]},
+        {"name": "y", "tools": [], "tools_known": False}]})
+    assert mod.main(["init", "--target", str(tmp_path), "--from-json", native]) == 0
+    before = _source(tmp_path, "x")
+
+    assert mod.main(["update", "--target", str(tmp_path), "--discover",
+                     "--from-json", _names_only("y")]) == 0
+
+    assert _source(tmp_path, "x") == before
+    assert "solo" in _source(tmp_path, "y")["tools"]

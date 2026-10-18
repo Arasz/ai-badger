@@ -109,7 +109,9 @@ and the tools that changed are printed by name. Takes `--host` like `init`.
 A listing that carries **no tool detail at all** (every source but `hermes mcp list --json`) cannot
 tell "this server is gone" from "this is another host's listing", so a source it does not name is
 **left untouched** — same status, same tools — and named in the output. Only a listing that carries
-tools can move a source to `absent` and its tools to `removed`.
+tools *natively* (`hermes mcp list --json`, `--from-json`) can move a source to `absent` and its
+tools to `removed`; tools filled in by `--discover` do not count, since enumerating a named server
+says nothing about the servers the listing left out.
 
 A server such a listing **does** name is **seeded from the mcp catalog**: the catalog stands in for
 a host that declined to enumerate, so a curated server is not stranded with `tools: {}`. The seed
@@ -236,7 +238,8 @@ fails**, so only its printed `Tools discovered` block is treated as an answer (a
 just a note).
 
 A server that **did** answer is the whole truth: its tools replace the catalog seed, a seeded tool it
-did not list goes `status: removed` (curation kept), and a failing `claude mcp list` phrase for it
+did not list goes `status: removed` (curation kept) — though sources the listing does not name stay
+untouched, and a failing `claude mcp list` phrase for it
 (`Failed to connect`) is dropped, so its status is `ok`.
 
 If no source answers, both commands **refuse** and print what each one said — a missing CLI, a
