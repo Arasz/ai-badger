@@ -7,6 +7,7 @@ rtk does not recognise ai-badger's guarded hook. Running `rtk init` for an agent
 wires adds a duplicate hook, and an agent already wired user-level (`rtk init -g`, a global pi
 extension) should not be opted in here.
 - **Claude:** wired through a guard; a command a `permissions.ask` rule names runs unrewritten.
+- **Claude user scope:** `scripts/user_hook.py --apply` writes the guard inline; re-run on upgrade.
 - **Codex:** not wired yet; rtk's own hook hides commands from Codex rules, approval and classifier.
 - **Privacy:** rtk keeps every proxied command in a plaintext `history.db` for 90 days. Set
   `tracking.enabled=false`, move it with `RTK_DB_PATH`, or turn recall off with `RTK_RECALL=0`.

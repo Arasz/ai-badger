@@ -19,6 +19,7 @@ When cutting a release:
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
+| 0.198.0 | [the user-scope rtk guard hook no longer depends on the checkout](0.198.0-rtk-user-hook.md) |
 | 0.197.1 | [scaffolded `$schema` paths resolve; `open_pr.py` resumes a failed run](0.197.1-schema-paths-and-open-pr-resume.md) |
 | 0.197.0 | [0.197.0: an rtk guard hook keeps Claude and Codex rules on the original command](0.197.0-rtk-guard-hook.md) |
 | 0.196.1 | [manual checklist: drop the chmod 000 decoy from the watch catch-up item](0.196.1-manual-checklist-chmod-decoy.md) |

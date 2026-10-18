@@ -108,6 +108,7 @@ whatever configuration produces.**
    agent, not an assumption.
 6. **ai-badger proposes user-global configuration; it never writes it.** It may write
    project-scoped files it owns. `.mcp.json` stops shipping.
+   (Narrowed by ADR-0039 decision 11: an operator-run command with an explicit flag may write it.)
 7. **The index records server *status*, not just tools.** Dropping zero-tool servers (#145)
    collapsed `enabled: false` and enabled-but-not-running into one silence with opposite
    remedies — the fourth instance of that failure in this repository.
