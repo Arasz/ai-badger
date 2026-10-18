@@ -128,5 +128,31 @@ def test_each_guard_is_load_bearing(tool_hooks, tmp_path, mutate, body, use_stub
     assert (bad.returncode, bad.stdout, bad.stderr) != (0, "", "")
 
 
+PROGRAM = 'import sys; print(sys.stdin.read().replace("git", "rtk git") + "|" + sys.argv[1])'
+
+
+def test_a_program_form_runs_the_inlined_source_with_the_arg_and_stdin(tool_hooks, tmp_path):
+    bin_dir = _stub(tmp_path, "exit 1")
+    cmd = tool_hooks.guarded_command("rtk", "codex", PROGRAM)
+    result = _run(cmd, bin_dir)
+    assert (result.returncode, result.stdout) == (0, HOOK_JSON.replace("git", "rtk git") + "|codex")
+    assert "rtk hook" not in cmd
+    assert not (tmp_path / "args").exists(), "the program form must not call rtk hook"
+
+
+def test_a_program_form_keeps_the_marker_and_the_rtk_guard(tool_hooks):
+    cmd = tool_hooks.guarded_command("rtk", "claude", PROGRAM)
+    assert tool_hooks.is_ours(cmd)
+    assert cmd.startswith("env AI_BADGER_TOOL=rtk RTK_TELEMETRY_DISABLED=1 sh -c "
+                          "'command -v rtk >/dev/null 2>&1 || exit 0; ")
+    assert _run(cmd).stdout == ""
+
+
+def test_a_program_with_single_quotes_survives_the_shell(tool_hooks, tmp_path):
+    program = """print('{"q": "it' + "'" + 's"}')"""
+    result = _run(tool_hooks.guarded_command("rtk", "claude", program), _stub(tmp_path, "exit 1"))
+    assert result.stdout == '{"q": "it\'s"}', result.stderr
+
+
 def test_rtk_is_not_found_on_the_bare_test_path():
     assert not any(os.path.exists(f"{d}/rtk") for d in ("/usr/bin", "/bin"))

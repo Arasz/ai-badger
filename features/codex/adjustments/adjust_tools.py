@@ -10,13 +10,16 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from codex_paths import symlink_parent  # pylint: disable=wrong-import-position
 
 EVENT = 'PreToolUse'
-PROPOSAL = ('{tool} is not wired for Codex: its hook answers permissionDecision allow, so a '
-            'rewritten command skips the Codex approval prompt and its safe/dangerous classifiers. '
-            'A local `{tool} init --{arg}` edits the generated AGENTS.md; `{tool} init -g --{arg}` '
-            'wires it user-wide, for every project. Run it only if that approval does not matter.')
-NOTE = ('Codex tool hooks need project trust and /hooks approval; rtk-wrapped commands are '
-        'auto-allowed (permissionDecision allow) and bypass the Codex approval prompt and its '
-        'safe/dangerous classifiers; optional: if rtk history fails with SQLITE_CANTOPEN in the '
+PROPOSAL = ('{tool} is not wired for Codex yet: its guard keeps Codex rules judging the original '
+            'command, but no live Codex session has run it. Its own hook, which `{tool} init -g '
+            '--{arg}` wires user-wide, for every project, rewrites a command before Codex matches '
+            'its prompt and forbidden rules, so the approval prompt and the safe/dangerous '
+            'classifier see the rewrite; a local `{tool} init --{arg}` edits the generated '
+            'AGENTS.md. Run either only if that approval does not matter.')
+NOTE = ('Codex tool hooks need project trust and /hooks approval; the guard rewrites a command '
+        'only when no Codex rule names it, with the permissionDecision allow Codex requires '
+        'beside a rewrite, so the approval prompt and the safe/dangerous classifier see the '
+        'rtk-prefixed form; optional: if rtk history fails with SQLITE_CANTOPEN in the '
         'workspace-write sandbox, add rtk\'s data directory (~/Library/Application Support/rtk '
         'on macOS, ~/.local/share/rtk on Linux) to [sandbox_workspace_write] writable_roots in '
         'config.toml yourself; config.toml is not changed')
