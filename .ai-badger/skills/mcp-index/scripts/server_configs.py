@@ -19,6 +19,7 @@ host-managed, and managed enterprise config is not read: both resolve to no spec
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from typing import Any, Dict, NamedTuple, Optional, Set, Tuple
 
@@ -150,7 +151,8 @@ def _add_plugin(configs: Dict[str, Spec], plugin: str, root: str, data: str) -> 
     plugin_vars = {PLUGIN_ROOT_VAR: root, PLUGIN_DATA_VAR: data}
     for name, spec in _plugin_servers(Path(root)).items():
         spec = _substitute(spec, plugin_vars)
-        spec["env"] = {**plugin_vars, **(spec.get("env") or {})}
+        env = spec.get("env")
+        spec["env"] = {**plugin_vars, **(env if isinstance(env, dict) else {})}
         configs.setdefault(f"plugin:{plugin}:{name}", spec)
 
 
@@ -175,18 +177,37 @@ def _generation(directory: Path, plugin: str) -> Optional[int]:
     return int(suffix) if directory.name.startswith(prefix) and suffix.isdigit() else None
 
 
+def _plain_name(name: str) -> bool:
+    """A single path segment: the synced manifest is untrusted, so no `..`, separator or root."""
+    return (bool(name) and name not in (".", "..") and name == Path(name).name
+            and os.sep not in name and not (os.altsep and os.altsep in name))
+
+
+def _inside(account: Path, directory: Path) -> bool:
+    """A real dir that, symlinks resolved, still sits inside the account dir."""
+    try:
+        return directory.is_dir() and directory.resolve().is_relative_to(account.resolve())
+    except (OSError, RuntimeError):
+        return False
+
+
 def _synced_root(account: Path, plugin: str, generation: Any) -> Optional[Path]:
-    """The manifest's `<plugin>~g<generation>` dir, else the highest `~gN`, else bare `<plugin>`."""
+    """The manifest's `<plugin>~g<generation>` dir, else the highest `~gN`, else bare `<plugin>`.
+
+    Every candidate must resolve inside `account`; one that escapes it is skipped.
+    """
+    if not _plain_name(plugin):
+        return None
     if isinstance(generation, int) and not isinstance(generation, bool):
         named = account / f"{plugin}{GENERATION_MARK}{generation}"
-        if named.is_dir():
+        if _inside(account, named):
             return named
-    generations = [(n, d) for d in account.iterdir() if d.is_dir()
+    generations = [(n, d) for d in account.iterdir() if _inside(account, d)
                    for n in [_generation(d, plugin)] if n is not None]
     if generations:
         return max(generations)[1]
     bare = account / plugin
-    return bare if bare.is_dir() else None
+    return bare if _inside(account, bare) else None
 
 
 def _synced_roots(home: Path) -> Dict[str, Tuple[str, str]]:

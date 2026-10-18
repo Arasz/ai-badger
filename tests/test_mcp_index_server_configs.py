@@ -339,3 +339,47 @@ def test_a_plugin_config_env_wins_over_the_host_set_plugin_vars(sc, tmp_path):
 
     assert spec["env"]["CLAUDE_PLUGIN_DATA"] == "/custom/data"
     assert spec["env"]["CLAUDE_PLUGIN_ROOT"] == "/custom/root"
+
+
+@pytest.mark.parametrize("hostile", ["../../../../../outside", "ABSOLUTE", "..", ".", "a/b", ""])
+def test_a_manifest_name_that_is_not_a_plain_dir_name_is_skipped(sc, tmp_path, hostile):
+    """The synced manifest is untrusted: a name must not lead outside the account dir."""
+    home, target = _dirs(tmp_path)
+    outside = tmp_path / "outside"
+    _write(outside / ".mcp.json", {"evil": _stdio("evil")})
+    _write(outside / "x~g1" / ".mcp.json", {"evil": _stdio("evil")})
+    name = str(outside) if hostile == "ABSOLUTE" else hostile
+    _synced(home, {"browser-use~g2": "/bin/g2"},
+            manifest=[_entry(name, 1), _entry("browser-use", 2)])
+
+    configs = sc.load(target, home)
+
+    assert not [k for k, s in configs.specs.items() if s.get("command") == "/bin/evil"]
+    assert sc.lookup(configs, "plugin:browser-use:browser-use")[0]["command"] == "/bin/g2"
+
+
+@pytest.mark.parametrize("link", ["evil", "evil~g3"])
+def test_a_synced_plugin_dir_symlinked_outside_the_account_is_skipped(sc, tmp_path, link):
+    home, target = _dirs(tmp_path)
+    outside = tmp_path / "outside"
+    _write(outside / ".mcp.json", {"evil": _stdio("evil")})
+    account = _synced(home, {"browser-use~g2": "/bin/g2"},
+                      manifest=[_entry("evil", 3), _entry("browser-use", 2)])
+    (account / link).symlink_to(outside, target_is_directory=True)
+
+    configs = sc.load(target, home)
+
+    assert sc.lookup(configs, "plugin:evil:evil")[0] is None
+    assert sc.lookup(configs, "plugin:browser-use:browser-use")[0]["command"] == "/bin/g2"
+
+
+@pytest.mark.parametrize("env", [["A=1"], "A=1", 3])
+def test_a_plugin_server_with_a_non_map_env_still_resolves(sc, tmp_path, env):
+    home, target = _dirs(tmp_path)
+    root = tmp_path / "plugins" / "graph"
+    _write(root / ".mcp.json", {"graph": {"command": "/bin/x", "env": env}})
+    _plugin(home, "p@m", root)
+
+    spec, _ = sc.lookup(sc.load(target, home), "plugin:p:graph")
+
+    assert spec["env"]["CLAUDE_PLUGIN_ROOT"] == str(root)
