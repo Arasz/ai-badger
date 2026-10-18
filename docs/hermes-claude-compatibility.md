@@ -181,6 +181,7 @@ hermes cron create "0 9 * * *" \
 - Pipes through a user's `statusline.sh` script
 - Captures rate limits, context window %, model info
 - Persists to the `statusline` store in the tracking DB
+- Vestigial since 0.199.0: the usage-limit probe that read this store is gone, so the capture has no reader. Consumers whose `settings.statusLine` still points at it keep working, but nothing consumes what it records
 
 **Hermes** — three approaches:
 
@@ -268,7 +269,7 @@ See Hermes docs for the full handler example (posts to Telegram when iteration >
 | Per-turn context injection | Yes (UserPromptSubmit) | Yes (pre_llm_call → context return) | Plugin hook |
 | Status line (model/limits/context) | Yes (statusLine) | Partial (TUI bar + /usage) | pre_llm_call enrichment |
 | Plugin auto-update | Yes (plugin update) | Yes (hermes skills update) | Same concept |
-| Rate limit visibility | statusLine capture | `/usage` (credential pools) | Not needed |
+| Rate limit visibility | statusLine capture (vestigial since 0.199.0, no reader) | `/usage` (credential pools) | Not needed |
 | Unfinished task notice | Custom (session_start_hook.py) | session_search + /resume | Document, don't reimplement |
 
 ## ai-badger framework surface for Hermes
@@ -279,7 +280,7 @@ What the framework ships and where:
 |---|---|---|
 | Drift notice | `hooks/hooks.json` + `drift_notice_hook.py` | `features/common/hooks/ai_badger_hooks.py`, installed into `~/.hermes/plugins/` by `features/hermes/adjustments/adjust_hooks.py` |
 | Session tracking | `session_start_hook.py` in scaffolded `.ai-badger/` | Documented in task extension; replaced by native Hermes features |
-| Statusline capture | `statusline_capture.py` | `/usage` + `pre_llm_call` enrichment in task extension |
+| Statusline capture | `statusline_capture.py` (vestigial since 0.199.0) | `/usage` + `pre_llm_call` enrichment in task extension |
 | User statusline | `statusline.sh` (~/.claude/) | TUI status bar + `/statusbar` + `display.show_cost` |
 
 ### Learned-skill sync
