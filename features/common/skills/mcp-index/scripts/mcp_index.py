@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# pylint: disable=too-many-lines  # one CLI module per skill; _bootstrap_lib is duplicated by design
 """mcp-index: manage the MCP tool index for ai-badger projects.
 
 Reads whichever host CLI still lists MCP servers (`host_listings.py` owns the chain and its
@@ -6,8 +7,8 @@ measured output shapes) and produces .ai-badger/mcp-tools.json: the mcp catalog'
 and intents for every tool it describes, name heuristics for the rest, and a per-server
 `status` for the ones that reported no tools at all (ADR-0014 decision 7). `--discover` asks each
 server the listing left unenumerated for its own tools: `server_configs.py` finds its command or
-URL in Claude Code's config files, `mcp_client.py` speaks MCP to it, `hermes mcp test` covers the
-rest.
+URL in Claude Code's config files, `mcp_client.py` speaks MCP to it (`tool_discovery.py` runs
+them), `hermes mcp test` covers the rest.
 
 Commands:
   init     — create index from MCP tool list
@@ -28,7 +29,6 @@ import json
 import os
 import sys
 import tempfile
-from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
@@ -42,13 +42,12 @@ YAML_MISSING_HINT = (
     "mcp-index needs PyYAML: pip install pyyaml (it is in engine/requirements.txt)"
 )
 
-# host_listings.py, mcp_client.py, server_configs.py, legacy_yaml_subset.py and
-# tool_descriptions.py sit beside this file in every deployment shape (sync_plugin_skills.py and
-# the scaffold's skill installer both copy a skill's scripts/ whole).
+# host_listings.py, tool_discovery.py (with mcp_client.py and server_configs.py),
+# legacy_yaml_subset.py and tool_descriptions.py sit beside this file in every deployment shape
+# (sync_plugin_skills.py and the scaffold's skill installer both copy a skill's scripts/ whole).
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import host_listings as hl  # noqa: E402  pylint: disable=wrong-import-position,import-error
-import mcp_client as mc  # noqa: E402  pylint: disable=wrong-import-position,import-error
-import server_configs as sc  # noqa: E402  pylint: disable=wrong-import-position,import-error
+import tool_discovery as tdisc  # noqa: E402  pylint: disable=wrong-import-position,import-error
 import tool_descriptions as td  # noqa: E402  pylint: disable=wrong-import-position,import-error
 from legacy_yaml_subset import parse_legacy_yaml_subset as _parse_legacy_yaml_subset  # noqa: E402  pylint: disable=wrong-import-position,import-error
 
@@ -208,69 +207,20 @@ def _report_quiet_sources(index: dict[str, Any]) -> None:
 
 # ── MCP tool discovery ──────────────────────────────────────────────────────
 
-DISCOVER_TIMEOUT = 20.0
-DISCOVER_WORKERS = 8
-PENDING_APPROVAL_PHRASE = "pending approval"
-
-
-def _ask_server(spec: dict[str, Any], target: str, timeout: float) -> tuple[Optional[list], str]:
-    """(tools, outcome line) from one server; tools is None when it did not fully answer."""
-    try:
-        tools = mc.list_tools(spec, timeout, cwd=target)
-    except mc.Unauthorized:
-        return None, "needs authorization"
-    except mc.Timeout:
-        return None, "timed out"
-    except mc.McpClientError as exc:
-        return None, f"failed: {exc}"
-    return tools, f"enumerated {len(tools)} tool(s)"
+DISCOVER_TIMEOUT = tdisc.TIMEOUT
 
 
 def _discover_tools(servers: list[dict[str, Any]], target: str,
                     timeout: float = DISCOVER_TIMEOUT) -> None:
-    """Ask every unenumerated server for its own tools, then `hermes mcp test` for the rest.
-
-    Configs come from Claude Code's own files (`server_configs`), the asking from `mcp_client`.
-    A server that answered every tools/list page becomes `tools_known` True and its failing
-    health phrase is dropped; any other outcome leaves it exactly as the listing had it.
-    """
-    pending = [s for s in servers if not s.get("tools_known", True)]
+    """Ask every unenumerated server for its own tools, then `hermes mcp test` for the rest."""
+    pending = sum(1 for s in servers if not s.get("tools_known", True))
     if not pending:
         return
-    configs = sc.load(Path(target), Path.home())
-    print(f"Asking {len(pending)} server(s) for their tools directly — each configured "
-          f"command is run, as `claude mcp list` does ({timeout:g}s each).", file=sys.stderr)
-    jobs: dict[str, dict[str, Any]] = {}
-    outcomes: dict[str, str] = {}
-    unresolved = []
-    for server in pending:
-        name = server.get("name", "")
-        spec, reason = sc.lookup(configs, name)
-        if str(server.get("host_status") or "").strip().lower() == PENDING_APPROVAL_PHRASE:
-            outcomes[name] = "not run: pending approval in Claude Code"
-        elif spec is not None:
-            jobs[name] = spec
-        elif reason == sc.HOST_MANAGED:
-            outcomes[name] = f"not enumerated: {reason}"
-        else:
-            outcomes[name] = reason
-            unresolved.append(server)
-    answers: dict[str, Optional[list]] = {}
-    if jobs:
-        with ThreadPoolExecutor(max_workers=min(DISCOVER_WORKERS, len(jobs))) as pool:
-            futures = {name: pool.submit(_ask_server, spec, target, timeout)
-                       for name, spec in jobs.items()}
-            for name, future in futures.items():
-                answers[name], outcomes[name] = future.result()
-    for server in pending:
-        name = server.get("name", "")
-        tools = answers.get(name)
-        if tools is not None:
-            server["tools"] = tools
-            server["tools_known"] = True
-            server.pop("host_status", None)
-            server["discovered_via"] = "mcp-client"
-        print(f"  {name}: {outcomes[name]}", file=sys.stderr)
+    print(f"Asking {pending} server(s) for their tools directly — each configured command is "
+          f"run, as `claude mcp list` does ({timeout:g}s each).", file=sys.stderr)
+    lines, unresolved = tdisc.enrich_with_mcp_client(servers, target, Path.home(), timeout)
+    for line in lines:
+        print(f"  {line}", file=sys.stderr)
     if unresolved:
         for note in hl.enrich_with_hermes_test(unresolved):
             print(f"  ({note})", file=sys.stderr)

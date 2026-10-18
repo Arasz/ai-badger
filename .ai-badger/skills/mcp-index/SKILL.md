@@ -198,18 +198,45 @@ and takes the JSON text of a `hermes mcp list --json` document directly — not 
 
 ### `--discover` — ask each server for its own tools
 
-No remaining *listing* carries tool names, but `hermes mcp test <server>` does. Pass `--discover`
-to `init` or `update` and every server the listing left unenumerated is asked directly:
+No remaining *listing* carries tool names. Pass `--discover` to `init` or `update` and every
+server the listing left unenumerated is asked for its own tools by a built-in, stdlib-only MCP
+client (`scripts/mcp_client.py`) — no hermes needed:
 
 ```bash
 python3 .ai-badger/skills/mcp-index/scripts/mcp_index.py init --target <project-root> --discover
+python3 .ai-badger/skills/mcp-index/scripts/mcp_index.py update --target <project-root> --discover --discover-timeout 30
 ```
 
-It is opt-in because it costs one connection per server (measured: 11 servers, ~20s, 128 tools
-recovered from a listing that carried none). A server hermes does not have in its own config — a
-plugin- or connector-provided one — cannot be tested; it keeps `tools_known` False, is named in
-the output, and falls back to the catalog seed. `hermes mcp test` **exits 0 even when it fails**,
-so only its printed `Tools discovered` block is treated as an answer.
+**It runs each server's configured command**, exactly as `claude mcp list` does when it
+health-checks — so only use it on a project whose `.mcp.json` you trust. That, and one connection
+per server, is why it is opt-in. Servers are asked in parallel (up to 8), each under its own
+deadline (`--discover-timeout`, default 20s).
+
+Where the command or URL comes from (`scripts/server_configs.py`), first match wins for a bare name:
+
+| scope | file |
+|---|---|
+| local | `~/.claude.json` → `projects[<target or nearest parent>].mcpServers` |
+| project | `<target>/.mcp.json`, minus `disabledMcpjsonServers`; only `enabledMcpjsonServers` when that list is non-empty |
+| user | `~/.claude.json` → `mcpServers` |
+| plugin | `plugin:<p>:<s>` → `~/.claude/plugins/installed_plugins.json` `<p>@<market>` install path's `.mcp.json` or `.claude-plugin/plugin.json` `mcpServers`, `${CLAUDE_PLUGIN_ROOT}` expanded |
+
+Transports: **stdio** and **unauthenticated streamable HTTP** (static `headers` from the config are
+sent, `${VAR}` / `${VAR:-default}` expanded, only to that URL — redirects are refused). One stderr
+line per server says what happened: `enumerated N tool(s)`, `no config`, `needs authorization`,
+`timed out`, `failed: <reason>`, or `not run: pending approval in Claude Code`.
+
+What stays unenumerated, keeps `tools_known` False and falls back to the catalog seed:
+`claude.ai <Name>` connectors (OAuth, host-managed — named `not enumerated: host-managed connector
+(OAuth)`), servers needing OAuth, legacy `sse` servers, managed enterprise config (not read), and
+any server that timed out or failed **anywhere** in its `tools/list` pages — a partial answer changes
+nothing. A server with no config is then offered to `hermes mcp test`, which **exits 0 even when it
+fails**, so only its printed `Tools discovered` block is treated as an answer (a missing hermes is
+just a note).
+
+A server that **did** answer is the whole truth: its tools replace the catalog seed, a seeded tool it
+did not list goes `status: removed` (curation kept), and a failing `claude mcp list` phrase for it
+(`Failed to connect`) is dropped, so its status is `ok`.
 
 If no source answers, both commands **refuse** and print what each one said — a missing CLI, a
 non-zero exit with its error line, or an empty listing. They never write a half-index.
