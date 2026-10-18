@@ -60,3 +60,40 @@ permits re-issue after consultation. Memory-first, never memory-only.
 - The 3-strike constant and matcher table are covered by unit tests
   (`tests/test_memory_first_gate.py`, `test_memory_first_gate_hook.py`,
   `test_memory_first_gate_hermes.py`) and can be tuned without schema changes.
+
+## Amendment (2026-10-18, v0.196.0): first sighting of each pattern, `# memory-checked` marker
+
+The session-wide unlock let one unrelated `memory_search` open every later grep, and the
+gate read only a Bash command's first word, so `sed ...; echo; grep -n "a\|b" f | head`
+passed untouched. The gate now keys on the search pattern, not the session.
+
+- **Rule.** A text-search call passes only when (a) every pattern it searches for was already
+  memory-searched for this project, and (b) a call whose input has a `command` string ends its
+  last line with the trailing comment `# memory-checked`. Grep/Glob/search_files have no
+  command string and need only (a). The marker is read from the raw text (the lexer drops
+  comments) and refused when any lexed word contains `memory-checked`, so a quoted
+  `'# memory-checked'` argument cannot spoof it.
+- **Detection.** Every segment of a compound command, through the vendored `shell_parser.py`:
+  grep/egrep/fgrep/rg/find, a piped grep included. Patterns: `-e`/`--regexp` values, else the
+  first operand after the options that take a value; split on `\|`, and on a bare `|` under
+  rg/`-E`/egrep; find's `-name/-iname/-path/-ipath/-regex/-iregex` values; the tool's
+  `pattern` (or `query`). A segment with no pattern is keyed on its own words.
+- **First sighting.** The hook runs one in-process ai-raccoon search
+  (`memory_context.search_block`: no prompt gate, no session check, one 4 s budget from hook
+  start over open+search+close) with the unsearched patterns as the query. A reply (hits or
+  empty) records them and its hits go into the deny reason; a search that could not run
+  records nothing and the reason tells the agent to call `memory_search` with the pattern.
+  Every deny reason names the marker.
+- **Searched means.** A pattern counts as searched when its normalized form (regex escapes
+  undone, `^ $ \b` dropped, lowercase, whitespace collapsed) equals a recorded entry or is a
+  substring of a recorded query. The PostToolUse `memory_search` hook records the call's
+  `query` (Copilot's string `toolArgs` included); `record_search` stays as telemetry.
+- **Store.** `hook_state` row `memory_first.searched.<project_id>` via `kv_update`; file
+  fallback `~/.ai-badger/memory-first-searched/<project_id>`, one entry per line. Never reset,
+  no cap. Project id `unknown` is never persisted and gets no in-process search.
+- **Removed.** `MAX_DENIALS` and the denial counter (`deny_count`, `increment_denials`),
+  `search_consulted`, and the Hermes per-process `_memory_consulted`/`_gate_denials`/
+  `reset_gate_state`. Hermes keys on `gate.project_id(cwd)` in the same store, and session
+  start clears nothing. There is no pass-through: the escape is a search, then the marker.
+- Tests: `tests/test_memory_first_gate_first_sighting.py` covers the rule end to end; each
+  row was mutation-checked (the mutation applied, the suite red, reverted).
