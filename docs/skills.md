@@ -28,9 +28,9 @@ that test, and so does a row naming a skill the catalog no longer has — **but 
 common and `claude` stacks**: that test's `STACK_LOCAL_SKILL_DIRS` names `claude` alone, so the
 stack-local skills are outside its reach and their absence here fails nothing.
 
-Most skills are **invoked by name** — a slash command or a phrase the agent recognizes from the
-`SKILL.md` frontmatter description, run when someone decides to run it. A few are **hook-backed**
-— wired into `.claude/settings.json` (or the Hermes equivalent) at scaffold time and fire on
+You invoke most skills **by name**: a slash command or a phrase the agent recognizes from the
+`SKILL.md` frontmatter description. A few are **hook-backed**. Scaffolding wires them into
+`.claude/settings.json` (or the Hermes equivalent) and they fire on
 their own, on every matching event, whether or not anyone asked. The table after [Install modes](#install-modes) names which is
 which and which arrive unasked; the per-skill sections say what changes on disk either way.
 
@@ -47,7 +47,7 @@ Claude Code users add the framework as a plugin:
 
 ```text
 /plugin marketplace add https://github.com/Arasz/ai-badger
-/plugin install ai-badger
+/plugin install ai-badger@ai-badger
 ```
 
 The catalog also declares two external Claude plugins, `superpowers` and `pr-review-toolkit`
@@ -469,7 +469,7 @@ before `git push`, or checking a subagent's output before merging.
 [`SKILL.md`](../features/common/skills/prompt-markers/SKILL.md)
 
 **What it is.** A small set of one- or two-word prefixes — `h:`/`hint:`, `f:`/`feedback:`,
-`e:`/`extension:`, `q:`/`queue:`, `i:`/`important:` and `i!:`/`important!:` — a person can put at the start of a prompt to give the agent an explicit,
+`e:`/`extension:`, `q:`/`queue:`, `i:`/`important:` and `i!:`/`important!:`. You can put one at the start of a prompt to give the agent an explicit,
 machine-detectable signal instead of relying on it to infer intent from phrasing.
 
 **What it does.** A `UserPromptSubmit` hook (`scripts/user_prompt_hook.py`) reads the prompt,
@@ -620,7 +620,7 @@ bloating the prompt, or MCP servers were just added or removed.
 
 [`SKILL.md`](../features/common/skills/ai-raccoon-memory/SKILL.md)
 
-**What it is.** The AiRaccoon memory server (`arasz.ai-raccoon`, MCP stdio): semantic search
+**What it is.** The AiRaccoon memory server (`ai-raccoon`, MCP stdio): semantic search
 over committed project memory and a shared promotion tier, durable-fact writes that carry
 source paths, workspace outboxes for in-progress notes, and directory watching that mirrors a
 docs tree into memory.

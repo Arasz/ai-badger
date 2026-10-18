@@ -26,13 +26,13 @@ Pre-1.0, the minor slot is the breaking slot. The number tracks blast radius, no
 1. Edit `VERSION`.
 2. Add `docs/changelog/{version}-{slug}.md` describing what changed.
 3. `python3 tooling/changelog_index.py` — regenerates the release table in `docs/changelog/README.md` from the entry files. Never hand-edit that table (issue #160).
-4. `python3 tooling/version_sync.py` — propagates version to `plugin.json`, `marketplace.json`, `index.json` and `features/common/data/model-groups.json`.
+4. `python3 tooling/version_sync.py` propagates version to `plugin.json`, `marketplace.json`, `index.json` and `features/common/data/model-groups.json`.
 5. Re-scaffold this repo against itself, after step 4 so the stamps carry the new version:
    `AI_BADGER_MCP_AVAILABILITY=all python3 features/common/skills/welcome-ai-badger/scripts/scaffold.py --config .ai-badger/config.json --target . --root . --no-install --skills ''`
-6. `python3 tooling/version_sync.py --check && python3 tooling/changelog_index.py --check && python3 gates/release_guard.py` — all three must pass.
+6. `python3 tooling/version_sync.py --check && python3 tooling/changelog_index.py --check && python3 gates/release_guard.py`. All three must pass.
 7. `python3 -m pytest tests/ -q` and `python3 -m pylint $(git ls-files '*.py' | grep -v '^tests/')`.
 8. Open a PR; CI runs the same gates.
-9. **Merge. The tag is automatic** — since 0.69.2 the `release-tag` workflow tags `ai-badger--v{version}` from
+9. **Merge. The tag is automatic.** Since 0.69.2 the `release-tag` workflow tags `ai-badger--v{version}` from
    `main` after the merge. Nobody runs `claude plugin tag --push` by hand any more.
 
    That step used to be step 8 and used to be *the* release, and it was skipped 32 times: a

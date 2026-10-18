@@ -25,7 +25,9 @@ Two things to know before you start, because they shape everything below:
 
 ## Setup
 
-Python **3.10+** (the CI floor) and Node 18+ (for the `.mjs` scripts and the `tests/js/` suites).
+Python **3.10+** (the CI floor), Node 18+ (for the `.mjs` scripts and the `tests/js/` suites),
+`uv` (launches the `task-graph` scripts) and `bun` (the pre-push hook runs the pi TypeScript
+lane with it, and the push fails without it).
 
 ```bash
 git clone https://github.com/Arasz/ai-badger

@@ -71,7 +71,8 @@ How each kind behaves once scaffolded:
   `meta.json` ([`schemas/tool.schema.json`](../schemas/tool.schema.json)), a `tool.md` rendered
   into every agent file, and `check` and `install` scripts. Nothing is wired until the project
   names the tool in `config.tools`; each agent's `adjust_tools` then adds the tool's marked hook,
-  or prints a proposal where the tool declares one (rtk on Claude, Codex and Hermes). The first
+  or prints a proposal where the tool declares one (rtk proposes on Codex and Hermes, wires
+  natively on Claude and Copilot, and uses `init` on pi). The first
   entry is `rtk`, which compresses shell output
   ([ADR-0039](adr/0039-tools-feature-type.md)).
 - **data** and **retrieval**: `features/common/data/model-groups.json` maps a persona's `model:`
@@ -587,11 +588,11 @@ flowchart TB
     SCH["schemas/*.schema.json"]
     subgraph CAT["catalog: features/{stack|common}/{feature}"]
       COMMON["common/\npersonas·invariants·instructions·hooks·templates\ndata·retrieval·tools"]
-      STACKS["one directory per stack\ndotnet · azure · aspire · cosmos · terraform · mcp\nnode · js · ts · react · vue · css · ux · github · angular · python · changelog · ai-raccoon"]
+      STACKS["one directory per stack\n(ls features/ for the current set)"]
     end
     SKILLSDIR["features/common/skills/\ndefault + optIn, per each SKILL.md's own scope\nsee skills.md for the roster"]
     AGENTS["features/{claude|copilot|hermes|pi|codex}/\nscaffolding.json · adjustments/ · templates/"]
-    MCPCAT["features/*/mcp/ + stack-mcp.json\ncode-review-graph · hermes · ai-raccoon · task-graph (common)\nsemantica · playwright · aspire (aspire stack)"]
+    MCPCAT["features/*/mcp/ + stack-mcp.json\ncommon: code-review-graph · hermes · ai-raccoon · task-graph · semantica · playwright\naspire stack: aspire"]
     MKT[".claude-plugin/marketplace.json\n+ installable plugin"]
   end
   IDXbuild["index_build.py"] -->|scans features/| IDX

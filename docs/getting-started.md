@@ -103,6 +103,20 @@ python3 -m pip install -r engine/requirements.txt
 python3 tooling/index_build.py --check
 ```
 
+Then scaffold the target repo from inside it, the same steps `welcome-ai-badger` runs. `detect.py`
+proposes a config, you fill in `project.summary` and `project.domain` and check the agents and
+stacks, `validate.py` checks it, and `scaffold.py` writes `.ai-badger/` plus the native agent files
+for the agents the config names:
+
+```bash
+cd /path/to/your-repo
+S="$AI_BADGER/features/common/skills/welcome-ai-badger/scripts"
+python3 "$S/detect.py" --target . --root "$AI_BADGER" > /tmp/proposed-config.json
+# edit /tmp/proposed-config.json, then:
+python3 "$AI_BADGER/tooling/validate.py" --kind config /tmp/proposed-config.json
+python3 "$S/scaffold.py" --config /tmp/proposed-config.json --target . --root "$AI_BADGER"
+```
+
 What that buys you:
 
 - It works for Copilot, Hermes, pi and Codex, and from a shell script or CI job. Nothing depends
