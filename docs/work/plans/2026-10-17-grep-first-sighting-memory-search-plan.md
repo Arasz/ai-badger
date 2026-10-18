@@ -97,3 +97,14 @@ are 10 s; Hermes abandons at 30 s).
 9. Extra files: `tests/test_memory_first_gate_post_hook.py` (search_consulted asserts),
    ADR-0036:95 (MAX_DENIALS mention), SKILL.md of ai-raccoon-memory (marker documented).
 10. S2, S3 depend on S1.
+
+## Owner change: excluded list (2026-10-18)
+
+A grep/rg/egrep/fgrep segment is exempt from the gate when it reads stdin from a pipe (no file or
+path operand of its own) and the program feeding that pipe is on `EXCLUDED_UPSTREAM` in
+`memory_first_gate.py`: git, gh, ps, ls, env, printenv, history, docker, kubectl, pip, npm, lsof,
+brew, dotnet. Memory cannot answer a filter over live command output. A file-reading grep in the
+same compound command is still gated. Tests: `git log | grep fix` passes with no search and no
+marker; `git log | grep fix && grep -rn fix src/` is gated on `fix`; `cat f | grep x` stays gated
+(cat not listed); `git log | grep fix file.txt` stays gated (has a file operand). Mutation: drop the
+upstream check → `cat f | grep x` passes → red.
