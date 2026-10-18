@@ -1,0 +1,20 @@
+# usage: case.py <name> <hook: native|A|B> <ask: 0|1> <prompt-cmd>  -> builds R/.claude/settings.json, fresh remote
+import json, sys, subprocess, os
+S = "/private/tmp/claude-501/-Users-arasz-RiderProjects-ai-badger/29c16558-6b9d-41c5-ace9-22a75c4cdd1c/scratchpad/s13"
+D = "/private/tmp/claude-501/-Users-arasz-RiderProjects-ai-badger/29c16558-6b9d-41c5-ace9-22a75c4cdd1c/scratchpad/askfix"
+PY = "/Users/arasz/RiderProjects/ai-badger/.venv/bin/python3"
+name, hook, ask = sys.argv[1], sys.argv[2], sys.argv[3] == "1"
+d = json.load(open(S + "/settings.orig.json"))
+for g in d["hooks"]["PreToolUse"]:
+    for h in g["hooks"]:
+        if "AI_BADGER_TOOL" in h["command"] and hook != "native":
+            h["command"] = f"{PY} {D}/rtk_ask_safe.py.txt {hook}"
+log = f"{D}/{name}.post.jsonl"
+open(log, "w").close()
+d["hooks"].setdefault("PostToolUse", []).append({"matcher": "Bash", "hooks": [{"type": "command", "command": f"{PY} {S}/fx/post_log.py {log}"}]})
+if ask:
+    d["permissions"].setdefault("ask", []).append("Bash(git push:*)")
+json.dump(d, open(S + "/R/.claude/settings.json", "w"), indent=2)
+remote = f"{D}/{name}.remote.git"
+subprocess.run(["git", "init", "-q", "--bare", remote], check=True)
+subprocess.run(["git", "-C", S + "/R", "remote", "set-url", "origin", remote], check=True)

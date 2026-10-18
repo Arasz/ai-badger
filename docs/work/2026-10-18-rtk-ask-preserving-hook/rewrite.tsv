@@ -1,0 +1,17 @@
+git push origin main	[0]	rtk git push origin main
+git push --force	[0]	rtk git push --force
+git -C sub push	[3]	rtk git -C sub push
+cd sub && git push	[3]	cd sub && rtk git push
+git status; git push	[0]	rtk git status; rtk git push
+cat README.md	[3]	rtk read README.md
+grep -r foo .	[3]	rtk grep -r foo .
+ls -la	[3]	rtk ls -la
+npm test	[1]	
+pytest -q	[3]	rtk pytest -q
+rm -rf build	[1]	
+sudo git push	[1]	
+FOO=1 git push	[3]	FOO=1 rtk git push
+git commit -m x && git push	[3]	rtk git commit -m x && rtk git push
+git log -5	[3]	rtk git log -5
+find . -name x	[3]	rtk find . -name x
+rtk git status	[3]	rtk git status

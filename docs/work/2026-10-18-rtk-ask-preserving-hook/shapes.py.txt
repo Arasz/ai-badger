@@ -1,0 +1,11 @@
+import json, os, subprocess, sys, tempfile
+cmd = "git push origin main"
+shapes = ["Bash(git push:*)", "Bash(git push *)", "Bash(git push*)", "Bash(git push origin main)", "Bash(git:*)",
+          "Bash(* push *)", "Bash(git * main)", "Bash(git push)", "Bash"]
+for rule in shapes:
+    b = tempfile.mkdtemp(dir=sys.argv[1]); os.makedirs(b + "/.claude"); subprocess.run(["git", "init", "-q", b])
+    json.dump({"permissions": {"ask": [rule]}}, open(b + "/.claude/settings.json", "w"))
+    env = dict(os.environ, RTK_REWRITE_HOST="openclaw", RTK_DB_PATH=b + "/db", HOME=b)
+    rc = subprocess.run(["rtk", "rewrite", cmd], cwd=b, env=env, capture_output=True).returncode
+    chain = subprocess.run(["rtk", "rewrite", "git status && " + cmd], cwd=b, env=env, capture_output=True).returncode
+    print(f"{rule:30} single={rc} {'DETECTED' if rc == 3 else 'missed'}  chain={chain}")

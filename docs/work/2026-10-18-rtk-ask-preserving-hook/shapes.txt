@@ -1,0 +1,9 @@
+Bash(git push:*)               single=3 DETECTED  chain=3
+Bash(git push *)               single=3 DETECTED  chain=3
+Bash(git push*)                single=3 DETECTED  chain=3
+Bash(git push origin main)     single=3 DETECTED  chain=3
+Bash(git:*)                    single=3 DETECTED  chain=3
+Bash(* push *)                 single=3 DETECTED  chain=3
+Bash(git * main)               single=3 DETECTED  chain=3
+Bash(git push)                 single=3 DETECTED  chain=3
+Bash                           single=0 missed  chain=0

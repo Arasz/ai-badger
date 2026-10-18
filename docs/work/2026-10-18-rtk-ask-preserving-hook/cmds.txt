@@ -1,0 +1,17 @@
+git push origin main
+git push --force
+git -C sub push
+cd sub && git push
+git status; git push
+cat README.md
+grep -r foo .
+ls -la
+npm test
+pytest -q
+rm -rf build
+sudo git push
+FOO=1 git push
+git commit -m x && git push
+git log -5
+find . -name x
+rtk git status

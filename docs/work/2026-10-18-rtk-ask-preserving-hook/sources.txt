@@ -1,0 +1,10 @@
+no rules: plain=3 openclaw=0
+ask in project settings.json: plain=3 openclaw=3
+ask in project settings.local.json: plain=3 openclaw=3
+ask in user ~/.claude/settings.json: plain=3 openclaw=3
+ask in project, cwd=subdir: plain=3 openclaw=3
+broad allow + ask: plain=3 openclaw=3
+broad allow only: plain=3 openclaw=0
+allow Bash(*) only: plain=0 openclaw=0
+allow Bash(git push:*) only: plain=0 openclaw=0
+compound (ask in chain): rtk git status && rtk git push origin main exit=3

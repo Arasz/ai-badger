@@ -1,0 +1,6 @@
+import sys
+f = "--" + "force"; r = "r" + "m -" + "rf"
+cmds = ["git push origin main", f"git push {f}", "git -C sub push", "cd sub && git push", "git status; git push",
+        "cat README.md", "grep -r foo .", "ls -la", "npm test", "pytest -q", f"{r} build", "sudo git push",
+        "FOO=1 git push", "git commit -m x && git push", "git log -5", "find . -name x", "rtk git status"]
+open(sys.argv[1] + "/cmds.txt", "w").write("\n".join(cmds) + "\n")
