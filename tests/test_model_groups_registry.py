@@ -680,12 +680,16 @@ def test_absent_registry_is_no_gap_for_stub_trees(tmp_path, load_script):
 
 
 # ------------------------------------------------------------------ 1b: scaffold delivery
-def test_scaffold_delivers_the_registry_verbatim(make_scaffolder, root):
+def test_scaffold_delivers_the_registry_with_a_local_schema_reference(make_scaffolder, root):
     result = make_scaffolder(skills=["task"]).run(
         generated_at="2026-09-05T00:00:00Z")
     delivered = make_scaffolder.target / ".ai-badger" / "model-groups.json"
     assert delivered.is_file()
-    assert delivered.read_bytes() == (root / SEED).read_bytes()
+    source = json.loads((root / SEED).read_text(encoding="utf-8"))
+    copy = json.loads(delivered.read_text(encoding="utf-8"))
+    assert copy.pop("$schema") == "./schemas/model-groups.schema.json"
+    source.pop("$schema")
+    assert copy == source
     recorded = [entry for entry in result["manifest"]["entries"]
                 if entry.get("target") == ".ai-badger/model-groups.json"]
     assert len(recorded) == 1

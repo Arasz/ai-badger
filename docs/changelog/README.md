@@ -19,6 +19,7 @@ When cutting a release:
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
+| 0.196.2 | [scaffolded `$schema` paths resolve; `open_pr.py` resumes a failed run](0.196.2-schema-paths-and-open-pr-resume.md) |
 | 0.196.0 | [memory-first gate: each grep pattern is memory-searched first](0.196.0-grep-memory-checked-gate.md) |
 | 0.195.1 | [0.195.1: rtk is propose-only for Claude and Codex](0.195.1-rtk-claude-propose.md) |
 | 0.195.0 | [task-graph: clear argument errors, tolerated runtime fields](0.195.0-task-graph-actionable-validation-errors.md) |

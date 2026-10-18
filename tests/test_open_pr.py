@@ -293,3 +293,66 @@ def test_a_finding_in_the_staged_set_refuses_and_unstages(open_pr, world):
     assert world.gh_calls() == []
     assert world.staged() == []
     assert _git(world.checkout, "branch", "--show-current").strip() == "main"
+
+
+# ── resume: a re-run picks up where a failed run stopped ──────────────────────
+
+
+def _failing_pre_commit(checkout):
+    hook = checkout / ".git" / "hooks" / "pre-commit"
+    _test_write(hook, "#!/bin/sh\necho 'hook says no'\nexit 1\n", encoding="utf-8")
+    hook.chmod(hook.stat().st_mode | stat.S_IXUSR)
+    return hook
+
+
+def test_a_checkout_already_on_the_branch_is_used_as_is(open_pr, world):
+    rel = _contribution(world.checkout)
+    _git(world.checkout, "checkout", "-q", "-b", "feed/my-feature")
+
+    rc = open_pr.main(_argv(world.checkout, paths=[rel]))
+
+    assert rc == 0
+    assert world.remote_files("feed/my-feature") == {"README.md", rel}
+    assert world.gh_calls()[:2] == ["pr", "create"]
+
+
+def test_a_rerun_after_a_failed_commit_resumes(open_pr, world, capsys):
+    rel = _contribution(world.checkout)
+    hook = _failing_pre_commit(world.checkout)
+
+    assert open_pr.main(_argv(world.checkout, paths=[rel])) != 0
+    assert "re-run" in capsys.readouterr().out
+    hook.unlink()
+    rc = open_pr.main(_argv(world.checkout, paths=[rel]))
+
+    assert rc == 0
+    assert world.remote_files("feed/my-feature") == {"README.md", rel}
+    assert world.gh_calls().count("create") == 1
+
+
+def test_a_rerun_after_a_failed_push_resumes(open_pr, world):
+    rel = _contribution(world.checkout)
+    _git(world.checkout, "remote", "set-url", "origin", str(world.remote) + "-missing")
+    assert open_pr.main(_argv(world.checkout, paths=[rel])) != 0
+    _git(world.checkout, "remote", "set-url", "origin", str(world.remote))
+
+    rc = open_pr.main(_argv(world.checkout, paths=[rel]))
+
+    assert rc == 0
+    assert world.remote_files("feed/my-feature") == {"README.md", rel}
+    assert world.gh_calls().count("create") == 1
+
+
+def test_a_resumed_run_still_refuses_an_undeclared_staged_file(open_pr, world, capsys):
+    rel = _contribution(world.checkout)
+    hook = _failing_pre_commit(world.checkout)
+    open_pr.main(_argv(world.checkout, paths=[rel]))
+    hook.unlink()
+    _test_write(world.checkout / "staged-earlier.md", "not declared\n", encoding="utf-8")
+    _git(world.checkout, "add", "staged-earlier.md")
+
+    rc = open_pr.main(_argv(world.checkout, paths=[rel]))
+
+    assert rc != 0
+    assert world.remote_files("feed/my-feature") is None
+    assert "staged-earlier.md" in capsys.readouterr().out
