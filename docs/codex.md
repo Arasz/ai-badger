@@ -104,6 +104,8 @@ TOMLs and the `.agents/skills/` links that point at ai-badger's own skills, even
 Malformed configuration and symlinks remain unchanged so cleanup can retry after repair. The
 Codex commands use the native hook payload, and plugin hooks resolve scripts from
 `PLUGIN_ROOT`. Project commands do not set Claude home or project variables.
+The scaffolded runner exports `AI_BADGER_PROJECT_DIR` from the project-root argument; hook
+payload `cwd` remains authoritative for per-call repository resolution.
 Each approved command binds to the scaffolded absolute project root and uses isolated Python
 imports; nested repository markers cannot redirect execution. Moving or cloning a project
 requires re-scaffolding and reviewing the changed hook commands. Scripts with symlink paths

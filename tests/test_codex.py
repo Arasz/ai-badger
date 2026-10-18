@@ -1,5 +1,7 @@
 """Native Codex resources and preservation contracts."""
 import json
+import subprocess
+import sys
 try:
     import tomllib
 except ImportError:
@@ -224,11 +226,34 @@ def test_hook_subset_and_user_preservation(load_script, tmp_path):
     assert '${CLAUDE_PROJECT_DIR}' not in delivered
     assert 'CLAUDE_PROJECT_DIR' not in arm.RUNNER
     assert 'CLAUDE_HOME' not in arm.RUNNER
+    assert "AI_BADGER_PROJECT_DIR" in arm.RUNNER
     assert str(tmp_path.resolve()) in delivered
     assert 'python3 -I -c' in delivered
     assert 'AI_BADGER_CODEX_HOOK=1' in delivered
     arm.adjust(context(tmp_path))
     assert dst.read_text() == first
+
+
+def test_project_hook_runner_exports_harness_agnostic_root(load_script, tmp_path, monkeypatch):
+    arm = load_script('features/codex/adjustments/adjust_hooks.py')
+    root = tmp_path.resolve()
+    script = root / '.ai-badger/skills/env_check.py'
+    script.parent.mkdir(parents=True)
+    script.write_text(
+        'import json, os\n'
+        'print(json.dumps({"project": os.environ.get("AI_BADGER_PROJECT_DIR"), '
+        '"claude_project": os.environ.get("CLAUDE_PROJECT_DIR"), '
+        '"claude_home": os.environ.get("CLAUDE_HOME")}))\n')
+    monkeypatch.delenv('CLAUDE_PROJECT_DIR', raising=False)
+    monkeypatch.delenv('CLAUDE_HOME', raising=False)
+    monkeypatch.setenv('AI_BADGER_PROJECT_DIR', '/wrong/root')
+
+    result = subprocess.run(
+        [sys.executable, '-I', '-c', arm.RUNNER, str(root), 'skills/env_check.py'],
+        check=True, capture_output=True, text=True)
+
+    assert json.loads(result.stdout) == {
+        'project': str(root), 'claude_project': None, 'claude_home': None}
 
 
 def test_memory_first_gate_uses_native_pre_tool_hook(load_script, tmp_path, monkeypatch, capsys):

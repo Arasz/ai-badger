@@ -24,6 +24,7 @@ PREFIX = 'env AI_BADGER_CODEX_HOOK=1 '
 RUNNER = (
     "import os,pathlib,runpy,sys; "
     "root=pathlib.Path(sys.argv[1]); "
+    "os.environ['AI_BADGER_PROJECT_DIR']=str(root); "
     "script=root/'.ai-badger'/sys.argv[2]; "
     "sys.exit(0) if not script.is_file() or not script.resolve().is_relative_to(root) "
     "or any(p.is_symlink() for p in (script,*script.parents) if p!=root and root in p.parents) else None; "
