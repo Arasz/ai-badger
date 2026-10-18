@@ -20,6 +20,10 @@ def hook(load_script, monkeypatch, tmp_path):
     real = load_script(
         "features/common/skills/ai-raccoon-memory/scripts/memory_first_gate.py")
     monkeypatch.setattr(real, "MARKER_DIR", tmp_path / "memory-first")
+    monkeypatch.setattr(real, "SEARCHED_DIR", tmp_path / "memory-first-searched", raising=False)
+    monkeypatch.setattr(real, "memory_hits", lambda *_a, **_k: None, raising=False)
+    monkeypatch.setenv(badger_store.DEBUG_DIR_ENV, str(tmp_path / "debug"))
+    monkeypatch.setenv("AI_BADGER_PROJECT_ID", "hook-proj")
     # P2.1a: gate presence is a store row — hook runs land in a scratch user root, so the
     # suite can never read or write the developer's real memory_first rows.
     monkeypatch.setenv(badger_store.USER_ROOT_ENV, str(tmp_path / "user-root"))
@@ -56,9 +60,8 @@ def test_claude_grep_without_marker_is_denied(hook, monkeypatch, capsys, tmp_pat
     assert "memory_search" in out["permissionDecisionReason"]
 
 
-def test_claude_search_after_marker_passes(hook, monkeypatch, capsys, tmp_path):
-    (tmp_path / "memory-first").mkdir()
-    (tmp_path / "memory-first" / "t1").touch()
+def test_claude_search_of_a_searched_pattern_passes(hook, monkeypatch, capsys, tmp_path):
+    sys.modules["memory_first_gate"].remember("hook-proj", ["x"])
     payload = {"hook_event_name": "PreToolUse", "session_id": "t1",
                "tool_name": "Grep", "tool_input": {"pattern": "x"}}
 
@@ -114,20 +117,6 @@ def test_copilot_view_passes(hook, monkeypatch, capsys):
         "hookEventName": "preToolUse", "sessionId": "c1",
         "toolName": "view", "toolArgs": {"path": "a.cs"}})
 
-    assert rc == 0
-    assert capsys.readouterr().out == ""
-
-
-def test_three_strikes_pass_through(hook, monkeypatch, capsys):
-    """After MAX_DENIALS denials the gate stops blocking — an agent cannot stall."""
-    payload = {"hook_event_name": "PreToolUse", "session_id": "strike",
-               "tool_name": "Grep", "tool_input": {"pattern": "x"}}
-    for _ in range(3):
-        rc = _run(hook, monkeypatch, payload)
-        assert rc == 0
-        assert _out(capsys)["hookSpecificOutput"]["permissionDecision"] == "deny"
-
-    rc = _run(hook, monkeypatch, payload)
     assert rc == 0
     assert capsys.readouterr().out == ""
 

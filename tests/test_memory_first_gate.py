@@ -23,7 +23,10 @@ def gate(load_script, monkeypatch, tmp_path):
     """The real module: legacy marker dir AND the rows' user store both redirected to tmp."""
     real = load_script("features/common/skills/ai-raccoon-memory/scripts/memory_first_gate.py")
     monkeypatch.setattr(real, "MARKER_DIR", tmp_path / "memory-first")
+    monkeypatch.setattr(real, "SEARCHED_DIR", tmp_path / "memory-first-searched", raising=False)
+    monkeypatch.setattr(real, "memory_hits", lambda *_a, **_k: None, raising=False)
     monkeypatch.setenv(badger_store.USER_ROOT_ENV, str(tmp_path / "user-root"))
+    monkeypatch.setenv(badger_store.DEBUG_DIR_ENV, str(tmp_path / "debug"))
     return real
 
 
@@ -44,7 +47,11 @@ def test_hermes_terminal_first_token_decides(gate):
     assert gate.is_text_search("terminal", {"command": "rg foo"})
     assert gate.is_text_search("terminal", {"command": "find . -name x"})
     assert not gate.is_text_search("terminal", {"command": "dotnet build"})
+    # every segment of a compound command counts, a piped grep included, except a grep over
+    # an EXCLUDED_UPSTREAM program's live output
+    assert gate.is_text_search("terminal", {"command": "cat f | grep x"})
     assert not gate.is_text_search("terminal", {"command": "git status | grep x"})
+    assert not gate.is_text_search("terminal", {"command": "git status | head -3"})
 
 
 def test_claude_tool_names(gate):
@@ -72,13 +79,25 @@ def test_non_string_inputs_never_match(gate):
     assert not gate.is_text_search("terminal", {"command": "'unterminated"})
 
 
-# ------------------------------------------------------------------ session presence rows
+# ------------------------------------------------------------------ session telemetry rows
+def _row(gate, session_id):
+    store = badger_store.open_user(families={
+        "memory_first": badger_store.Family(
+            table="memory_first", db="user",
+            legacy_path=lambda: gate.MARKER_DIR, legacy_kind="markers",
+        ),
+    })
+    try:
+        return store.conn.execute(
+            "SELECT payload FROM memory_first WHERE session_id = ?", (session_id,)).fetchone()
+    finally:
+        store.close()
+
+
 def test_marker_roundtrip(gate):
-    """P2.1a byte→row: the consulted fact is a memory_first row, keyed by session id."""
-    assert not gate.search_consulted("sess-1")
+    """record_search stays as telemetry: a memory_first row keyed by session id."""
     assert gate.record_search("sess-1")
-    assert gate.search_consulted("sess-1")
-    assert not gate.search_consulted("sess-2")
+    assert _row(gate, "sess-2") is None
     # Secondary observable: the row really carries the consulted payload, not a bare key.
     store = badger_store.open_user(families={
         "memory_first": badger_store.Family(
@@ -97,7 +116,6 @@ def test_marker_roundtrip(gate):
 def test_marker_refuses_empty_session(gate):
     assert not gate.record_search("")
     assert not gate.record_search(None)
-    assert not gate.search_consulted(None)
 
 
 def test_marker_path_sanitizes_session_id(gate, tmp_path, monkeypatch):
@@ -220,67 +238,34 @@ def test_unknown_host_fails_open(gate):
     assert gate.build_decision("codex", "grep", {}, "s1") == {}
 
 
-# ------------------------------------------------------------------ denial loop guard
-def test_denial_counter_roundtrip(gate):
-    """P2.1a byte→row: the count is the row's denials column, per session."""
-    assert gate.deny_count("sess-d") == 0
-    assert gate.increment_denials("sess-d")
-    assert gate.increment_denials("sess-d")
-    assert gate.deny_count("sess-d") == 2
-    assert gate.deny_count("sess-other") == 0
-
-
-def test_denials_refuse_empty_session(gate):
-    assert not gate.increment_denials("")
-    assert gate.deny_count(None) == 0
-
-
-def test_three_strikes_is_the_pass_through_threshold(gate):
-    for _ in range(gate.MAX_DENIALS):
-        gate.increment_denials("sess-strike")
-    assert gate.deny_count("sess-strike") == gate.MAX_DENIALS
-
-
-def test_denials_increment_preserves_a_consulted_row(gate):
-    """Intersection: the denials upsert must not clobber the consulted payload.
-
-    A session can be denied BEFORE it runs memory_search; when it later consults, the
-    consulted fact must survive every denial that follows — a plausible bug is the
-    denials upsert rewriting payload with consulted=false and re-locking text search.
-    """
-    assert gate.increment_denials("sess-ix")
-    assert gate.record_search("sess-ix")
-    assert gate.increment_denials("sess-ix")
-    assert gate.search_consulted("sess-ix") is True
-    assert gate.deny_count("sess-ix") == 2
-
-
+# ------------------------------------------------------------------ telemetry fallbacks
 def test_first_write_imports_the_legacy_marker_set(gate):
-    """Writer-path migration (D6): the first write imports MARKER_DIR's set and renames it.
-
-    The store-level suite covers the import shapes; this one proves the WRITER triggers it:
-    a legacy consulted marker plus .denials sidecar become one row, files renamed, and the
-    legacy facts read back through the same gate functions.
-    """
+    """Writer-path migration (D6): the first write imports MARKER_DIR's set and renames it."""
     legacy = gate.MARKER_DIR
     legacy.mkdir(parents=True)
     (legacy / "old-sess").touch()
-    (legacy / "old-sess.denials").write_text("2", encoding="utf-8")
 
     assert gate.record_search("new-sess") is True
-    assert gate.search_consulted("old-sess") is True
-    assert gate.deny_count("old-sess") == 2
+    assert json.loads(_row(gate, "old-sess")[0]).get("consulted") is True
     assert not (legacy / "old-sess").exists()
     assert (legacy / "old-sess.migrated").exists()
 
 
 def test_the_gate_survives_a_broken_store(gate, monkeypatch):
-    """The legacy file surface is the fail-open fallback when the store cannot open."""
-    def _broken(families=None):
+    """The file surfaces are the fail-open fallback when the stores cannot open."""
+    def _broken(*_a, **_k):
         raise OSError("store unavailable")
 
     monkeypatch.setattr(badger_store, "open_user", _broken)
+    monkeypatch.setattr(badger_store, "open_audit", _broken)
     assert gate.record_search("sess-fallback") is True
-    assert gate.search_consulted("sess-fallback") is True
-    assert gate.increment_denials("sess-fallback") is True
-    assert gate.deny_count("sess-fallback") == 1
+    assert gate.marker_path("sess-fallback").is_file()
+    assert gate.remember("proj-x", ["needle"]) is True
+    assert gate.unsearched("proj-x", ["needle"]) == []
+
+
+def test_the_denial_counter_is_gone(gate):
+    """No pass-through after N denials, no session-wide unlock."""
+    for name in ("MAX_DENIALS", "deny_count", "increment_denials", "search_consulted",
+                 "_denials_path"):
+        assert not hasattr(gate, name), name

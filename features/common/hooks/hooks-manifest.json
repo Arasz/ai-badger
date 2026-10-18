@@ -284,7 +284,7 @@
     },
     {
       "name": "memory-first-gate",
-      "description": "Block repo text-search tools until the session consulted memory_search (3-strike pass-through)",
+      "description": "Block repo text search until each pattern was memory-searched for the project (first sighting searches) and a shell command ends with # memory-checked",
       "agents": {
         "claude": {
           "type": "hooks-json",
@@ -308,7 +308,7 @@
     },
     {
       "name": "memory-first-gate-marker",
-      "description": "Record the memory-first gate's consulted marker after a memory_search call (PostToolUse)",
+      "description": "Record a memory_search query as searched for the memory-first gate (PostToolUse)",
       "agents": {
         "claude": {
           "type": "hooks-json",

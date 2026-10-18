@@ -21,6 +21,9 @@ def gate(load_script, monkeypatch, tmp_path):
     real = load_script(
         "features/common/skills/ai-raccoon-memory/scripts/memory_first_gate.py")
     monkeypatch.setattr(real, "MARKER_DIR", tmp_path / "memory-first")
+    monkeypatch.setattr(real, "SEARCHED_DIR", tmp_path / "memory-first-searched", raising=False)
+    monkeypatch.setenv(badger_store.DEBUG_DIR_ENV, str(tmp_path / "debug"))
+    monkeypatch.setenv("AI_BADGER_PROJECT_ID", "post-proj")
     # P2.1a: gate presence is a store row — hook runs land in a scratch user root.
     monkeypatch.setenv(badger_store.USER_ROOT_ENV, str(tmp_path / "user-root"))
     monkeypatch.setitem(sys.modules, "memory_first_gate", real)
@@ -39,27 +42,33 @@ def _run(hook, monkeypatch, payload):
     return hook.main([])
 
 
+def _searched(gate, query):
+    return gate.unsearched("post-proj", [query]) == []
+
+
 def test_plain_memory_search_records_marker(hook, gate, monkeypatch, tmp_path):
-    rc = _run(hook, monkeypatch, {"tool_name": "memory_search", "session_id": "t1"})
+    rc = _run(hook, monkeypatch, {"tool_name": "memory_search", "session_id": "t1",
+                                  "tool_input": {"projectId": "post-proj", "query": "alpha"}})
 
     assert rc == 0
-    assert gate.search_consulted("t1")
+    assert _searched(gate, "alpha")
 
 
 def test_mcp_prefixed_spelling_records_marker(hook, gate, monkeypatch):
     rc = _run(hook, monkeypatch, {
-        "toolName": "mcp__ai_raccoon__memory_search", "sessionId": "t2"})
+        "toolName": "mcp__ai_raccoon__memory_search", "sessionId": "t2",
+        "toolArgs": '{"projectId": "post-proj", "query": "beta"}'})
 
     assert rc == 0
-    assert gate.search_consulted("t2")
+    assert _searched(gate, "beta")
 
 
 def test_colon_spelling_records_marker(hook, gate, monkeypatch):
     rc = _run(hook, monkeypatch, {"tool_name": "ai-raccoon:memory_search",
-                                  "session_id": "t3"})
+                                  "session_id": "t3", "tool_input": {"projectId": "post-proj", "query": "gamma"}})
 
     assert rc == 0
-    assert gate.search_consulted("t3")
+    assert _searched(gate, "gamma")
 
 
 def test_non_search_tool_is_silent_noop(hook, gate, monkeypatch, capsys):
@@ -68,7 +77,7 @@ def test_non_search_tool_is_silent_noop(hook, gate, monkeypatch, capsys):
 
     assert rc == 0
     assert capsys.readouterr().out == ""
-    assert not gate.search_consulted("t4")
+    assert not _searched(gate, "x")
 
 
 def test_malformed_payload_exits_zero(hook, monkeypatch, capsys):

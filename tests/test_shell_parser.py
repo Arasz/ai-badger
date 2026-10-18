@@ -253,3 +253,34 @@ def test_an_rtk_runner_shell_string_runs_as_a_script(sp, command):
 ])
 def test_rtk_alone_runs_no_dangerous_program(sp, command, program):
     assert [c.program for c in sp.parse(command)] == [program]
+
+
+# ------------------------------------------------------------------------------ pipelines
+
+def _upstream(sp, command, program):
+    """The program feeding *program*'s stdin through a `|`, "" when none, None when absent."""
+    for simple in sp.parse(command):
+        if simple.program == program:
+            return simple.upstream.program if simple.upstream is not None else ""
+    return None
+
+
+@pytest.mark.parametrize("command, upstream", [
+    ("git log | grep fix", "git"),
+    ("git log |& grep fix", "git"),
+    ("git log |\n grep fix", "git"),
+    ("rtk git log | grep fix", "git"),
+    ("sudo docker ps | grep fix", "docker"),
+    ("git log --oneline | head -50 | grep fix", "head"),
+    ("git log || grep fix", ""),
+    ("git log && grep fix", ""),
+    ("git log; grep fix", ""),
+    ("git log\ngrep fix", ""),
+    ("grep fix f", ""),
+    ("git log | (grep fix)", ""),
+    ("git log | bash -c 'grep fix'", ""),
+    ("git log | (true); grep fix", ""),
+])
+def test_a_piped_command_names_its_upstream(sp, command, upstream):
+    """Mutation: mark every command after any `|`-family separator (`||` included) -> red."""
+    assert _upstream(sp, command, "grep") == upstream

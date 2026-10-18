@@ -92,7 +92,8 @@ given by session `ai-raccoon-f7` on 2026-10-04, PR #846):
   resolves that with ai-raccoon's repair alias map.
 - **Under 1.57.0, a repo with no id file resolves the gate to the basename**, which the bank
   refuses on reads. Tolerated: the post hook records any `memory_search`
-  (`memory_first_gate_post_hook.py`), and `MAX_DENIALS` fails open.
+  (`memory_first_gate_post_hook.py`) and its query unlocks the patterns it contains. (Until
+  0.196.0 a `MAX_DENIALS` pass-through also failed open; ADR-0017's 0.196.0 amendment removed it.)
 - **The id file stays machine-local convenience, not an authentication token** (ADR-0024/L8):
   registering it asserts an identity, it does not prove one.
 

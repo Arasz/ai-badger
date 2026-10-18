@@ -930,3 +930,51 @@ def test_x9_a_relative_path_entry_is_never_searched(memory_context_env, tmp_path
     assert mc.find_executable({"PATH": os.pathsep.join([".", "relbin"])}, nohome) is None
     assert mc.find_executable({"PATH": os.pathsep.join(["relbin", str(env.fake.bin_dir)])},
                               nohome) == str(env.fake.path)
+
+
+# -------------------------------------------------------------------- search_block (memory gate)
+
+
+def search_block(env, query, session_id="", budget=5.0):
+    return mc.search_block(query, "proj-123", session_id, mc.Budget(budget),
+                           env=dict(os.environ), home=str(env.home))
+
+
+def test_sb1_search_block_skips_the_prompt_gate_and_the_session_check(memory_context_env):
+    """A grep pattern is a short word a prompt gate would skip; a hook may carry no session."""
+    env = memory_context_env
+    assert not mc.should_enrich("foo").enrich
+
+    block = search_block(env, "foo")
+
+    assert block.startswith("Memory context (ai-raccoon memory_search, snippets")
+    assert len(env.guards.spawns) == 1
+    assert env.fake.calls()[0]["params"]["arguments"]["query"] == "foo"
+
+
+def test_sb2_a_reply_with_no_hits_is_empty_not_none(memory_context_env):
+    env = memory_context_env
+    env.fake.mode("perquery")
+    env.fake.hits({"foo": {"results": [], "code": []}})
+
+    assert search_block(env, "foo") == ""
+
+
+def test_sb3_no_executable_is_none(memory_context_env, monkeypatch, tmp_path):
+    env = memory_context_env
+    empty_bin = tmp_path / "empty-bin"
+    empty_bin.mkdir()
+    monkeypatch.setenv("PATH", str(empty_bin))
+
+    assert search_block(env, "foo") is None
+    assert env.guards.spawns == []
+
+
+@pytest.mark.parametrize("mode", ["iserror", "hang"])
+def test_sb4_a_failed_search_is_none_within_the_budget(memory_context_env, mode):
+    env = memory_context_env
+    env.fake.mode(mode)
+    started = time.monotonic()
+
+    assert search_block(env, "foo", budget=1.0) is None
+    assert time.monotonic() - started < 3.0
