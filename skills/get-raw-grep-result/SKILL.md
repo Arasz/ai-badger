@@ -1,8 +1,17 @@
 ---
 name: get-raw-grep-result
-description: Retrieve the short-lived raw output captured by the memory-first grep gate.
+description: >-
+  Use when the memory-first gate returned a pattern hash and you need the short-lived raw
+  output from its shell grep or rg capture.
 version: 0.1.0
+author: ai-badger
+license: MIT
+platforms: [linux, macos, windows]
 scope: default
+metadata:
+  hermes:
+    tags: [grep, rg, search, retrieval]
+    related_skills: [ai-raccoon-memory]
 ---
 
 > **This is the generic copy.** If this project has been scaffolded, prefer the unprefixed
