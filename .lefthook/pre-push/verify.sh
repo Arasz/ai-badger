@@ -244,7 +244,7 @@ lane_cmd() {
         js)            lane_js ;;
         pi-ts)         lane_pi_ts ;;
         pylint)        lane_pylint ;;
-        pytest)        "$PY" -m pytest -q ;;
+        pytest)        "$PY" -m pytest -q -n 2 ;;
         mutation)      lane_mutation ;;
         *)             printf 'unknown lane: %s\n' "$1" >&2; return 2 ;;
     esac
