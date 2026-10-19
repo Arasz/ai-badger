@@ -206,3 +206,4 @@ the first plain-markdown record here.
 | `2026-10-19-codex-marketplace-memory-hook-parity-task.md` | Executable task plan for Codex-native marketplace support, scope deduplication, compatibility adjustments, and Codex memory-first hook behavior. |
 | `2026-10-19-codex-native-support-research.md` | Codex-native support research covering discovery, skills, marketplaces, hook contracts, configuration scope, and memory-first hook selection. |
 | `2026-10-19-raw-grep-capture-evidence.md` | Evidence record for asynchronous raw grep capture, retrieval by pattern hash, TTL, and Codex compatibility. |
+| `2026-10-19-codex-auto-wm-hook.md` | Research and execution record for Codex-native auto-wm hook output, explicit legacy-hook migration, and release verification. |
