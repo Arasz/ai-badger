@@ -133,8 +133,13 @@ def test_collecting_and_syncing_twice_changes_nothing(tmp_path, root):
     assert _snapshot(second / ".ai-badger") == sibling_after_collect
 
 
-@pytest.mark.parametrize("case", ["escape", "duplicate", "not-a-repository", "symlinked-scope"])
-def test_unsafe_membership_is_refused_before_any_write(tmp_path, root, case):
+@pytest.mark.parametrize("case, expected", [
+    ("escape", "must be relative to collection"),
+    ("duplicate", "duplicate or overlapping"),
+    ("not-a-repository", "not a repository root"),
+    ("symlinked-scope", "must be a real directory"),
+])
+def test_unsafe_membership_is_refused_before_any_write(tmp_path, root, case, expected):
     """A member that escapes, overlaps, is not a repository, or borrows a scope is refused."""
     collection = tmp_path / "chosen collection"
     first = _member(collection, "python-app", ["python"], "canonical-python")
@@ -156,6 +161,7 @@ def test_unsafe_membership_is_refused_before_any_write(tmp_path, root, case):
     else:
         linked = collection / "linked-app"
         linked.mkdir()
+        subprocess.run(["git", "init", "-q", str(linked)], check=True, capture_output=True, text=True)
         (linked / ".ai-badger").symlink_to(first / ".ai-badger")
         members = ["linked-app"]
 
@@ -164,6 +170,7 @@ def test_unsafe_membership_is_refused_before_any_write(tmp_path, root, case):
 
     assert result.returncode == 1, result.stdout + result.stderr
     assert "shared scope refused" in result.stderr
+    assert expected in result.stderr, "the refusal must name the reason, not fail downstream"
     assert not (collection / ".ai-badger" / "shared-scope.json").exists()
     assert json.loads((first / ".ai-badger" / "config.json").read_text())["stacks"] == ["python"]
 
