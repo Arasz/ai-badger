@@ -94,7 +94,7 @@ def detach_links(child: Path, source: Path) -> None:
         if not destination.absolute().is_relative_to(root):
             raise ValueError(f"shared-scope link escapes child: {relative}")
         cursor = destination.parent
-        while cursor != child and cursor != cursor.parent:
+        while cursor not in (child, cursor.parent):
             if cursor.is_symlink():
                 raise ValueError(f"shared-scope link has a symlink ancestor: {relative}")
             cursor = cursor.parent
