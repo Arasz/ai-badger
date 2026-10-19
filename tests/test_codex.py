@@ -307,6 +307,22 @@ def test_memory_first_gate_uses_native_pre_tool_hook(load_script, tmp_path, monk
                     'tool_input': {'command': 'rg secret'}, 'cwd': str(tmp_path)}
 
 
+def test_memory_gate_adapters_are_not_copied_through_hooks_symlink(load_script, tmp_path):
+    arm = load_script('features/codex/adjustments/adjust_hooks.py')
+    target_dir = tmp_path / '.ai-badger'
+    skills = target_dir / 'skills/ai-raccoon-memory/scripts'
+    skills.mkdir(parents=True)
+    for name in ('memory_first_gate_hook.py', 'memory_first_gate_post_hook.py'):
+        (skills / name).write_text('shared hook')
+    outside = tmp_path / 'outside'
+    outside.mkdir()
+    (target_dir / 'hooks').symlink_to(outside, target_is_directory=True)
+
+    arm.adjust(context(tmp_path, target_dir=target_dir, skills=['ai-raccoon-memory']))
+
+    assert list(outside.iterdir()) == []
+
+
 @pytest.mark.parametrize(('backend_result', 'should_deny'), [
     (None, False),
     ('', True),

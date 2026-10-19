@@ -57,6 +57,15 @@ def _add(groups: list, entry: dict, is_tool) -> None:
     groups.insert(at, entry)
 
 
+def _copy_adapter(source: Path, destination: Path, root: Path) -> None:
+    """Copy a Codex adapter only through project-owned directories."""
+    if symlink_parent(destination, root):
+        return
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    if not symlink_parent(destination, root):
+        shutil.copy2(source, destination)
+
+
 def adjust(context: dict[str, Any]) -> dict[str, Any]:
     """Merge compatible hooks, prune owned declines, and leave malformed config untouched."""
     selected = ('codex' in context['config'].get('agents', [])
@@ -93,14 +102,12 @@ def adjust(context: dict[str, Any]) -> dict[str, Any]:
         adapter_source = (context['framework_root'] /
                           'features/codex/adjustments/memory_first_gate_post_hook.py')
         if adapter_source.is_file():
-            gate_adapter.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(adapter_source, gate_adapter)
+            _copy_adapter(adapter_source, gate_adapter, context['target'])
     if selected and 'ai-raccoon-memory/scripts/memory_first_gate_hook.py' in SCRIPTS:
         adapter_source = (context['framework_root'] /
                           'features/codex/adjustments/memory_first_gate_codex_hook.py')
         if adapter_source.is_file():
-            pre_gate_adapter.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(adapter_source, pre_gate_adapter)
+            _copy_adapter(adapter_source, pre_gate_adapter, context['target'])
     for script, (event, matcher) in (SCRIPTS.items() if selected else []):
         if script.split('/', maxsplit=1)[0] in declined:
             continue
