@@ -1,0 +1,12 @@
+{
+  "$schema": "../../../../schemas/mcp-server-tools.schema.json",
+  "server": "plugin:huggingface-skills:huggingface-skills",
+  "tools": [
+    {"name": "dynamic_space", "intent": "Discover and invoke Hugging Face Spaces as tasks (image generation, OCR, TTS, background removal); pick this to run a hosted model app.", "tags": ["run", "slow"]},
+    {"name": "gr1_z_image_turbo_generate", "intent": "Generate an image from a text prompt with the Z-Image-Turbo Space, with resolution, steps and seed controls; use for quick text-to-image output.", "tags": ["run", "slow"]},
+    {"name": "hf_fs", "intent": "Filesystem-style Hub access via hf:// URIs: list trending, search, find files and cat repo files, papers and docs; the general Hub browsing tool.", "tags": ["search", "read", "files", "batch"]},
+    {"name": "hf_whoami", "intent": "Report the authenticated Hugging Face account, organization memberships and credential access; read-only identity check.", "tags": ["read", "diagnostic"]},
+    {"name": "hub_repo_details", "intent": "Get details for specific known model, dataset or Space repo ids, including dataset structure and previews; use when you already have the id.", "tags": ["read", "batch"]},
+    {"name": "hub_repo_search", "intent": "Keyword search across Hub models, datasets and Spaces with author, tag and sort filters; use to discover repos by topic rather than by exact id.", "tags": ["search"]}
+  ]
+}

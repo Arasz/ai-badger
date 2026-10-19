@@ -140,12 +140,12 @@ def _no_hermes(mod, monkeypatch):
 # ── the name mapping ─────────────────────────────────────────────────────────
 
 def test_listing_names_map_to_init_prefixes_by_claude_codes_rule(load_script):
-    """Every character outside [A-Za-z0-9_-] becomes `_` (measured on 2.1.302: `claude.ai Exa`
-    -> `claude_ai_Exa`, `plugin:context7:context7` -> `plugin_context7_context7`)."""
+    """Every character outside [A-Za-z0-9_-] becomes `_` (measured on 2.1.302: `claude.ai Nocat`
+    -> `claude_ai_Nocat`, `plugin:context7:context7` -> `plugin_context7_context7`)."""
     host = load_script(HOST)
     event = init_event({
         "plugin:context7:context7": ("connected", ["mcp__plugin_context7_context7__query-docs"]),
-        "claude.ai Exa": ("connected", ["mcp__claude_ai_Exa__web_search_exa"]),
+        "claude.ai Nocat": ("connected", ["mcp__claude_ai_Nocat__web_search_exa"]),
         "ai-raccoon": ("connected", ["mcp__ai-raccoon__memory_get",
                                      "mcp__ai-raccoon__memory_write"]),
         "plugin:canva:canva": ("needs-auth", []),
@@ -155,7 +155,7 @@ def test_listing_names_map_to_init_prefixes_by_claude_codes_rule(load_script):
 
     assert found.tools == {
         "plugin:context7:context7": ["query-docs"],
-        "claude.ai Exa": ["web_search_exa"],
+        "claude.ai Nocat": ["web_search_exa"],
         "ai-raccoon": ["memory_get", "memory_write"],
         "plugin:canva:canva": [],
     }
@@ -268,18 +268,18 @@ def test_discover_fills_connectors_and_unauthorized_servers_from_claude_init(
     mod = load_script(SCRIPT)
     asked = _no_hermes(mod, monkeypatch)
     fake_claude(init_event({
-        "claude.ai Exa": ("connected", ["mcp__claude_ai_Exa__web_search_exa"]),
+        "claude.ai Nocat": ("connected", ["mcp__claude_ai_Nocat__web_search_exa"]),
         "plugin:p:s": ("connected", ["mcp__plugin_p_s__alpha", "mcp__plugin_p_s__beta"]),
     }))
 
     assert mod.main(["init", "--target", str(tmp_path), "--discover",
-                     "--from-json", _names_only("claude.ai Exa", "plugin:p:s")]) == 0
+                     "--from-json", _names_only("claude.ai Nocat", "plugin:p:s")]) == 0
 
     assert sorted(_source(tmp_path, "plugin:p:s")["tools"]) == ["alpha", "beta"]
-    exa = _source(tmp_path, "claude.ai Exa")
+    exa = _source(tmp_path, "claude.ai Nocat")
     assert list(exa["tools"]) == ["web_search_exa"] and exa["status"] == "ok"
     err = capsys.readouterr().err
-    assert "claude.ai Exa: enumerated 1 tool(s) via claude init" in err
+    assert "claude.ai Nocat: enumerated 1 tool(s) via claude init" in err
     assert asked == []  # filled by the host, so hermes is never asked
 
 
@@ -312,13 +312,13 @@ def test_a_direct_answer_beats_the_host_for_the_same_server(tmp_path, load_scrip
     (tmp_path / ".claude" / "settings.local.json").write_text(
         json.dumps({"enableAllProjectMcpServers": True}), encoding="utf-8")
     fake_claude(init_event({"fake": ("connected", ["mcp__fake__from_host"]),
-                            "claude.ai Exa": ("connected", ["mcp__claude_ai_Exa__x"])}))
+                            "claude.ai Nocat": ("connected", ["mcp__claude_ai_Nocat__x"])}))
 
     assert mod.main(["init", "--target", str(tmp_path), "--discover",
-                     "--from-json", _names_only("fake", "claude.ai Exa")]) == 0
+                     "--from-json", _names_only("fake", "claude.ai Nocat")]) == 0
 
     assert list(_source(tmp_path, "fake")["tools"]) == ["solo"]
-    assert list(_source(tmp_path, "claude.ai Exa")["tools"]) == ["x"]
+    assert list(_source(tmp_path, "claude.ai Nocat")["tools"]) == ["x"]
 
 
 def test_the_host_is_not_spawned_when_direct_answers_cover_everything(tmp_path, load_script,
@@ -387,35 +387,35 @@ def test_a_failing_host_run_fails_only_the_host_source(tmp_path, load_script, mo
     fake_claude(mode="exit")
 
     assert mod.main(["init", "--target", str(tmp_path), "--discover",
-                     "--from-json", _names_only("claude.ai Exa")]) == 0
+                     "--from-json", _names_only("claude.ai Nocat")]) == 0
 
-    assert _source(tmp_path, "claude.ai Exa")["tools"] == {}
+    assert _source(tmp_path, "claude.ai Nocat")["tools"] == {}
     assert "claude init failed" in capsys.readouterr().err
 
 
 def test_no_host_tools_never_spawns_claude(tmp_path, load_script, monkeypatch, fake_claude):
     mod = load_script(SCRIPT)
     _no_hermes(mod, monkeypatch)
-    state = fake_claude(init_event({"claude.ai Exa": ("connected", ["mcp__claude_ai_Exa__x"])}))
+    state = fake_claude(init_event({"claude.ai Nocat": ("connected", ["mcp__claude_ai_Nocat__x"])}))
 
     assert mod.main(["init", "--target", str(tmp_path), "--discover", "--no-host-tools",
-                     "--from-json", _names_only("claude.ai Exa")]) == 0
+                     "--from-json", _names_only("claude.ai Nocat")]) == 0
 
     assert _calls(state) == []
-    assert _source(tmp_path, "claude.ai Exa")["tools"] == {}
+    assert _source(tmp_path, "claude.ai Nocat")["tools"] == {}
 
 
 def test_by_default_the_claude_on_path_is_used(tmp_path, load_script, monkeypatch, fake_claude):
     mod = load_script(SCRIPT)
     _no_hermes(mod, monkeypatch)
-    state = fake_claude(init_event({"claude.ai Exa": ("connected", ["mcp__claude_ai_Exa__x"])}))
+    state = fake_claude(init_event({"claude.ai Nocat": ("connected", ["mcp__claude_ai_Nocat__x"])}))
     monkeypatch.delenv("MCP_INDEX_CLAUDE")
     monkeypatch.setenv("PATH", str(state["bindir"]))
 
     assert mod.main(["init", "--target", str(tmp_path), "--discover",
-                     "--from-json", _names_only("claude.ai Exa")]) == 0
+                     "--from-json", _names_only("claude.ai Nocat")]) == 0
 
-    assert list(_source(tmp_path, "claude.ai Exa")["tools"]) == ["x"]
+    assert list(_source(tmp_path, "claude.ai Nocat")["tools"]) == ["x"]
 
 
 def test_host_tools_without_a_claude_says_so(tmp_path, load_script, monkeypatch, capsys):
@@ -425,7 +425,7 @@ def test_host_tools_without_a_claude_says_so(tmp_path, load_script, monkeypatch,
     monkeypatch.setenv("PATH", str(tmp_path))
 
     assert mod.main(["init", "--target", str(tmp_path), "--discover", "--host-tools",
-                     "--from-json", _names_only("claude.ai Exa")]) == 0
+                     "--from-json", _names_only("claude.ai Nocat")]) == 0
 
     assert "claude not found on PATH" in capsys.readouterr().err
 
@@ -442,12 +442,12 @@ def test_a_connected_server_with_no_tools_is_left_as_listed(tmp_path, load_scrip
                                                             fake_claude, capsys):
     mod = load_script(SCRIPT)
     _no_hermes(mod, monkeypatch)
-    fake_claude(init_event({"claude.ai Exa": ("connected", [])}))
+    fake_claude(init_event({"claude.ai Nocat": ("connected", [])}))
 
     assert mod.main(["init", "--target", str(tmp_path), "--discover",
-                     "--from-json", _names_only("claude.ai Exa")]) == 0
+                     "--from-json", _names_only("claude.ai Nocat")]) == 0
 
-    assert _source(tmp_path, "claude.ai Exa")["status"] == "unknown"
+    assert _source(tmp_path, "claude.ai Nocat")["status"] == "unknown"
     assert "claude init reports connected with 0 tools" in capsys.readouterr().err
 
 
@@ -460,11 +460,11 @@ def test_an_untrusted_target_never_spawns_claude(tmp_path, load_script, monkeypa
     otelHeadersHelper, ...) would run in a directory nobody trusted; `--host-tools` cannot force it."""
     mod = load_script(SCRIPT)
     _no_hermes(mod, monkeypatch)
-    state = fake_claude(init_event({"claude.ai Exa": ("connected", ["mcp__claude_ai_Exa__x"])}))
+    state = fake_claude(init_event({"claude.ai Nocat": ("connected", ["mcp__claude_ai_Nocat__x"])}))
     trust(tmp_path.parent)  # a parent's trust does not count
 
     assert mod.main(["init", "--target", str(tmp_path), "--discover", *flags,
-                     "--from-json", _names_only("claude.ai Exa")]) == 0
+                     "--from-json", _names_only("claude.ai Nocat")]) == 0
 
     assert _calls(state) == []
     assert "not trusted in Claude Code" in capsys.readouterr().err
@@ -477,15 +477,15 @@ def test_a_billed_run_is_refused_and_leaves_a_sentinel(tmp_path, load_script, mo
                                                        fake_claude, capsys):
     mod = load_script(SCRIPT)
     _no_hermes(mod, monkeypatch)
-    fake_claude(init_event({"claude.ai Exa": ("connected", ["mcp__claude_ai_Exa__x"])}),
+    fake_claude(init_event({"claude.ai Nocat": ("connected", ["mcp__claude_ai_Nocat__x"])}),
                 mode="billed")
 
     assert mod.main(["init", "--target", str(tmp_path), "--discover",
-                     "--from-json", _names_only("claude.ai Exa")]) == 0
+                     "--from-json", _names_only("claude.ai Nocat")]) == 0
 
     sentinel = Path.home().joinpath(*SENTINEL)
     assert sentinel.is_file()
-    assert _source(tmp_path, "claude.ai Exa")["tools"] == {}
+    assert _source(tmp_path, "claude.ai Nocat")["tools"] == {}
     err = capsys.readouterr().err
     assert "MODEL TURN" in err and str(sentinel) in err
 
@@ -494,13 +494,13 @@ def test_while_the_sentinel_exists_claude_is_never_spawned(tmp_path, load_script
                                                            fake_claude, capsys):
     mod = load_script(SCRIPT)
     _no_hermes(mod, monkeypatch)
-    state = fake_claude(init_event({"claude.ai Exa": ("connected", ["mcp__claude_ai_Exa__x"])}))
+    state = fake_claude(init_event({"claude.ai Nocat": ("connected", ["mcp__claude_ai_Nocat__x"])}))
     sentinel = Path.home().joinpath(*SENTINEL)
     sentinel.parent.mkdir(parents=True, exist_ok=True)
     sentinel.write_text("{}", encoding="utf-8")
 
     assert mod.main(["init", "--target", str(tmp_path), "--discover", "--host-tools",
-                     "--from-json", _names_only("claude.ai Exa")]) == 0
+                     "--from-json", _names_only("claude.ai Nocat")]) == 0
 
     assert _calls(state) == []
     assert f"delete {sentinel}" in capsys.readouterr().err
@@ -542,12 +542,12 @@ def test_a_server_pending_in_init_reads_pending_approval(tmp_path, load_script, 
                                                          fake_claude):
     mod = load_script(SCRIPT)
     _no_hermes(mod, monkeypatch)
-    fake_claude(init_event({"claude.ai Exa": ("pending", [])}))
+    fake_claude(init_event({"claude.ai Nocat": ("pending", [])}))
 
     assert mod.main(["init", "--target", str(tmp_path), "--discover",
-                     "--from-json", _names_only("claude.ai Exa")]) == 0
+                     "--from-json", _names_only("claude.ai Nocat")]) == 0
 
-    assert _source(tmp_path, "claude.ai Exa")["status"] == "pending_approval"
+    assert _source(tmp_path, "claude.ai Nocat")["status"] == "pending_approval"
 
 
 @pytest.mark.parametrize("flags, spawned", [([], False), (["--host-tools"], True)])
@@ -555,10 +555,10 @@ def test_host_hermes_runs_claude_init_only_when_asked(tmp_path, load_script, mon
                                                       fake_claude, flags, spawned):
     mod = load_script(SCRIPT)
     _no_hermes(mod, monkeypatch)
-    state = fake_claude(init_event({"claude.ai Exa": ("connected", ["mcp__claude_ai_Exa__x"])}))
+    state = fake_claude(init_event({"claude.ai Nocat": ("connected", ["mcp__claude_ai_Nocat__x"])}))
 
     assert mod.main(["init", "--target", str(tmp_path), "--host", "hermes", "--discover",
-                     *flags, "--from-json", _names_only("claude.ai Exa")]) == 0
+                     *flags, "--from-json", _names_only("claude.ai Nocat")]) == 0
 
     assert bool(_calls(state)) is spawned
 
