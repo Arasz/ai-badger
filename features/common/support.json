@@ -339,7 +339,7 @@
         },
         "hooks": {
           "supported": true,
-          "mechanism": "Project .codex/hooks.json or native hooks bundled with the user-scope ai-badger plugin. ai-badger ports UserPromptSubmit prompt markers, SessionStart Git config health, PreToolUse Bash Git storage and memory-first guards, and PostToolUse memory-search credit. codexScope selects one delivery. Trust review required; no patch, general PostToolUse, Stop, transcript accounting or delegation parity",
+          "mechanism": "Project .codex/hooks.json or native hooks bundled with the user-scope ai-badger plugin. ai-badger ports UserPromptSubmit prompt markers, SessionStart Git config health, PreToolUse Bash Git storage and memory-first guards, PostToolUse memory-search credit, and auto-wm PermissionRequest shell approvals with bounded PreToolUse question denial and prompt context. codexScope selects one delivery. Trust review required; no patch, general PostToolUse, Stop, transcript accounting or delegation parity",
           "aiBadgerSupport": true,
           "configPath": ".codex/hooks.json",
           "wiredBy": "codex/adjustments/adjust_hooks.py"

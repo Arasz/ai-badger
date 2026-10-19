@@ -38,7 +38,7 @@ RUNNER = (
 def _ours(handler: dict[str, Any]) -> bool:
     command = handler.get('command', '')
     return isinstance(command, str) and command.startswith(PREFIX) and any(
-        script in command for script in SCRIPTS)
+        script in command for script in (*SCRIPTS, 'hooks/codex_auto_wm_hook.py'))
 
 
 def _is_tool(framework_root: Path):
@@ -140,6 +140,21 @@ def adjust(context: dict[str, Any]) -> dict[str, Any]:
                 entry['matcher'] = matcher
             _add(hooks.setdefault(event, []), entry, is_tool)
             break
+    awm_adapter = context['target_dir'] / 'hooks/codex_auto_wm_hook.py'
+    if selected and 'auto-wm' not in declined:
+        awm_source = context['target_dir'] / 'skills/auto-wm/hooks'
+        if all((awm_source / name).is_file() for name in ('awm_gate.py', 'awm_context.py')):
+            _copy_adapter(context['framework_root'] / 'features/codex/adjustments/auto_wm_hook.py',
+                          awm_adapter, context['target'])
+            for event, source_name in (('PreToolUse', 'awm_gate.py'),
+                                       ('PermissionRequest', 'awm_gate.py'),
+                                       ('UserPromptSubmit', 'awm_context.py')):
+                command = (PREFIX + 'python3 -I -c ' + shlex.quote(RUNNER) + ' '
+                           + shlex.quote(str(context['target'].resolve())) + ' '
+                           + shlex.quote('hooks/codex_auto_wm_hook.py') + ' '
+                           + shlex.quote(str(awm_source / source_name)))
+                _add(hooks.setdefault(event, []), {'hooks': [
+                    {'type': 'command', 'command': command, 'timeout': 10}]}, is_tool)
     new = json.dumps(existing, indent=2) + '\n'
     if not dst.exists() and not any(hooks.values()):
         return {'applied': False, 'files': [], 'notes': 'No compatible hooks delivered'}
@@ -149,4 +164,4 @@ def adjust(context: dict[str, Any]) -> dict[str, Any]:
     if not dst.exists() or dst.read_text() != new:
         dst.write_text(new, encoding='utf-8')
     return {'applied': True, 'files': [],
-            'notes': 'Codex hooks require project trust and /hooks review; prompt markers, Git health, Bash Git storage guard, memory-first PreToolUse gate, and its PostToolUse memory-search credit observer are wired; unsupported hooks remain unported'}
+            'notes': 'Codex hooks require project trust and /hooks review; prompt markers, Git health, Bash Git storage guard, memory-first PreToolUse gate, its PostToolUse memory-search credit observer, and native auto-wm approval/context adapters are wired; unsupported hooks remain unported'}

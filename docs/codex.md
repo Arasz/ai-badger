@@ -94,6 +94,9 @@ were delivered:
 | `git-work/scripts/git_internals_guard.py` | `PreToolUse` | `^Bash$` |
 | Codex memory gate adapter for `ai-raccoon-memory` | `PreToolUse` | `^Bash$` |
 | `ai-raccoon-memory/scripts/memory_first_gate_post_hook.py` | `PostToolUse` | Memory search MCP tool names |
+| Codex auto-wm adapter | `PreToolUse` | Supported away-mode questions |
+| Codex auto-wm adapter | `PermissionRequest` | Eligible shell approval requests |
+| Codex auto-wm context adapter | `UserPromptSubmit` | Prompts inside an armed project |
 
 The native shell tool matches `Bash`, including `exec_command`. The Codex PostToolUse adapter
 skips failed MCP results so an unsuccessful memory search cannot credit its query. Its
@@ -123,6 +126,32 @@ OpenAI's hook support depends on client version and orchestration mode. Local co
 are unsupported with cloud orchestration, even when tools execute locally. Managed workspace
 hooks are a separate administrator surface. This scaffold's hook claims apply to local
 orchestration only.
+
+## Auto-wm approvals
+
+Codex uses `PermissionRequest` for auto-wm approvals. Its `PreToolUse` adapter emits no
+bare `allow` and records no approval for calls that did not ask for one. Eligible shell
+requests reuse auto-wm's project scope, expiry and denylist policy. Disabled, expired,
+out-of-scope, destructive, network, MCP, patch and unknown requests retain normal approval.
+Claude continues to use its existing hook protocol.
+
+Away-mode question denial applies where Codex exposes the question through PreToolUse;
+specialized question paths may bypass hooks. AWM does not change the configured sandbox
+or approval policy. The prompt banner describes this bounded support and points at the
+installed skill's CLI.
+
+After updating the Codex plugin, remove old user-level registrations that directly invoke
+`auto-wm/hooks/awm_gate.py` or `awm_context.py` through the Claude skill directory:
+
+```bash
+python3 "$PLUGIN_ROOT/features/codex/adjustments/migrate_auto_wm_hooks.py" --plugin-root "$PLUGIN_ROOT"
+```
+
+Set `PLUGIN_ROOT` to the installed ai-badger package shown by `codex plugin list`. The
+migration checks the replacement hooks, saves a backup of the user hook configuration,
+and removes only recognized legacy auto-wm handlers. Operator hooks and group metadata
+are preserved. Repeating the migration makes no changes. Review the new hooks in Codex
+before relying on them; running the project scaffold never edits user configuration.
 
 ## Verify a scaffold
 

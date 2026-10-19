@@ -1,6 +1,6 @@
 {
   "name": "ai-badger",
-  "version": "0.203.0",
+  "version": "0.204.1",
   "description": "Shared ai-badger skills and native Codex hooks.",
   "skills": "./skills/",
   "hooks": "./hooks/codex-hooks.json"
