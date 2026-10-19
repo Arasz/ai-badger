@@ -39,7 +39,9 @@ def test_v1_child_shares_immutable_resources_and_runs_its_own_tracker(tmp_path, 
              if entry["path"] == ".ai-badger/instructions/csharp.instructions.md"]
     assert len(links) == 1
     assert links[0]["target"] == os.readlink(instruction)
-    assert links[0]["source"] == str(instruction.resolve())
+    assert links[0]["source"] == "instructions/csharp.instructions.md", \
+        "the ledger records a path relative to the parent, not this machine's"
+    assert (source / links[0]["source"]).resolve() == instruction.resolve()
     parent_before, sibling_before = _snapshot(source), _snapshot(sibling)
     nested = child / "src" / "deep"
     nested.mkdir(parents=True)
@@ -91,7 +93,8 @@ def test_ordinary_scaffold_and_refresh_refuse_shared_children(tmp_path, root):
         timeout=60)
 
     assert scaffold.returncode == 2, scaffold.stdout + scaffold.stderr
-    assert "shared_scope.py sync" in scaffold.stderr
+    assert "shared_scope.py collect" in scaffold.stderr, \
+        "an enrolled child carries the union; collect is what restores it"
     assert _snapshot(aib) == child_before
     assert (aib / "project-id").read_bytes() == child_id
     assert _snapshot(source) == parent_before
@@ -104,7 +107,7 @@ def test_ordinary_scaffold_and_refresh_refuse_shared_children(tmp_path, root):
         text=True, timeout=60)
 
     assert refresh.returncode == 2, refresh.stdout + refresh.stderr
-    assert "shared_scope.py sync" in refresh.stdout
+    assert "shared_scope.py collect" in refresh.stdout
     assert _snapshot(aib) == child_before
     assert (aib / "project-id").read_bytes() == child_id
     assert _snapshot(source) == parent_before

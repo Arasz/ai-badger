@@ -36,6 +36,11 @@
           "description": "The child's own stacks, kept apart from the parent's effective union.",
           "items": { "type": "string", "minLength": 1 }
         },
+        "parentId": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The project id of the collection this child is enrolled in. It is what tells one collection's member from another's."
+        },
         "overrides": {
           "type": "object",
           "description": "The child's authored settings, merged over the parent's defaults."
