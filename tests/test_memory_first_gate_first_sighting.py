@@ -7,6 +7,7 @@ import io
 import json
 import os
 import shlex
+import stat
 import sys
 import time
 from types import SimpleNamespace
@@ -123,6 +124,57 @@ def test_first_sighting_launches_async_capture_and_returns_exact_pattern_hash(
     assert launched[0][1]["start_new_session"] is True
     assert launched[0][1]["stdin"] is env.gate.subprocess.DEVNULL
     assert launched[0][1]["cwd"] == str(env.tmp)
+
+
+def test_first_sighting_returns_and_logs_search_result_with_pattern_hash_mapping(
+        env, monkeypatch, capsys):
+    patterns = ["jsonlNeedle_42", "jsonlNeedle_43", "jsonlNeedle_44"]
+    log_path = env.tmp / "memory-first.jsonl"
+    monkeypatch.setattr(env.gate, "SEARCH_LOG_PATH", log_path)
+    monkeypatch.setattr(env.gate.subprocess, "Popen",
+                        lambda *args, **kwargs: SimpleNamespace(pid=1236))
+
+    command = "grep -n " + " ".join(f"-e {pattern}" for pattern in patterns) + " source.py"
+    reason = _bash(env, monkeypatch, capsys, command)
+
+    expected = {
+        "searchResult": {"mem_search_result_output": HITS},
+        "rawGrepInput": [
+            {"pattern": pattern,
+             "hash": hashlib.sha256(pattern.encode("utf-8")).hexdigest()}
+            for pattern in patterns
+        ],
+    }
+    assert json.loads(reason) == expected
+    lines = log_path.read_text(encoding="utf-8").splitlines()
+    assert len(lines) == 1
+    assert json.loads(lines[0]) == expected
+    assert stat.S_IMODE(log_path.parent.stat().st_mode) == 0o700
+    assert stat.S_IMODE(log_path.stat().st_mode) == 0o600
+
+
+def test_search_jsonl_log_stays_bounded_and_valid(env, monkeypatch):
+    log_path = env.tmp / "memory-first" / "searches.jsonl"
+    log_path.parent.mkdir(mode=0o755)
+    log_path.parent.chmod(0o755)
+    log_path.write_text("old record\n", encoding="utf-8")
+    log_path.chmod(0o644)
+    monkeypatch.setattr(env.gate, "SEARCH_LOG_PATH", log_path)
+    monkeypatch.setattr(env.gate, "MAX_SEARCH_LOG_BYTES", 300)
+    payload = {
+        "searchResult": {"mem_search_result_output": "a" * 30},
+        "rawGrepInput": [{"pattern": "needle", "hash": "f" * 64}],
+    }
+
+    for _ in range(6):
+        env.gate.append_search_result(payload)
+
+    content = log_path.read_bytes()
+    assert len(content) <= 300
+    assert content.endswith(b"\n")
+    assert all(json.loads(line) == payload for line in content.splitlines())
+    assert stat.S_IMODE(log_path.parent.stat().st_mode) == 0o700
+    assert stat.S_IMODE(log_path.stat().st_mode) == 0o600
 
 
 def test_rg_first_sighting_launches_async_capture_with_exact_pattern_hash(
@@ -417,7 +469,9 @@ def test_no_executable_names_memory_search_then_post_hook_then_passes(
     env.state.reply = None
 
     reason = _bash(env, monkeypatch, capsys, "grep -n widgetFactory f.py")
-    assert "memory_search" in reason and "widgetfactory" in reason.lower()
+    payload = json.loads(reason)
+    assert payload["searchResult"]["mem_search_result_output"] is None
+    assert payload["rawGrepInput"][0]["pattern"] == "widgetFactory"
     assert "memory-checked" not in reason
     assert _bash(env, monkeypatch, capsys, "grep -n widgetFactory f.py") is not None
 
@@ -431,7 +485,7 @@ def test_search_raising_still_denies_and_exits_zero(env, monkeypatch, capsys):
 
     reason = _bash(env, monkeypatch, capsys, "grep -n foo f")
 
-    assert reason is not None and "memory_search" in reason
+    assert json.loads(reason)["searchResult"]["mem_search_result_output"] is None
     assert env.gate.unsearched(PROJECT, ["foo"]) == ["foo"]
 
 

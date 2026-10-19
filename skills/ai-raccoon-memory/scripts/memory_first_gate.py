@@ -26,12 +26,19 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Set, Tuple
 
 try:
+    import fcntl
+except ImportError:  # pragma: no cover - advisory file locks are unavailable
+    fcntl = None
+
+try:
     import badger_store  # vendored beside this script in production; engine/ canonical in tests
 except ImportError:  # a deployment without the store keeps the file surfaces
     badger_store = None  # pylint: disable=invalid-name
 
 MARKER_DIR = Path.home() / ".ai-badger" / "memory-first"
 SEARCHED_DIR = Path.home() / ".ai-badger" / "memory-first-searched"
+SEARCH_LOG_PATH = Path.home() / ".ai-badger" / "memory-first-search" / "searches.jsonl"
+MAX_SEARCH_LOG_BYTES = 1024 * 1024
 
 
 # Wall clock for the gate's own memory search, from hook start: hook timeouts are 10 s and
@@ -668,24 +675,70 @@ def search_query(patterns: Iterable[str]) -> Tuple[str, List[str]]:
     return " ".join(included), included
 
 
+def search_result_payload(hits: Optional[str], captures: Optional[List[Tuple[str, str]]]
+                          ) -> Dict[str, Any]:
+    """Build the agent and JSONL record with each raw-result hash beside its exact pattern."""
+    found = None if hits is None else hits.strip()[:HITS_MAX_CHARS] or "(no hits)"
+    return {
+        "searchResult": {"mem_search_result_output": found},
+        "rawGrepInput": [
+            {"pattern": pattern, "hash": key} for pattern, key in (captures or [])
+        ],
+    }
+
+
+def append_search_result(payload: Dict[str, Any]) -> None:
+    """Append one compact JSON object to a private rolling memory-first JSONL log."""
+    try:
+        SEARCH_LOG_PATH.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+        os.chmod(SEARCH_LOG_PATH.parent, 0o700)
+        line = (json.dumps(payload, ensure_ascii=False, separators=(",", ":")) + "\n")
+        encoded = line.encode("utf-8")
+        if len(encoded) > MAX_SEARCH_LOG_BYTES:
+            return
+        descriptor = os.open(SEARCH_LOG_PATH, os.O_RDWR | os.O_APPEND | os.O_CREAT, 0o600)
+        try:
+            os.fchmod(descriptor, 0o600)
+            if fcntl is not None:
+                fcntl.flock(descriptor, fcntl.LOCK_EX)
+            current_size = os.fstat(descriptor).st_size
+            if current_size + len(encoded) > MAX_SEARCH_LOG_BYTES:
+                offset = max(0, current_size - MAX_SEARCH_LOG_BYTES)
+                os.lseek(descriptor, offset, os.SEEK_SET)
+                existing = os.read(descriptor, current_size - offset)
+                if offset:
+                    newline = existing.find(b"\n")
+                    existing = existing[newline + 1:] if newline >= 0 else b""
+                retained: List[bytes] = []
+                retained_size = len(encoded)
+                for previous in reversed(existing.splitlines(keepends=True)):
+                    if retained_size + len(previous) > MAX_SEARCH_LOG_BYTES:
+                        break
+                    retained.append(previous)
+                    retained_size += len(previous)
+                os.ftruncate(descriptor, 0)
+                os.lseek(descriptor, 0, os.SEEK_SET)
+                chunks = [*reversed(retained), encoded]
+            else:
+                chunks = [encoded]
+            for chunk in chunks:
+                remaining = memoryview(chunk)
+                while remaining:
+                    remaining = remaining[os.write(descriptor, remaining):]
+        finally:
+            if fcntl is not None:
+                fcntl.flock(descriptor, fcntl.LOCK_UN)
+            os.close(descriptor)
+    except (OSError, UnicodeError):
+        # Logging must not change the gate decision when the user-scoped log is unavailable.
+        pass
+
+
 def deny_reason(project: str, unseen: List[str], hits: Optional[str],
                 captures: Optional[List[Tuple[str, str]]] = None) -> str:
-    """Why the call is denied, including any raw-result retrieval handles."""
-    retry = "re-issue the call."
-    handles = captures or []
-    raw = (" Raw output can be fetched with `get-raw-grep-result` using "
-           + ", ".join(f"pattern-hash={key}" for _pattern, key in handles) + ".") if handles else ""
-    if not unseen:
-        return ("Memory-first gate: every pattern here was already memory-searched "
-                f"(projectId={project}); {retry}{raw}")
-    listed = ", ".join(repr(p) for p in unseen)
-    if hits is None:
-        return (f"Memory-first gate: first sighting of {listed}. Run memory_search "
-                f"(projectId={project}) with that pattern as the query, then {retry}{raw}")
-    found = hits.strip()[:HITS_MAX_CHARS] or "(no hits)"
-    return (f"Memory-first gate: first sighting of {listed}; memory_search "
-            f"(projectId={project}) ran for you:\n{found}\nIf that answers it, skip the "
-            f"search; otherwise {retry}{raw}")
+    """Return the structured search result and raw pattern handles as JSON."""
+    del project, unseen
+    return json.dumps(search_result_payload(hits, captures), ensure_ascii=False)
 
 
 def decide(host: str, tool_name: Any, tool_input: Any, session_id: Optional[str],
@@ -716,6 +769,8 @@ def decide(host: str, tool_name: Any, tool_input: Any, session_id: Optional[str]
             hits = None
         if hits is not None and queried and not remember(project, queried):
             return {}
+    payload = search_result_payload(hits, captures)
+    append_search_result(payload)
     return build_decision(host, tool_name, tool_input, session_id, cwd,
                           reason=deny_reason(project, unseen, hits, captures))
 

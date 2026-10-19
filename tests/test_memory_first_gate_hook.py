@@ -57,7 +57,8 @@ def test_claude_grep_without_marker_is_denied(hook, monkeypatch, capsys, tmp_pat
     assert rc == 0
     out = _out(capsys)["hookSpecificOutput"]
     assert out["permissionDecision"] == "deny"
-    assert "memory_search" in out["permissionDecisionReason"]
+    payload = json.loads(out["permissionDecisionReason"])
+    assert payload == {"searchResult": {"mem_search_result_output": None}, "rawGrepInput": []}
 
 
 def test_claude_search_of_a_searched_pattern_passes(hook, monkeypatch, capsys, tmp_path):
@@ -91,7 +92,8 @@ def test_copilot_camelcase_payload_is_denied(hook, monkeypatch, capsys, tmp_path
     assert rc == 0
     out = _out(capsys)
     assert out["permissionDecision"] == "deny"
-    assert "memory_search" in out["permissionDecisionReason"]
+    payload = json.loads(out["permissionDecisionReason"])
+    assert payload == {"searchResult": {"mem_search_result_output": None}, "rawGrepInput": []}
 
 
 def test_copilot_bash_search_command_is_denied(hook, monkeypatch, capsys):

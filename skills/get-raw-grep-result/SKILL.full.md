@@ -16,13 +16,13 @@ metadata:
 
 # Get Raw Grep Result
 
-Use this skill when a memory-first gate denial provides a `pattern-hash` and the original
-grep or `rg` output is needed.
+Use this skill when a memory-first gate denial provides a JSON `rawGrepInput` entry and the
+original grep or `rg` output is needed.
 
 ## Procedure
 
-1. Read the `pattern-hash` from the gate's denial reason. The handle is a SHA-256 digest of
-   the exact pattern text.
+1. Select the matching `{pattern, hash}` entry from `rawGrepInput`. The hash is a SHA-256
+   digest of the exact pattern text.
 2. Run `python3 <path-to-this-skill>/scripts/get_raw_grep_result.py --pattern-hash <hash>`.
    For an exact pattern string, use `--pattern <pattern>` instead.
 3. Parse the JSON response. `status` is `pending`, `ready`, `expired`, or `error`; a ready
