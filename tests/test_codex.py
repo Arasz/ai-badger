@@ -57,7 +57,8 @@ def test_codex_plugin_publishes_user_skills_and_native_hooks(root):
                        and 'features/codex/adjustments/memory_first_gate_post_hook.py'
                        not in command}
     post_hook = 'ai-raccoon-memory/scripts/memory_first_gate_post_hook.py'
-    assert bundled_scripts == set(adjustment.SCRIPTS) - {post_hook}
+    assert bundled_scripts == (set(adjustment.SCRIPTS) - {post_hook}) | {
+        'auto-wm/hooks/awm_gate.py', 'auto-wm/hooks/awm_context.py'}
     assert all((root / 'skills' / relative).is_file() for relative in bundled_scripts)
     assert any('features/codex/adjustments/memory_first_gate_post_hook.py' in command
                and f'${{PLUGIN_ROOT}}/skills/{post_hook}' in command
