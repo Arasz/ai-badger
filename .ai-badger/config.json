@@ -59,7 +59,7 @@
     }
   ],
   "skillScope": "default",
-  "codexScope": "project",
+  "codexScope": "user",
   "exclude": {
     "skills": [
       "cron-watchdog-authoring",
