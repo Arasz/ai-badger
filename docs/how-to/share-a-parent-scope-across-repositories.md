@@ -16,6 +16,10 @@ Each member must already be a scaffolded repository: a git checkout with its own
 holds the members; it is independent of where the framework lives, so a collection can sit
 anywhere on disk, including outside the framework checkout.
 
+That rule belongs to the explicit path, `collect`. The parent-side path (`init`, below) does
+not need it: it scaffolds a member that has nothing yet, and converts one that already has
+ai-badger.
+
 Set `AI_BADGER` to the framework checkout that owns the script:
 
 ```bash
@@ -26,9 +30,52 @@ A Claude Code plugin install carries the same script under its own
 `skills/welcome-ai-badger/scripts/` directory, so a plugin-only machine can call that copy
 instead.
 
-Members are named by their path relative to the collection root. The collection never
+Members are named by their path relative to the collection root. The explicit path never
 discovers neighbouring repositories on its own, and a path that escapes the collection is
-refused.
+refused. The parent-side path below does discover them, one level deep.
+
+## Start from the parent side
+
+When the collection is a directory of repositories you have not picked by hand, start from
+the parent. `discover` shows you what is there, and `init` does the work:
+
+```bash
+python3 "$AI_BADGER/features/common/skills/welcome-ai-badger/scripts/shared_scope.py" discover \
+  --target /path/to/source --root "$AI_BADGER"
+```
+
+```
+member dotnet-app:dotnet
+member python-app:python
+union dotnet,python
+```
+
+One line per repository, `dir:stacks`, and the union of the stacks. Discovery is one level
+deep: a repository inside another one is not a member, and nothing is written.
+
+```bash
+python3 "$AI_BADGER/features/common/skills/welcome-ai-badger/scripts/shared_scope.py" init \
+  --target /path/to/source --root "$AI_BADGER"
+```
+
+`init` discovers the same repositories, then decides everything before it writes anything:
+each member's identity, and each member's own settings. It then scaffolds the parent with
+the union of the stacks and materializes every member from it. A member that has no
+ai-badger yet is scaffolded; a member that already has one is converted — its own stacks
+stay its own, its own settings become its overrides, and its own project id survives.
+
+Use `--dry-run` first when the directory holds many repositories: it reports the members,
+the union and every identity decision, and writes nothing.
+
+```bash
+python3 "$AI_BADGER/features/common/skills/welcome-ai-badger/scripts/shared_scope.py" init \
+  --target /path/to/source --dry-run --root "$AI_BADGER"
+```
+
+`init` enrolls every repository it finds next to the target, so it is the wrong tool for a
+directory that holds repositories meant to stay outside the scope; `collect` is the explicit
+path. The `dir:stacks` index is kept in the parent's `.ai-badger/shared-scope.json` as
+`memberStacks`.
 
 ## Enroll the members
 
@@ -137,6 +184,7 @@ member resolves the member's id, not the parent's and not a sibling's.
   longer matches what is on disk. A link that was replaced by an ordinary file names the
   two ways out: delete the file and sync again, or prune the member out of the collection.
 
-The decision record for the design is
-[ADR-0041](../adr/0041-shared-parent-scopes.md). The commands and their flags are listed
-in [scripts.md](../scripts.md).
+The decision records for the design are
+[ADR-0041](../adr/0041-shared-parent-scopes.md) for the explicit path and
+[ADR-0042](../adr/0042-parent-side-collection-initialization.md) for the parent-side one.
+The commands and their flags are listed in [scripts.md](../scripts.md).

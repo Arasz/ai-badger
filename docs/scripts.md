@@ -118,6 +118,15 @@ python3 "$AI_BADGER/features/common/skills/welcome-ai-badger/scripts/scaffold.py
   cannot be pruned). All three accept `--root`, and `--register` opts into registering a
   newly minted child id with ai-raccoon (nothing is registered without it).
   Edit child `.ai-badger/shared-scope.json` overrides for persistent local settings.
+- `shared_scope.py` from the parent side: `discover --target COLLECTION` reports the direct
+  child repositories that carry a `.git` entry, one `dir:stacks` line each, plus the union of
+  their stacks; it writes nothing. `init --target COLLECTION` does the work: it discovers the
+  same children, decides every identity and every member's own settings before it writes
+  anything, scaffolds the parent with the union of the children's stacks, and enrolls every
+  child — a fresh one is scaffolded, an already-scaffolded one is converted and keeps its own
+  project id. `--dry-run` reports the members, the union and the identity decisions and writes
+  nothing; `--config PARENT_CONFIG` authors the parent's own defaults. The `dir:stacks` index
+  is kept in the parent's `.ai-badger/shared-scope.json` as `memberStacks`.
 
 - `scaffold.py` — materializes `.ai-badger/`, records provenance in `manifest.json`, preserves
   existing hand-authored discovery files by default, and never copies test files into a target.

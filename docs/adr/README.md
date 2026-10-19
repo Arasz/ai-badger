@@ -58,6 +58,8 @@ held two files numbered 0002. That collision was resolved in 0.22.0. One number,
 
 | [0041](0041-shared-parent-scopes.md) | Explicit shared parent scopes | Accepted (2026-10-19) | Existing scaffolder materializes union-stack collection children and local-stack sync; private authored descriptor and exact immutable per-file link ownership preserve child identity and mutable state |
 
+| [0042](0042-parent-side-collection-initialization.md) | Parent-side collection initialization | Accepted (2026-10-19) | `discover` and `init` initialize a collection from the directory that holds its repositories: depth-1 discovery of every `.git` child, the union of the children's stacks in the parent, every child enrolled (a fresh one scaffolded, a scaffolded one converted) with its own identity; amends ADR-0041's "never discovers" rule |
+
 ## Writing a new one
 
 Take the next free number. Keep the filename kebab-case and imperative-ish
