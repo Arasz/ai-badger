@@ -1,10 +1,10 @@
 # Skills
 
-This page catalogs 49 skills — everything under `features/common/skills/` and
+This page catalogs 50 skills — everything under `features/common/skills/` and
 `features/claude/skills/`.
-48 live under `features/common/skills/` and split by the `scope:` each declares in its own
+49 live under `features/common/skills/` and split by the `scope:` each declares in its own
 `SKILL.md` frontmatter ([ADR-0018](adr/0018-where-the-skill-routing-declaration-lives.md)):
-**46 are `default`** and arrive in every scaffolded project without being asked for, and
+**47 are `default`** and arrive in every scaffolded project without being asked for, and
 **2 are `optIn`** — the sqlite pair, which stays out of the default set because it is specific
 to a SQLite-backed project ([ADR-0029](adr/0029-sqlite-skills-stay-opt-in.md)). Everything else
 moved to `default` in 0.169.0 ([ADR-0028](adr/0028-all-catalog-skills-ship-by-default.md)); a
@@ -14,8 +14,8 @@ opt-in pair. The last one,
 ([ADR-0010](adr/0010-stack-local-skill-discovery.md)) and therefore **claude-only**: it does not
 reach a Copilot or Hermes project.
 
-**These 49 are not the whole tree.** `features/*/skills/*/SKILL.md` matches **55** files:
-the 49 above plus 6 more that belong to a single stack and arrive only with it — the
+**These 50 are not the whole tree.** `features/*/skills/*/SKILL.md` matches **56** files:
+the 50 above plus 6 more that belong to a single stack and arrive only with it — the
 `dotnet-workload` gateway under
 `features/dotnet/skills/`, 2 under `features/hermes/skills/`, 1 under `features/mcp/skills/`, 1 under `features/ai-raccoon/skills/` and 1 under `features/github/skills/`.
 Those 6 have no row below and are documented by their own `SKILL.md`. Derive the number rather
@@ -147,6 +147,7 @@ names it (the sqlite pair today), **claude-only** when the stack decides.
 | [scripts-tooling-refactor](#scripts-tooling-refactor) | Convert a `scripts/` directory into a tested, tooling-language-native layout | default | by name |
 | [worktree-agent-isolation](#worktree-agent-isolation) | Give each parallel agent its own git worktree and integrate via PRs | default | by name |
 | [pre-push-gate-debugging](#pre-push-gate-debugging) | Debug a blocked pre-push quality gate one lane at a time | default | by name |
+| [get-raw-grep-result](#get-raw-grep-result) | Retrieve the raw output of an asynchronous memory-first grep capture by pattern or pattern hash | default | by name |
 | [sqlite-schema-review](#sqlite-schema-review) | Review SQLite DDL and migrations against scratch-database evidence | opt-in | by name |
 | [sqlite-bank-space-diagnosis](#sqlite-bank-space-diagnosis) | Diagnose a bloated SQLite file and its WAL read-only before reclaiming | opt-in | by name |
 
