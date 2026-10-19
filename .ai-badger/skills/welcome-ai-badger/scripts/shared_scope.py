@@ -310,12 +310,22 @@ def link_instructions(child: Path, source: Path, mode: str) -> None:
     bl.dump_json(manifest_path, manifest)
 
 
-def materialize(child: Path, source: Path, authored: dict[str, Any],
-                parent: dict[str, Any], root: Path, mode: str) -> None:
-    """Render a private child scaffold through the existing scaffolder."""
+def plan_config(authored: dict[str, Any], parent: dict[str, Any], root: Path,
+                mode: str) -> dict[str, Any]:
+    """The effective config of one child, validated before anything is written.
+
+    The parent's defaults, the child's own overrides, and the stacks the mode decides:
+    an inherited child carries the parent's union, a synced child carries its own.
+    """
     config = merge(parent, authored["overrides"])
     config["stacks"] = parent["stacks"] if mode == "inherit" else authored["localStacks"]
     validate_config(config, root)
+    return config
+
+
+def materialize(child: Path, source: Path, authored: dict[str, Any],
+                config: dict[str, Any], root: Path, mode: str) -> None:
+    """Render a private child scaffold from its planned effective config."""
     detach_links(child, source)
     Scaffolder(root, child, config, DEFAULT_SKILLS, install=False).run(
         allow_shared_scope=True)
@@ -397,7 +407,8 @@ def collect(target: Path, names: list[str], root: Path, config_path: Path | None
         "memberStacks": stack_index([str(child.relative_to(target)) for child in selected],
                                     authored)})
     for child, inputs in zip(selected, authored):
-        materialize(child, source, inputs, config, root, "inherit")
+        materialize(child, source, inputs, plan_config(inputs, config, root, "inherit"),
+                    root, "inherit")
 
 
 def prune(target: Path, name: str, root: Path, register: bool = False) -> None:
@@ -434,7 +445,7 @@ def sync(child: Path, source: Path, root: Path, register: bool = False) -> None:
     commit_identity(child, plan, register)
     inputs = descriptor(child, root)
     parent = read_object(source / "config.json")
-    materialize(child, source, inputs, parent, root, "sync")
+    materialize(child, source, inputs, plan_config(inputs, parent, root, "sync"), root, "sync")
 
 
 def discover(target: Path, root: Path) -> None:
@@ -489,6 +500,11 @@ def init(target: Path, root: Path, config_path: Path | None, register: bool = Fa
                                          for stack in child_input["localStacks"]))
     validate_config(config, root)
     names = [child.name for child in children]
+    # Every child's effective config is planned and validated before the first write, so
+    # a member whose own settings cannot be rendered stops the run with the collection
+    # exactly as it was.
+    plans_config = [plan_config(child_input, config, root, child_input["mode"])
+                    for child_input in inputs]
     report = [f"member {name}:{','.join(child_input['localStacks'])}"
               for name, child_input in zip(names, inputs)]
     report += [f"skipped {name}: {reason}" for name, reason in skipped]
@@ -506,8 +522,8 @@ def init(target: Path, root: Path, config_path: Path | None, register: bool = Fa
     Scaffolder(root, target, config, DEFAULT_SKILLS, install=False).run()
     bl.dump_json(source / "shared-scope.json", {
         "mode": "collection", "members": names, "memberStacks": stack_index(names, inputs)})
-    for child, child_input in zip(children, inputs):
-        materialize(child, source, child_input, config, root, child_input["mode"])
+    for child, child_input, child_config in zip(children, inputs, plans_config):
+        materialize(child, source, child_input, child_config, root, child_input["mode"])
     for line in report:
         print(line)
 

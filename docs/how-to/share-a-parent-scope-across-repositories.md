@@ -77,6 +77,12 @@ directory that holds repositories meant to stay outside the scope; `collect` is 
 path. The `dir:stacks` index is kept in the parent's `.ai-badger/shared-scope.json` as
 `memberStacks`.
 
+The parent is scaffolded like a project: it gets its own `.ai-badger/`, its own agent
+discovery files, and the agents the parent directory itself shows traces of. Every member
+is scaffolded in place, so each repository gains its own files and loses nothing — its
+identity, its state and its own settings stay its own. A directory of fifty repositories
+means fifty scaffolds, so give the run a minute.
+
 ## Enroll the members
 
 ```bash

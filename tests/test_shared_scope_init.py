@@ -92,7 +92,7 @@ def test_init_enrolls_every_discovered_child_with_the_union_of_stacks(tmp_path, 
         assert set(_config_of(child)["stacks"]) == {"python", "dotnet"}
         child_descriptor = _descriptor(child / ".ai-badger" / "shared-scope.json")
         assert child_descriptor["mode"] == "inherit"
-        assert child_descriptor["source"] == "../.ai-badger"
+        assert Path(child_descriptor["source"]) == Path("..", ".ai-badger")
         assert child_descriptor["parentId"] == parent_id
         assert child_descriptor["localStacks"]
 
@@ -226,6 +226,40 @@ def test_a_child_enrolled_in_another_collection_is_refused(tmp_path, root):
     assert result.returncode == 1, result.stdout + result.stderr
     assert "already enrolled" in result.stderr
     assert not (second / ".ai-badger").exists(), "the second collection writes nothing"
+
+
+def test_the_parent_keeps_its_own_identity_of_project(tmp_path, root):
+    """A member's own name and settings never leak into the parent."""
+    collection = tmp_path / "source"
+    app = _child(collection, "python-app")
+    _test_write(app / "pyproject.toml", "[project]\n")
+    _identity(app, "canonical-python\n")
+
+    result = _shared(root, "init", "--target", str(collection))
+
+    _success(result)
+    assert _config_of(collection)["project"]["name"] == "source"
+    assert _config_of(app)["project"]["name"] == "python-app"
+
+
+def test_a_member_whose_own_settings_cannot_be_rendered_stops_the_run_before_any_write(
+        tmp_path, root):
+    """A member that carries an unusable setting refuses the run before the first write."""
+    collection = tmp_path / "source"
+    app = _child(collection, "python-app")
+    _test_write(app / "pyproject.toml", "[project]\n")
+    _identity(app, "canonical-python\n")
+    broken = _config(stacks=["python"])
+    broken["skillScope"] = "nonsense"
+    _write_json(app / ".ai-badger" / "config.json", broken)
+    before = _snapshot(app)
+
+    result = _shared(root, "init", "--target", str(collection))
+
+    assert result.returncode == 1, result.stdout + result.stderr
+    assert "invalid shared config" in result.stderr
+    assert not (collection / ".ai-badger").exists(), "a refused run writes nothing"
+    assert _snapshot(app) == before
 
 
 def test_a_dry_run_reports_the_plan_and_writes_nothing(tmp_path, root):
