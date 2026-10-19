@@ -1,10 +1,10 @@
 {
   "$schema": "./schemas/manifest.schema.json",
   "frameworkVersion": "0.206.0",
-  "frameworkCommit": "82a08e2043733f6376737fecc6edd724b1bc9889",
+  "frameworkCommit": "9e76a9940cef695c835012de4a4ab2929ba299bf",
   "frameworkDirty": true,
   "frameworkRoot": ".",
-  "generatedAt": null,
+  "generatedAt": "2026-10-19T12:00:00Z",
   "agents": [
     "claude",
     "copilot",
@@ -560,12 +560,12 @@
       "source": "features/common/skills/ai-raccoon-memory",
       "target": ".ai-badger/skills/ai-raccoon-memory",
       "frameworkVersion": "0.206.0",
-      "hash": "6adecfb930e5e7025b30901e42b3e2be02ec89b77199ba65f961398a0d2af244",
+      "hash": "f9d8c87a3517730a7d6c7b458437f19c5972261748d0b3002e0d70cf99f0f7e1",
       "dirMeta": {
         "file_count": 13,
         "dir_count": 1
       },
-      "sourceHash": "6adecfb930e5e7025b30901e42b3e2be02ec89b77199ba65f961398a0d2af244",
+      "sourceHash": "f9d8c87a3517730a7d6c7b458437f19c5972261748d0b3002e0d70cf99f0f7e1",
       "sourceMeta": {
         "file_count": 13,
         "dir_count": 1
@@ -791,12 +791,12 @@
       "source": "features/common/skills/den-refresh",
       "target": ".ai-badger/skills/den-refresh",
       "frameworkVersion": "0.206.0",
-      "hash": "26157886980579456817a1e3f8065a66528e6be8ce78dd16ced98fc2ce58d6ec",
+      "hash": "304e7442d44eb30978c93d6f02bc1dc5f32362dd1bce7a4e92d2423abaa9ce1c",
       "dirMeta": {
         "file_count": 4,
         "dir_count": 2
       },
-      "sourceHash": "26157886980579456817a1e3f8065a66528e6be8ce78dd16ced98fc2ce58d6ec",
+      "sourceHash": "304e7442d44eb30978c93d6f02bc1dc5f32362dd1bce7a4e92d2423abaa9ce1c",
       "sourceMeta": {
         "file_count": 4,
         "dir_count": 2
@@ -938,12 +938,12 @@
       "source": "features/common/skills/get-raw-grep-result",
       "target": ".ai-badger/skills/get-raw-grep-result",
       "frameworkVersion": "0.206.0",
-      "hash": "019d5acb68521592ea75d722e40f86872713a05da85caf1ba4c237da9193da3f",
+      "hash": "0add84827a43127eedde9f57e6635dedfdf37ea2c93f1f0f7547f11642591d17",
       "dirMeta": {
         "file_count": 3,
         "dir_count": 1
       },
-      "sourceHash": "019d5acb68521592ea75d722e40f86872713a05da85caf1ba4c237da9193da3f",
+      "sourceHash": "0add84827a43127eedde9f57e6635dedfdf37ea2c93f1f0f7547f11642591d17",
       "sourceMeta": {
         "file_count": 3,
         "dir_count": 1
@@ -1572,12 +1572,12 @@
       "source": "features/common/skills/welcome-ai-badger",
       "target": ".ai-badger/skills/welcome-ai-badger",
       "frameworkVersion": "0.206.0",
-      "hash": "33b34c37ef3a74454fd8f8618e9b89cd2f2d2481c11f10394dd51742c414c6fc",
+      "hash": "ff50f7318f1ee109701d8facb7f361d595d2b611d05d8769c7316b6969f12ecc",
       "dirMeta": {
         "file_count": 30,
         "dir_count": 2
       },
-      "sourceHash": "33b34c37ef3a74454fd8f8618e9b89cd2f2d2481c11f10394dd51742c414c6fc",
+      "sourceHash": "ff50f7318f1ee109701d8facb7f361d595d2b611d05d8769c7316b6969f12ecc",
       "sourceMeta": {
         "file_count": 30,
         "dir_count": 2
@@ -2955,7 +2955,7 @@
       "target": ".ai-badger/hooks/memory_first_gate.py",
       "frameworkVersion": "0.206.0",
       "hash": "c3af0003f21768f8e415b8e7e8adc908f75ab5ff4b51fd4fc04b980c93528f0f",
-      "outputHash": "a14f6357b92452e473b8bd61fcc83b9f0a7f726eef383fa7cbc154b79b56b88f"
+      "outputHash": "4ce0744a7cf6638f72c385b9abc6774acfff401f4b0dca80c54928cd8b75fd39"
     },
     {
       "feature": "adjustments",

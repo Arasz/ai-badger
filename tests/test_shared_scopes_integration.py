@@ -73,3 +73,63 @@ def test_v1_child_shares_immutable_resources_and_runs_its_own_tracker(tmp_path, 
         "root": str(child), "id": "canonical-python", "sibling": "canonical-dotnet"}
     assert _snapshot(source) == parent_before
     assert _snapshot(sibling) == sibling_before
+
+
+def test_ordinary_scaffold_and_refresh_refuse_shared_children(tmp_path, root):
+    """The sync command is the only scaffold path allowed to rewrite linked children."""
+    source, child, sibling = _collected_pair(tmp_path, root)
+    aib = child / ".ai-badger"
+    child_before = _snapshot(aib)
+    parent_before, sibling_before = _snapshot(source), _snapshot(sibling)
+    child_id = (aib / "project-id").read_bytes()
+
+    scaffold = subprocess.run([
+        sys.executable,
+        str(root / "features/common/skills/welcome-ai-badger/scripts/scaffold.py"),
+        "--config", str(aib / "config.json"), "--target", str(child),
+        "--root", str(root), "--no-install"], capture_output=True, text=True,
+        timeout=60)
+
+    assert scaffold.returncode == 2, scaffold.stdout + scaffold.stderr
+    assert "shared_scope.py sync" in scaffold.stderr
+    assert _snapshot(aib) == child_before
+    assert (aib / "project-id").read_bytes() == child_id
+    assert _snapshot(source) == parent_before
+    assert _snapshot(sibling) == sibling_before
+
+    refresh = subprocess.run([
+        sys.executable,
+        str(root / "features/common/skills/den-refresh/scripts/refresh.py"),
+        "--root", str(root), "--target", str(child)], capture_output=True,
+        text=True, timeout=60)
+
+    assert refresh.returncode == 2, refresh.stdout + refresh.stderr
+    assert "shared_scope.py sync" in refresh.stdout
+    assert _snapshot(aib) == child_before
+    assert (aib / "project-id").read_bytes() == child_id
+    assert _snapshot(source) == parent_before
+    assert _snapshot(sibling) == sibling_before
+
+
+def test_sync_preflights_every_owned_link_before_detaching(tmp_path, root):
+    """A late foreign-link mismatch leaves earlier owned links untouched."""
+    source, child, sibling = _collected_pair(tmp_path, root)
+    aib = child / ".ai-badger"
+    first = aib / "instructions" / "csharp.instructions.md"
+    foreign = aib / "instructions" / "python.instructions.md"
+    assert first.is_symlink() and foreign.is_symlink()
+    foreign.unlink()
+    foreign.symlink_to(sibling / ".ai-badger" / "instructions" / "python.instructions.md")
+    before = _snapshot(aib)
+    parent_before = _snapshot(source)
+
+    result = subprocess.run([
+        sys.executable,
+        str(root / "features/common/skills/welcome-ai-badger/scripts/shared_scope.py"),
+        "sync", "--target", str(child), "--source", str(source), "--root", str(root)],
+        capture_output=True, text=True, timeout=60)
+
+    assert result.returncode == 1, result.stdout + result.stderr
+    assert "link was replaced" in result.stderr
+    assert _snapshot(aib) == before
+    assert _snapshot(source) == parent_before

@@ -162,13 +162,16 @@ included), or a Grep/Glob/search_files call, passes only when every pattern was 
 memory-searched for this project. This includes `rg` and `rtk rg`.
 
 On a pattern's first sighting, the call is denied and the hook runs one `memory_search`; the
-hits return in the deny reason and the pattern is recorded. For shell grep-family commands,
-the hook also starts the original command asynchronously and saves its raw output in the
-ai-badger audit database for about two minutes. The deny reason includes a `pattern-hash`.
-When the raw output is needed, use the `get-raw-grep-result` skill or run its script with
-`--pattern-hash <hash>`; a known pattern can also be fetched with `--pattern <pattern>`. The
-result is JSON and may be `pending` if capture has not finished yet. After reading the memory
-hits, re-issue the search only if it is still needed. When the hook could not search (no
+agent receives a JSON object with `searchResult.mem_search_result_output` and a
+`rawGrepInput` array of exact `{pattern, hash}` pairs. The same compact object is appended as
+one JSONL line to `~/.ai-badger/memory-first-search/searches.jsonl` (a private rolling log
+bounded to 1 MiB), and the pattern is recorded.
+For shell grep-family commands, the hook also starts the original command asynchronously and
+saves its raw output in the ai-badger audit database for about two minutes. When raw output is
+needed, use the `get-raw-grep-result` skill or run its script with `--pattern-hash <hash>`;
+a known pattern can also be fetched with `--pattern <pattern>`. The result is JSON and may be
+`pending` if capture has not finished yet. After reading the memory hits, re-issue the search
+only if it is still needed. When the hook could not search (no
 `ai-raccoon`, timeout), it records nothing and asks you to run `memory_search` with that
 pattern as the query; your search's query is recorded, and a pattern that is a whole-word run
 of it counts as searched (comparison ignores case, `^ $ \b`, grouping parentheses and regex

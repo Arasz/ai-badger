@@ -71,15 +71,97 @@ def validate_config(config: dict[str, Any], root: Path) -> None:
         raise ValueError("invalid shared config: " + "; ".join(errors))
 
 
+def detach_links(child: Path, source: Path) -> None:
+    """Turn only previously recorded parent links back into private files."""
+    manifest_path = child / ".ai-badger" / "manifest.json"
+    if not manifest_path.is_file():
+        return
+    links = read_object(manifest_path).get("sharedScope", {}).get("links", [])
+    if not isinstance(links, list):
+        raise ValueError("shared-scope link ledger must be a list")
+    checked: list[tuple[Path, str]] = []
+    root = child.resolve()
+    parent = source.resolve()
+    for entry in links:
+        if not isinstance(entry, dict):
+            raise ValueError("shared-scope link record must be an object")
+        relative = Path(entry.get("path", ""))
+        raw_target = entry.get("target")
+        if (not relative.parts or relative.is_absolute() or ".." in relative.parts
+                or not isinstance(raw_target, str) or not raw_target):
+            raise ValueError("invalid shared-scope link record")
+        destination = child / relative
+        if not destination.absolute().is_relative_to(root):
+            raise ValueError(f"shared-scope link escapes child: {relative}")
+        cursor = destination.parent
+        while cursor != child and cursor != cursor.parent:
+            if cursor.is_symlink():
+                raise ValueError(f"shared-scope link has a symlink ancestor: {relative}")
+            cursor = cursor.parent
+        canonical = (destination.parent / raw_target).resolve(strict=False)
+        if not canonical.is_relative_to(parent) or str(canonical) != entry.get("source"):
+            raise ValueError(f"shared-scope link target escapes its parent: {relative}")
+        if destination.is_symlink():
+            if os.readlink(destination) != raw_target:
+                raise ValueError(f"shared-scope link was replaced: {relative}")
+        elif destination.exists():
+            raise ValueError(f"shared-scope link was replaced with a file: {relative}")
+        checked.append((destination, raw_target))
+
+    for destination, _raw_target in checked:
+        if destination.is_symlink():
+            content = destination.read_bytes()
+            destination.unlink()
+            destination.write_bytes(content)
+
+
+def link_instructions(child: Path, source: Path, mode: str) -> None:
+    """Link matching instruction files and record exact ownership in the manifest."""
+    aib = child / ".ai-badger"
+    links: list[dict[str, str]] = []
+    source_instructions = source / "instructions"
+    if source_instructions.is_dir():
+        for parent_file in sorted(source_instructions.rglob("*.instructions.md")):
+            relative = parent_file.relative_to(source)
+            child_file = aib / relative
+            if parent_file.is_symlink() or any(
+                    ancestor.is_symlink() for ancestor in child_file.parents
+                    if ancestor != child):
+                continue
+            if not child_file.is_file() or child_file.is_symlink():
+                continue
+            if child_file.read_bytes() != parent_file.read_bytes():
+                continue
+            raw_target = os.path.relpath(parent_file, child_file.parent)
+            child_file.unlink()
+            child_file.symlink_to(raw_target)
+            links.append({
+                "path": (Path(".ai-badger") / relative).as_posix(),
+                "target": raw_target,
+                "source": str(parent_file.resolve()),
+            })
+    manifest_path = aib / "manifest.json"
+    manifest = read_object(manifest_path)
+    manifest["sharedScope"] = {
+        "mode": mode,
+        "source": str(source.resolve()),
+        "links": links,
+    }
+    bl.dump_json(manifest_path, manifest)
+
+
 def materialize(child: Path, source: Path, authored: dict[str, Any],
                 parent: dict[str, Any], root: Path, mode: str) -> None:
     """Render a private child scaffold through the existing scaffolder."""
     config = merge(parent, authored["overrides"])
     config["stacks"] = parent["stacks"] if mode == "inherit" else authored["localStacks"]
     validate_config(config, root)
-    Scaffolder(root, child, config, DEFAULT_SKILLS, install=False).run()
+    detach_links(child, source)
+    Scaffolder(root, child, config, DEFAULT_SKILLS, install=False).run(
+        allow_shared_scope=True)
     authored = dict(authored, mode=mode, source=os.path.relpath(source, child))
     bl.dump_json(child / ".ai-badger" / "shared-scope.json", authored)
+    link_instructions(child, source, mode)
 
 
 def collect(target: Path, names: list[str], root: Path, config_path: Path | None) -> None:
