@@ -75,10 +75,10 @@ def main(source: Path) -> None:
             original_log(kind, *args)
     def emit(decision, reason):
         if decision == 'allow' and event == 'PermissionRequest':
-            print(json.dumps({'hookSpecificOutput': {
-                'hookEventName': event, 'decision': {'behavior': 'allow'}}}))
             for args in pending:
                 original_log(*args)
+            print(json.dumps({'hookSpecificOutput': {
+                'hookEventName': event, 'decision': {'behavior': 'allow'}}}))
         elif decision == 'deny' and event == 'PreToolUse' and tool in QUESTION_TOOLS:
             command = 'python3 ' + shlex.quote(str(source.parent.parent / 'scripts/awm.py'))
             print(json.dumps({'hookSpecificOutput': {
@@ -98,7 +98,7 @@ def main(source: Path) -> None:
 
 if __name__ == '__main__':
     try:
-        main(Path(sys.argv[1]))
+        main(Path(sys.argv[-1]))
     except Exception:  # pylint: disable=broad-exception-caught
         # A broken adapter must defer to Codex's normal permission flow.
         pass

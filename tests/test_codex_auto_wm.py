@@ -19,7 +19,7 @@ def adapter():
     return module
 
 
-def invoke(event='PreToolUse', tool='exec_command', tool_input=None, mode='away'):
+def invoke(event='PreToolUse', tool='exec_command', tool_input=None):
     module = adapter()
     events = []
     namespace = {}
@@ -217,3 +217,112 @@ def test_plugin_commands_use_native_adapter():
         assert len(commands) == 1
         assert '${PLUGIN_ROOT}/features/codex/adjustments/auto_wm_hook.py' in commands[0]
         assert '${PLUGIN_ROOT}/skills/auto-wm/hooks/' in commands[0]
+
+
+def test_audit_failure_does_not_emit_permission_approval():
+    module = adapter()
+    namespace = {}
+    def failing_log(*_args):
+        raise OSError('audit unavailable')
+    def main():
+        namespace['log_event']('auto_approve', 'safe')
+        namespace['emit']('allow', 'approved')
+    namespace.update(main=main, log_event=failing_log)
+    payload = {'hook_event_name': 'PermissionRequest', 'tool_name': 'exec_command',
+               'tool_input': {'cmd': 'pwd'}}
+    output = io.StringIO()
+    with patch.object(module.runpy, 'run_path', return_value=namespace), \
+         patch.object(module.sys, 'stdin', io.StringIO(json.dumps(payload))), \
+         patch.object(module.sys, 'stdout', output), \
+         pytest.raises(OSError, match='audit unavailable'):
+        module.main(SOURCE)
+    assert output.getvalue() == ''
+
+
+@pytest.mark.parametrize('mode,enabled,expires,approved', [
+    ('partner', True, '2099-01-01T00:00:00+00:00', True),
+    ('away', True, '2000-01-01T00:00:00+00:00', False),
+    ('away', False, '2099-01-01T00:00:00+00:00', False),
+])
+def test_real_permission_request_mode_and_expiry(tmp_path, mode, enabled, expires, approved):
+    import os
+    import subprocess
+    import sys
+    project = tmp_path / 'project'
+    sibling = tmp_path / 'sibling'
+    project.mkdir()
+    sibling.mkdir()
+    env = dict(os.environ, AI_BADGER_USER_ROOT=str(tmp_path / 'user'),
+               HOME=str(tmp_path / 'home'))
+    scripts = SOURCE.parent.parent / 'scripts'
+    entry = {'enabled': enabled, 'mode': mode, 'expires_at': expires}
+    sibling_entry = {'enabled': True, 'mode': 'partner',
+                     'expires_at': '2099-01-01T00:00:00+00:00'}
+    seed = ('import sys,json;sys.path.insert(0,sys.argv[1]);import badger_store;'
+            's=badger_store.open_user();'
+            's.kv_set("awm_state",sys.argv[2],json.loads(sys.argv[3]));'
+            's.kv_set("awm_state",sys.argv[4],json.loads(sys.argv[5]));s.close()')
+    subprocess.run([sys.executable, '-c', seed, str(scripts), str(project), json.dumps(entry),
+                    str(sibling), json.dumps(sibling_entry)], env=env, check=True)
+    payload = {'hook_event_name': 'PermissionRequest', 'tool_name': 'exec_command',
+               'tool_input': {'cmd': 'pwd', 'workdir': str(project)}, 'cwd': str(project)}
+    result = subprocess.run([sys.executable, str(ADAPTER), str(SOURCE)],
+        input=json.dumps(payload), text=True, capture_output=True, env=env, check=True)
+    if approved:
+        assert json.loads(result.stdout)['hookSpecificOutput']['decision'] == {'behavior': 'allow'}
+    else:
+        assert result.stdout == ''
+    read = ('import sys,json;sys.path.insert(0,sys.argv[1]);import badger_store;'
+            's=badger_store.open_user();print(json.dumps(s.kv_all("awm_state")));s.close()')
+    state = json.loads(subprocess.run([sys.executable, '-c', read, str(scripts)],
+        env=env, text=True, capture_output=True, check=True).stdout)
+    assert state[str(sibling)] == sibling_entry
+    if enabled and expires.startswith('2000'):
+        assert state[str(project)]['enabled'] is False
+        assert state[str(project)]['disabled_reason'] == 'expired'
+    else:
+        assert state[str(project)] == entry
+
+
+@pytest.mark.parametrize('delivery', ['project', 'plugin'])
+def test_delivered_permission_command_executes_real_policy(load_script, tmp_path, delivery):
+    import os
+    import shutil
+    import sqlite3
+    import subprocess
+    import sys
+    project = tmp_path / 'project with spaces'
+    project.mkdir()
+    user = tmp_path / 'user'
+    env = dict(os.environ, AI_BADGER_USER_ROOT=str(user), HOME=str(tmp_path / 'home'))
+    if delivery == 'project':
+        target_dir = project / '.ai-badger'
+        shutil.copytree(SOURCE.parent.parent, target_dir / 'skills/auto-wm')
+        arm = load_script('features/codex/adjustments/adjust_hooks.py')
+        arm.adjust({'target': project, 'target_dir': target_dir, 'framework_root': ROOT,
+                    'config': {'agents': ['codex']}})
+        manifest = json.loads((project / '.codex/hooks.json').read_text())
+    else:
+        package = tmp_path / 'installed plugin with spaces'
+        shutil.copytree(SOURCE.parent.parent, package / 'skills/auto-wm')
+        adapter_target = package / 'features/codex/adjustments/auto_wm_hook.py'
+        adapter_target.parent.mkdir(parents=True)
+        shutil.copy(ADAPTER, adapter_target)
+        env['PLUGIN_ROOT'] = str(package)
+        manifest = json.loads((ROOT / 'hooks/codex-hooks.json').read_text())
+    seed = ('import sys;sys.path.insert(0,sys.argv[1]);import badger_store;'
+            's=badger_store.open_user();s.kv_set("awm_state",sys.argv[2],'
+            '{"enabled":True,"mode":"partner","expires_at":"2099-01-01T00:00:00+00:00"});s.close()')
+    subprocess.run([sys.executable, '-c', seed, str(SOURCE.parent.parent / 'scripts'),
+                    str(project)], env=env, check=True)
+    commands = [h['command'] for group in manifest['hooks']['PermissionRequest']
+                for h in group['hooks'] if 'auto_wm' in h['command']]
+    assert len(commands) == 1
+    payload = {'hook_event_name': 'PermissionRequest', 'tool_name': 'functions.exec_command',
+               'tool_input': {'cmd': 'pwd', 'workdir': str(project)}, 'cwd': str(project)}
+    result = subprocess.run(commands[0], shell=True, input=json.dumps(payload),
+        text=True, capture_output=True, env=env, cwd=project, check=True)
+    assert json.loads(result.stdout)['hookSpecificOutput']['decision'] == {'behavior': 'allow'}
+    with sqlite3.connect(next(user.rglob('*.db'))) as db:
+        rows = db.execute('select * from awm_decisions').fetchall()
+    assert sum('auto_approve' in str(row) for row in rows) == 1
