@@ -1,6 +1,6 @@
 {
   "$schema": "./schemas/index.schema.json",
-  "frameworkVersion": "0.204.0",
+  "frameworkVersion": "0.205.0",
   "stacks": {
     "ai-raccoon": {
       "skills": [
@@ -353,6 +353,11 @@
         {
           "name": "feed-badger",
           "path": "features/common/skills/feed-badger",
+          "scope": "default"
+        },
+        {
+          "name": "get-raw-grep-result",
+          "path": "features/common/skills/get-raw-grep-result",
           "scope": "default"
         },
         {

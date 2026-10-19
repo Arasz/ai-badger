@@ -320,7 +320,7 @@
     },
     {
       "name": "memory-first-gate",
-      "description": "Block repo text search until each pattern was memory-searched for the project (first sighting searches) and a shell command ends with # memory-checked",
+      "description": "Block repo text search until each pattern was memory-searched for the project (first sighting searches and captures shell grep/rg output briefly)",
       "agents": {
         "claude": {
           "type": "hooks-json",

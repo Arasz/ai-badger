@@ -1,8 +1,7 @@
 """Hermes plugin memory-first gate (features/common/hooks/ai_badger_hooks.py).
 
 The plugin runs the shared gate: a search tool call passes once every pattern it searches
-for was memory-searched for the project (gate.project_id(cwd)), and a terminal command
-also carries the `# memory-checked` marker. Searched patterns persist in the same store
+for was memory-searched for the project (gate.project_id(cwd)). Searched patterns persist in the same store
 the Claude/Copilot hooks use; session start clears nothing.
 """
 # pylint: disable=redefined-outer-name  # module-local fixture reuse; see pyproject.toml
@@ -84,7 +83,7 @@ def test_search_files_blocked_on_first_sighting(hooks, fake_gate, proj_a, monkey
 
     assert _block(out)
     assert "memory_search" in out["message"]
-    assert "# memory-checked" in out["message"]
+    assert "memory-checked" not in out["message"]
 
 
 def test_memory_search_with_the_pattern_unblocks_search_files(
@@ -118,18 +117,14 @@ def test_non_search_tools_never_blocked(hooks, fake_gate, proj_a, monkeypatch):
             tool_name=tool_name, args=args, task_id="t1") is None
 
 
-def test_terminal_grep_needs_search_and_marker_build_passes(
+def test_terminal_grep_needs_search_but_no_marker(
         hooks, fake_gate, proj_a, monkeypatch):
     monkeypatch.chdir(proj_a)
     assert _block(hooks.pre_tool_call_memory_gate(
         tool_name="terminal", args={"command": "grep -r foo src/"}, task_id="t1"))
     _search(hooks, "foo")
-    assert _block(hooks.pre_tool_call_memory_gate(
-        tool_name="terminal", args={"command": "grep -r foo src/"}, task_id="t2"))
-
     assert hooks.pre_tool_call_memory_gate(
-        tool_name="terminal", args={"command": "grep -r foo src/ # memory-checked"},
-        task_id="t3") is None
+        tool_name="terminal", args={"command": "grep -r foo src/"}, task_id="t2") is None
     assert hooks.pre_tool_call_memory_gate(
         tool_name="terminal", args={"command": "dotnet build"}, task_id="t4") is None
 
