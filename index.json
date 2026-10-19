@@ -232,6 +232,10 @@
           "path": "features/codex/adjustments/adjustment.json"
         },
         {
+          "name": "auto_wm_hook",
+          "path": "features/codex/adjustments/auto_wm_hook.py"
+        },
+        {
           "name": "codex_paths",
           "path": "features/codex/adjustments/codex_paths.py"
         },
@@ -242,6 +246,10 @@
         {
           "name": "memory_first_gate_post_hook",
           "path": "features/codex/adjustments/memory_first_gate_post_hook.py"
+        },
+        {
+          "name": "migrate_auto_wm_hooks",
+          "path": "features/codex/adjustments/migrate_auto_wm_hooks.py"
         }
       ],
       "meta": {

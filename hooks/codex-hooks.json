@@ -8,6 +8,15 @@
             "command": "python3 \"${PLUGIN_ROOT}/skills/prompt-markers/scripts/user_prompt_hook.py\""
           }
         ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${PLUGIN_ROOT}/features/codex/adjustments/auto_wm_hook.py\" \"${PLUGIN_ROOT}/skills/auto-wm/hooks/awm_context.py\"",
+            "timeout": 10
+          }
+        ]
       }
     ],
     "SessionStart": [
@@ -35,6 +44,15 @@
             "timeout": 10
           }
         ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${PLUGIN_ROOT}/features/codex/adjustments/auto_wm_hook.py\" \"${PLUGIN_ROOT}/skills/auto-wm/hooks/awm_gate.py\"",
+            "timeout": 10
+          }
+        ]
       }
     ],
     "PostToolUse": [
@@ -44,6 +62,17 @@
           {
             "type": "command",
             "command": "python3 \"${PLUGIN_ROOT}/features/codex/adjustments/memory_first_gate_post_hook.py\" \"${PLUGIN_ROOT}/skills/ai-raccoon-memory/scripts/memory_first_gate_post_hook.py\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PermissionRequest": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${PLUGIN_ROOT}/features/codex/adjustments/auto_wm_hook.py\" \"${PLUGIN_ROOT}/skills/auto-wm/hooks/awm_gate.py\"",
             "timeout": 10
           }
         ]
