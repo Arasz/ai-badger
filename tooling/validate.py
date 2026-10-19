@@ -202,6 +202,16 @@ HOOKS_MANIFEST_AGENT_EXEMPTIONS: Dict[str, Dict[str, str]] = {
                   "that never turns consumes nothing. Claude and Copilot keep the start arm because their "
                   "hooks inject through their own per-turn channel regardless.",
     },
+    "memory-broker-start": {
+        "hermes": "Not wired yet: Hermes registers its session callbacks in ai_badger_hooks.py "
+                  "and ships memory_context.py there without the broker sibling, so its prompt "
+                  "searches keep the per-call proxy path, which is also the fallback every "
+                  "client takes when no broker is live.",
+    },
+    "memory-broker-stop": {
+        "hermes": "Same as memory-broker-start: with no broker started for a Hermes session "
+                  "there is nothing for on_session_end to stop.",
+    },
     "message-delivery-turn-end": {
         "hermes": "No per-turn stop surface to wire onto: hermes pre_llm_call already delivers "
                   "before every LLM call including tool-loop continuations, so a turn-end arm "

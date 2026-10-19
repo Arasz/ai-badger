@@ -18,6 +18,7 @@ Everything written down about this project, grouped by what you came here to do.
 | [retrieval.md](retrieval.md) | How the MCP tool index is searched: BM25 over fused fields, why the gate is a coverage ratio rather than a score, the eval fixture set, and the telemetry that tells you whether any of it ran |
 | [codex.md](codex.md) | Codex project setup, native instructions/skills/personas/MCP/hooks, trust, preserved files and runtime limits |
 | [dictionary.md](dictionary.md) | How ai-badger's vocabulary (skills, hooks, instructions, personas, scaffolding) maps onto each supported agent's native terminology |
+| [reference/data-access.md](reference/data-access.md) | Every way ai-badger's scripts, hooks, skills and declared MCP servers can send project data off the machine, with the default and the switch for each |
 | [how-to/run-without-hooks.md](how-to/run-without-hooks.md) | Limited mode for machines where managed policy disables Claude Code hooks: turning it on, the check-in, and what it cannot replace |
 | [scripts.md](scripts.md) | Running the framework scripts and the test suite |
 | [hermes-claude-compatibility.md](hermes-claude-compatibility.md) | Claude Code features mapped to their Hermes Agent equivalents — hook systems, session tracking, statusline, delegation, gaps |

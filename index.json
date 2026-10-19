@@ -1,6 +1,6 @@
 {
   "$schema": "./schemas/index.schema.json",
-  "frameworkVersion": "0.202.0",
+  "frameworkVersion": "0.204.0",
   "stacks": {
     "ai-raccoon": {
       "skills": [
@@ -234,6 +234,14 @@
         {
           "name": "codex_paths",
           "path": "features/codex/adjustments/codex_paths.py"
+        },
+        {
+          "name": "memory_first_gate_codex_hook",
+          "path": "features/codex/adjustments/memory_first_gate_codex_hook.py"
+        },
+        {
+          "name": "memory_first_gate_post_hook",
+          "path": "features/codex/adjustments/memory_first_gate_post_hook.py"
         }
       ],
       "meta": {

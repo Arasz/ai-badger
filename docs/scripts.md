@@ -1,11 +1,14 @@
 # ai-badger scripts — how to run them and their tests
 
 All scripts are plain Python 3.10+ standalone files (no install step). The framework validates
-JSON against `schemas/` with `jsonschema`. Codex project configuration uses `tomllib` on
-Python 3.11+ and the conditional `tomli` dependency on Python 3.10. Install the requirements:
+JSON against `schemas/` with `jsonschema`, and the task-plan model uses `pydantic`. `pyyaml` is
+optional and degrades to a printed note. Codex project configuration uses `tomllib` on
+Python 3.11+ and the conditional `tomli` dependency on Python 3.10. The task-graph server and
+CLI are PEP 723 scripts started with `uv run --script` (see `features/common/stack-mcp.json`), so
+consumers need `uv`, which fetches `pydantic` on first launch. Install the requirements:
 
 ```bash
-python3 -m pip install -r engine/requirements.txt   # jsonschema
+python3 -m pip install -r engine/requirements.txt   # jsonschema, pyyaml, pydantic, tomli (+ optional semantica)
 ```
 
 `$AI_BADGER` below is this repo's root (the directory containing `index.json`, `schemas/`,
@@ -48,18 +51,31 @@ Run only by CI and the pre-push hook, never by a consumer of the plugin, so they
 from the engine and the catalog tooling. They are not shipped surface: a gate-only change does
 not require a `VERSION` bump.
 
-| Gate | What it does | Run |
-|--------|--------------|-----|
-| `release_guard.py` | Fail if the shipped surface (`tooling/release_paths.py`) changed since the last release tag without a `VERSION` bump. | `python3 gates/release_guard.py` (needs `fetch-depth: 0` in CI). |
-| `docs_guard.py` | Fail if a relative link or a backticked repo path in the docs no longer resolves, or a changelog entry is missing from its index. | `python3 gates/docs_guard.py`; exempt a path in `.docs-guard-ignore`. |
-| `deps_guard.py` | Fail if any `*.py` under `engine/`, `tooling/`, `features/` or `gates/` imports a third-party module that `engine/requirements.txt` does not declare. Imports inside functions and `try:` blocks count. | `python3 gates/deps_guard.py` |
-| `shipped_paths_guard.py` | Fail if a machine-specific absolute path (`/Users/…`, `/home/…`, `C:\Users\…`) appears in a tracked file outside `docs/`, root `*.md` and `tests/`. The `docs/` exemption stops at generated pages: a `.html`/`.htm` file under `docs/` is scanned, because a generated page is not prose. | `python3 gates/shipped_paths_guard.py`; exempt a path in `.shipped-paths-guard-ignore`. |
-| `scaffold_freshness_guard.py` | Fail if re-scaffolding this repo against itself, in a throwaway copy, would change anything but a version stamp — a `features/**` edit that never reached `.ai-badger/`. Each finding is read as `stale` (the source moved ahead) or `hand-edited` (the mirror was changed here). | `python3 gates/scaffold_freshness_guard.py` |
-| `consumer_journey.py` | Install ai-badger the way a consumer does — from a plugin-cache-shaped copy with no `.git`, into a real `git init` project, under a scratch `$HOME` — then work in the result: an edit the guard must refuse, one it must allow, two re-scaffolds, a teardown, and a before/after `$HOME` diff that counts directories and symlinks, not just regular files. | `python3 gates/consumer_journey.py` (`--root` to install from another tree, `--keep` to inspect the scratch dir). |
-| `tdd_guard.py` | Fail if `.py`/`.mjs` under `engine/`, `tooling/`, `features/` or `gates/` (plus shipped pi `.ts` under `features/pi/adjustments/`) changed since `git merge-base --base HEAD` and no test (`tests/**` or `features/pi/tests/*.test.ts`) changed with it — `--diff-filter=AMR`, so a deleted test does not count. | `python3 gates/tdd_guard.py --base origin/main` |
-| `skills_lint.py` | Fail if a catalog `SKILL.md` breaks one of the eleven conventions (name grammar, description shape and size, body budget, conditioned `references/` mentions, a gotchas section, required and non-duplicated frontmatter keys). `tooling/validate.py --all` calls it too, so CI reports it without running it directly. | `python3 gates/skills_lint.py` |
-| `workflow_lint.py` | Fail if a `uses:` in `.github/workflows/` is not pinned to a 40-character commit SHA (a `./` local action is exempt), or if a workflow declares no `permissions:` block at the top and one of its jobs declares none either. Enforces `features/github/invariants/pin-actions-to-sha.md`, which shipped violated nine times over before anything checked it. | `python3 gates/workflow_lint.py` |
-| `gate_report.py` | Not a gate: the `Problem(path, line, message)` finding shape and the failure report shared by `deps_guard`, `docs_guard` and `shipped_paths_guard`. The other three report something else and keep their own output. | Imported, never run. |
+Each gate fails with a non-zero exit. The CI step column names the workflow that runs it:
+`pylint.yml` (workflow name "Lint and test") has a `gates` job that walks every lane in
+`.lefthook/pre-push/verify.sh`, and the same lanes run in the pre-push hook (`lefthook.yml`).
+`consumer_journey.py` is the exception: `consumer-journey.yml` runs it on its own, and a local
+push skips it.
+
+| Gate | What it does | CI step | Run |
+|--------|--------------|---------|-----|
+| `release_guard.py` | Fail if the shipped surface (`tooling/release_paths.py`) changed since the last release tag without a `VERSION` bump. | Lint and test, `gates` job: `verify.sh release` | `python3 gates/release_guard.py` (needs `fetch-depth: 0` in CI). |
+| `docs_guard.py` | Fail if a relative link or a backticked repo path in the docs no longer resolves, or a changelog entry is missing from its index. | Lint and test, `gates` job: `verify.sh docs` | `python3 gates/docs_guard.py`; exempt a path in `.docs-guard-ignore`. |
+| `deps_guard.py` | Fail if any `*.py` under `engine/`, `tooling/`, `features/` or `gates/` imports a third-party module that `engine/requirements.txt` does not declare. Imports inside functions and `try:` blocks count. | Lint and test, `gates` job: `verify.sh deps` | `python3 gates/deps_guard.py` |
+| `shipped_paths_guard.py` | Fail if a machine-specific absolute path (`/Users/…`, `/home/…`, `C:\Users\…`) appears in a tracked file outside `docs/`, root `*.md` and `tests/`. The `docs/` exemption stops at generated pages: a `.html`/`.htm` file under `docs/` is scanned, because a generated page is not prose. | Lint and test, `gates` job: `verify.sh paths` | `python3 gates/shipped_paths_guard.py`; exempt a path in `.shipped-paths-guard-ignore`. |
+| `scaffold_freshness_guard.py` | Fail if re-scaffolding this repo against itself, in a throwaway copy, would change anything but a version stamp, such as a `features/**` edit that never reached `.ai-badger/`. Each finding is read as `stale` (the source moved ahead) or `hand-edited` (the mirror was changed here). | Lint and test, `gates` job: `verify.sh scaffold` | `python3 gates/scaffold_freshness_guard.py` |
+| `consumer_journey.py` | Install ai-badger the way a consumer does, from a plugin-cache-shaped copy with no `.git`, into a real `git init` project, under a scratch `$HOME`, then work in the result with an edit the guard must refuse, one it must allow, two re-scaffolds, a teardown, and a before/after `$HOME` diff that counts directories and symlinks, not just regular files. | Consumer journey workflow, on every push | `python3 gates/consumer_journey.py` (`--root` to install from another tree, `--keep` to inspect the scratch dir). |
+| `tdd_guard.py` | Fail if `.py`/`.mjs` under `engine/`, `tooling/`, `features/` or `gates/` (plus shipped pi `.ts` under `features/pi/adjustments/`) changed since `git merge-base --base HEAD` and no test (`tests/**` or `features/pi/tests/*.test.ts`) changed with it. It uses `--diff-filter=AMR`, so a deleted test does not count. | Lint and test, `gates` job: `verify.sh tdd` (skipped on a push to main) | `python3 gates/tdd_guard.py --base origin/main` |
+| `skills_lint.py` | Fail if a catalog `SKILL.md` breaks one of the thirteen conventions (name grammar, description shape and size, body budget, conditioned `references/` mentions, a gotchas section, required and non-duplicated frontmatter keys). `tooling/validate.py --all` calls it too, so CI reports it without running it directly. | Lint and test, `gates` job: `verify.sh validate`, through `validate.py --all` | `python3 gates/skills_lint.py` |
+| `workflow_lint.py` | Fail if a `uses:` in `.github/workflows/` is not pinned to a 40-character commit SHA (a `./` local action is exempt), or if a workflow declares no `permissions:` block at the top and one of its jobs declares none either. Enforces `features/github/invariants/pin-actions-to-sha.md`, which shipped violated nine times over before anything checked it. | Lint and test, `gates` job: `verify.sh workflows` | `python3 gates/workflow_lint.py` |
+| `gate_report.py` | Not a gate: the `Problem(path, line, message)` finding shape and the failure report shared by `deps_guard`, `docs_guard` and `shipped_paths_guard`. The other three report something else and keep their own output. | none (library) | Imported, never run. |
+
+`consumer_journey.py` refuses nothing of its own accord: it installs the plugin the way a stranger
+would, scaffolds a throwaway `git init` project, works in it, re-scaffolds, tears it down, and
+diffs `$HOME` for anything left behind.
+
+What the gates do not cover: they check the artefacts, not the reasoning. A confidently wrong
+claim in a PR body passes every one of them and still needs a reviewer.
 
 ## CI helpers (`.github/scripts/`)
 
@@ -69,6 +85,11 @@ consumer of the plugin. Not shipped surface.
 | Script | What it does | Run |
 |--------|--------------|-----|
 | `conflicting_pr_report.py` | Report the open pull requests that conflict with their base — GitHub dispatches no `pull_request` workflow run for those, so a required check whose only trigger is `pull_request` never reports and the PR reads as slow rather than stuck. Filtering only; `stuck-pr-watch.yml` posts the notice. | `gh api graphql ... \| python3 .github/scripts/conflicting_pr_report.py`; `--print-comment` prints the notice body. |
+
+The workflows that call them live in `.github/workflows/`: `codeql.yml` (CodeQL),
+`consumer-journey.yml` (Consumer journey), `labeler.yml` (Labeler), `pylint.yml` (Lint and test),
+`release-tag.yml` (Tag the release), `secret-scan.yml` (Secret scan), `stuck-pr-watch.yml`
+(Stuck PR watch) and `task-graph-launch.yml` (task-graph launch).
 
 ## welcome-ai-badger (`features/common/skills/welcome-ai-badger/scripts/`)
 
@@ -90,6 +111,13 @@ python3 "$AI_BADGER/features/common/skills/welcome-ai-badger/scripts/scaffold.py
   and agent-tooling dirs like `node_modules`, `.venv`, `.claude`).
 - `scaffold.py` — materializes `.ai-badger/`, records provenance in `manifest.json`, preserves
   existing hand-authored discovery files by default, and never copies test files into a target.
+  Flags: `--skills` (comma list; empty means the set already scaffolded), `--overwrite-agent-files`,
+  `--reset-seed-files` (reseed SEED-ONCE files, discarding project edits), `--no-install` and
+  `--execute` (run skill install commands instead of printing them).
+- `den-refresh` (`features/common/skills/den-refresh/scripts/refresh.py`): re-scaffolds a project
+  from its own config when the framework moved. `--force` re-scaffolds without a drift signal,
+  `--prune-cache` deletes `~/.ai-badger/framework`, `--prune-namespaces` deletes orphaned
+  `~/.hermes/skills/<project>/` trees.
 
 ## feed-badger (`features/common/skills/feed-badger/scripts/`)
 
@@ -111,6 +139,13 @@ their owning skills.
 points at an executable**, runs it with the same stdin and prints its output — so your own
 statusline keeps working. Unset (the default), that step is skipped. The `task` skill declares
 `platforms: [linux, macos]`: `fcntl` and `crontab` make it POSIX-only.
+
+The task-graph plan server runs through `uv run --script`; its CLI twin is
+`features/common/skills/task-decomposition/scripts/task_graph_cli.py` (`<tool> --json`), used
+where no `.mcp.json` is loaded, such as worktree sessions.
+
+The `rtk` tool (`features/common/tools/rtk/`) ships `scripts/install.py`, `check.py`, `rtk_guard.py`
+(the Claude PreToolUse rewrite guard) and `user_hook.py --apply` (user-scope install).
 
 `call-behaviorist` (`features/common/skills/call-behaviorist/scripts/behaviorist.py`) switches
 on ai-badger's own audit log — `on [DURATION] [--project]`, `off`, `status`, `tail`, `analyze`,

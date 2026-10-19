@@ -26,7 +26,34 @@ Those four numbers, and every row of the table below, are checked against the de
 `tests/test_docs_match_the_catalog.py`. A skill added to the catalog without a row here fails
 that test, and so does a row naming a skill the catalog no longer has — **but only for the
 common and `claude` stacks**: that test's `STACK_LOCAL_SKILL_DIRS` names `claude` alone, so the
-5 stack-local skills are outside its reach and their absence here fails nothing.
+stack-local skills are outside its reach and their absence here fails nothing.
+
+You invoke most skills **by name**: a slash command or a phrase the agent recognizes from the
+`SKILL.md` frontmatter description. A few are **hook-backed**. Scaffolding wires them into
+`.claude/settings.json` (or the Hermes equivalent) and they fire on
+their own, on every matching event, whether or not anyone asked. The table after [Install modes](#install-modes) names which is
+which and which arrive unasked; the per-skill sections say what changes on disk either way.
+
+## Install modes
+
+The whole common catalog is `default` since 0.169.0
+([ADR-0028](adr/0028-all-catalog-skills-ship-by-default.md)): installing the plugin delivers
+every skill unasked, and `config.exclude.skills` declines one by name. Two things sit outside
+that set. The sqlite pair stays `optIn` because a repo with no SQLite database should not receive
+it unasked ([ADR-0029](adr/0029-sqlite-skills-stay-opt-in.md)), and `auto-wm` is stack-local to
+`claude` rather than opt-in, so it reaches a project only when Claude is one of its stacks.
+
+Claude Code users add the framework as a plugin:
+
+```text
+/plugin marketplace add https://github.com/Arasz/ai-badger
+/plugin install ai-badger@ai-badger
+```
+
+The catalog also declares two external Claude plugins, `superpowers` and `pr-review-toolkit`
+(both `default` in `features/common/skills.json`, sourced from `claude-plugins-official`). The
+scaffolder resolves each to the install command your agent uses; they are not skills in this
+tree, so the table below does not list them.
 
 An `optIn` skill is asked for by name in `.ai-badger/config.json`:
 
@@ -60,17 +87,11 @@ is refused loudly rather than resolved silently.
 The one remaining group is declared in `badger_lib.SKILL_GROUPS`: `testing` (design-tests +
 review-tests). Groups expand in configuration only: naming either member installs both.
 
-`welcome-ai-badger` and `den-refresh` both honour it, a `config.json` edit is drift so the next
+`welcome-ai-badger` and `den-refresh` both honour the opt-in set, a `config.json` edit is drift so the next
 refresh delivers the skill on its own, and every report lists any `optIn` skills a project has
 not installed with the exact edit that adds each. The mechanism — and what to weigh when
 declaring a new skill's scope — is in
 [`authoring-a-feature.md`](authoring-a-feature.md#default-or-optin).
-
-Most skills are **invoked by name** — a slash command or a phrase the agent recognizes from the
-`SKILL.md` frontmatter description, run when someone decides to run it. A few are **hook-backed**
-— wired into `.claude/settings.json` (or the Hermes equivalent) at scaffold time and fire on
-their own, on every matching event, whether or not anyone asked. The table below names which is
-which and which arrive unasked; the per-skill sections say what changes on disk either way.
 
 ## At a glance
 
@@ -195,7 +216,7 @@ instruction, or fix — is project-agnostic and worth contributing back.
 
 **What it is.** Anti-AI writing and natural voice editing skill grounded in empirical text detection research.
 
-**What it does.** Applies 9 humanization levers (burstiness injection, anti-vocabulary/n-gram purge, zero em-dash rule, active clause conversion, structural flattening, specificity insertion) and a two-pass self-audit protocol to make AI-generated or edited prose sound natural, human, and direct.
+**What it does.** Applies the numbered humanization levers in its `SKILL.md` (burstiness injection, anti-vocabulary/n-gram purge, zero em-dash rule, active clause conversion, structural flattening, specificity insertion) and a two-pass self-audit protocol to make AI-generated or edited prose sound natural, human, and direct.
 
 **When to use it.** Writing or editing documentation, READMEs, tutorials, how-tos, release notes, or PR descriptions.
 
@@ -448,7 +469,7 @@ before `git push`, or checking a subagent's output before merging.
 [`SKILL.md`](../features/common/skills/prompt-markers/SKILL.md)
 
 **What it is.** A small set of one- or two-word prefixes — `h:`/`hint:`, `f:`/`feedback:`,
-`e:`/`extension:` — a person can put at the start of a prompt to give the agent an explicit,
+`e:`/`extension:`, `q:`/`queue:`, `i:`/`important:` and `i!:`/`important!:`. You can put one at the start of a prompt to give the agent an explicit,
 machine-detectable signal instead of relying on it to infer intent from phrasing.
 
 **What it does.** A `UserPromptSubmit` hook (`scripts/user_prompt_hook.py`) reads the prompt,
@@ -458,7 +479,11 @@ prepends or rewrites, so prompt caching stays intact). When a `.ai-badger/` dire
 above the prompt's `cwd`, the detection is also logged to the `marker_state` table in the
 project tracking DB (`.ai-badger/task-tracking/tracking.db`).
 
-**When to use it.** A prompt starts with one of the three prefixes, or someone asks to add,
+A `!` between the alias and the colon (`f!:`, `queue!:`) makes any marker interrupt-grade: the
+agent stops and handles it before the work in flight instead of queueing it. `i!:` is exactly
+`i` plus `!`. The prefixes, their meanings and the injected text live in `markers-context.json`.
+
+**When to use it.** A prompt starts with one of the six prefixes, or someone asks to add,
 change, or inspect a marker.
 
 ### commit-reminder
@@ -578,7 +603,11 @@ list bloating the system prompt.
 
 **What it does.** `mcp_index.py init`/`update`/`tag`/`intent`/`list`/`validate`/`migrate` write
 and curate `.ai-badger/mcp-tools.json`: each tool's tags (from a closed taxonomy), a one-sentence
-intent, and each server's `status` (`ok`, `disabled`, `empty`, `unauthenticated`, …). The
+intent, and each server's `status` (`ok`, `disabled`, `empty`, `unauthenticated`, …).
+`init --discover` and `update --discover` (0.200.0, stdlib stdio client) additionally start each
+configured server and ask it for its own tool list, so a server that lists no tool names still
+gets indexed; they resolve `claude.ai` synced plugins since 0.200.1. Discovery runs each server's
+configured command, so use it only on a project whose `.mcp.json` you trust. The
 `ai_badger_hooks.py` plugin's `pre_llm_call` hook reads that file, extracts terms from the user's
 message, and injects the top-matching tool recommendations as context on the next turn.
 
@@ -591,7 +620,7 @@ bloating the prompt, or MCP servers were just added or removed.
 
 [`SKILL.md`](../features/common/skills/ai-raccoon-memory/SKILL.md)
 
-**What it is.** The AiRaccoon memory server (`arasz.ai-raccoon`, MCP stdio): semantic search
+**What it is.** The AiRaccoon memory server (`ai-raccoon`, MCP stdio): semantic search
 over committed project memory and a shared promotion tier, durable-fact writes that carry
 source paths, workspace outboxes for in-progress notes, and directory watching that mirrors a
 docs tree into memory.
@@ -619,7 +648,7 @@ carry the details.
 
 **When to use it.** Any session in a project that has the server installed — the MCP entry is
 declared when `ai-raccoon` is on PATH. Install it with
-`dotnet tool install -g arasz.ai-raccoon`.
+`dotnet tool install -g ai-raccoon`.
 
 ---
 
@@ -627,7 +656,7 @@ declared when `ai-raccoon` is on PATH. Install it with
 
 [`SKILL.md`](../features/common/skills/semantica-knowledge-graph/SKILL.md)
 
-**What it is.** Semantica (MIT, v0.6.5+) is a session-scoped knowledge graph MCP server
+**What it is.** Semantica (MIT, 0.6.8 or newer) is a session-scoped knowledge graph MCP server
 (`semantica-mcp`). It records decisions with W3C PROV-O provenance,
 extracts entities and relations from text, traces causal chains, and runs forward-chaining
 reasoning over an in-memory graph that accumulates across tool calls within a session.
@@ -637,9 +666,9 @@ produces archival snapshots only. Durable facts go to AiRaccoon (`memory_write`)
 workflows: decision recording (record rationale + link to affected components), entity
 extraction from documents (needs torch/transformers for full NLP), decision archaeology
 (query past decisions and trace causal ancestry), and graph export for audit trails.
-On semantica 0.6.6 the export half is inert: `export_graph` errors in every format
-upstream, so `.semantica/` stays empty until that is fixed. The other three workflows
-are unaffected.
+The export half was inert on 0.6.6: `export_graph` errored in every format
+upstream, so `.semantica/` stayed empty. Whether 0.6.8 fixed that is unverified here; check
+before relying on archival snapshots. The other three workflows were unaffected.
 
 **When to use it.** Reasoning over structured project knowledge — a decision was made and
 its rationale should be traceable, entities need extracting from a document, or a causal
@@ -659,7 +688,7 @@ chain answers "why did we do this?". Install with `pip install semantica`.
 
 ## Formerly opt-in, now shipped
 
-The 18 skills below were `optIn` until 0.169.0, when the catalog moved to `default`
+The skills below were `optIn` until 0.169.0, when the catalog moved to `default`
 ([ADR-0028](adr/0028-all-catalog-skills-ship-by-default.md)). They now arrive with every
 scaffold; a project that does not want one declines it by name in `config.exclude.skills` — see
 the opening of this page for both edits, and

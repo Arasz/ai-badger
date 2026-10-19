@@ -3,10 +3,31 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any, List, Tuple
 
 import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def _unique_object(pairs: List[Tuple[str, Any]]) -> dict:
+    """Reject duplicate keys so the capability catalog cannot hide later values."""
+    result = {}
+    for key, value in pairs:
+        assert key not in result, f"duplicate JSON key: {key}"
+        result[key] = value
+    return result
+
+
+def test_codex_plugin_capability_is_unique_and_enabled():
+    support = json.loads(
+        (ROOT / "features" / "common" / "support.json").read_text(encoding="utf-8"),
+        object_pairs_hook=_unique_object)
+
+    plugins = support["agents"]["codex"]["capabilities"]["plugins"]
+
+    assert plugins["aiBadgerSupport"] is True
+    assert ".codex-plugin/plugin.json" in plugins["mechanism"]
 
 
 def _declared_scaffolded_files():

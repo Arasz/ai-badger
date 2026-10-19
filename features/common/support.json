@@ -1,7 +1,7 @@
 {
   "$schema": "../../schemas/support.schema.json",
   "description": "Agent capability matrix: what each agent supports and what ai-badger scaffolds for it.",
-  "lastUpdated": "2026-10-11",
+  "lastUpdated": "2026-10-19",
   "agents": {
     "claude": {
       "name": "Claude Code",
@@ -321,9 +321,15 @@
         },
         "skills": {
           "supported": true,
-          "mechanism": "Repository .agents/skills/*/SKILL.md; relative symlink discovery",
+          "mechanism": "Project .agents/skills symlinks or user-scope Codex plugin skills; codexScope selects one delivery to avoid duplicate names",
           "aiBadgerSupport": true,
           "scaffoldedBy": "codex/adjustments/adjust_skills.py"
+        },
+        "plugins": {
+          "supported": true,
+          "mechanism": "Codex compatibility manifest in .codex-plugin/plugin.json; marketplace installs user-scope ai-badger skills and checked hooks",
+          "aiBadgerSupport": true,
+          "scaffoldedBy": ".codex-plugin/plugin.json"
         },
         "mcpServers": {
           "supported": true,
@@ -333,15 +339,10 @@
         },
         "hooks": {
           "supported": true,
-          "mechanism": "Native hooks.json and inline TOML command hooks. ai-badger ports UserPromptSubmit prompt markers, SessionStart Git config health and PreToolUse Bash Git storage guard only. Project trust and /hooks review required; no patch, MCP, Stop, transcript accounting or delegation parity",
+          "mechanism": "Project .codex/hooks.json or native hooks bundled with the user-scope ai-badger plugin. ai-badger ports UserPromptSubmit prompt markers, SessionStart Git config health, PreToolUse Bash Git storage and memory-first guards, and PostToolUse memory-search credit. codexScope selects one delivery. Trust review required; no patch, general PostToolUse, Stop, transcript accounting or delegation parity",
           "aiBadgerSupport": true,
           "configPath": ".codex/hooks.json",
           "wiredBy": "codex/adjustments/adjust_hooks.py"
-        },
-        "plugins": {
-          "supported": true,
-          "mechanism": "Native Codex plugin distribution",
-          "aiBadgerSupport": false
         },
         "cacheAwareDispatch": {
           "supported": true,

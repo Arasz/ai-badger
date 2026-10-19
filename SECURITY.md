@@ -49,6 +49,8 @@ some agents, into the user's home directory. So the honest threat model is:
 | Skill / dependency installation | Can run `pip`, `npm`, and plugin-install commands | Catalog templates; **opt-in only**, see below |
 | `feed-badger` | Takes content *out* of a private repo and puts it in a public draft PR | The user's repo |
 | Generated pages | `owner-gate-review` and `evidence-first-research` write HTML built from repository content | The document being reviewed or researched |
+| Codex scaffolding | Writes `AGENTS.md` and merges into `.codex/config.toml` and `.codex/hooks.json` | The framework catalog plus the user's own `.ai-badger/config.json` |
+| pi scaffolding | Writes `AGENTS.override.md` and merges into `.pi/mcp.json` | Same |
 | Hooks | Run in the agent's process on session start, prompt submit, and tool calls | Catalog scripts, plus project files they read |
 
 **The dangerous direction is outbound and side-effecting**, not inbound parsing. A vulnerability
@@ -80,10 +82,11 @@ From [0.25.0 — the hardening pass](docs/changelog/0.25.0-hardening.md):
   `--execute` opts in. This is why 0.25.0 is in `BREAKING_VERSIONS`.
 - **ReDoS caps.** The two `.mjs` gate scripts refuse patterns over 500 characters and files over
   1 MB, and report the refusal through the normal error path.
-- **User-scope state is owner-only.** `~/.claude/awm/state.json`, `decisions.jsonl`, and the
-  prompt-marker state are `0600` (directory `0700`); the decision log is capped at 5,000 lines.
-  The `call-behaviorist` audit log at `~/.ai-badger/debug/` gets the same treatment and the same
-  cap — it records project paths, session ids and working directories, so it says where someone
+- **User-scope state is owner-only.** The auto-wm state and decision log live in
+  `~/.ai-badger/ai-badger.db`, created `0600` (directory `0700`); decision rows older than 60 days
+  are pruned. A legacy `~/.claude/awm/state.json` and `decisions.jsonl` are imported and renamed
+  on the first write. The `call-behaviorist` audit log at `~/.ai-badger/debug/` gets the same
+  owner-only treatment — it records project paths, session ids and working directories, so it says where someone
   works and what ran, and it logs no tool input and no prompt text at all.
 - **Path containment is asserted, not assumed.** `project.name` cannot escape
   `~/.hermes/skills/<name>`, and a manifest `target` cannot steer the drift hasher out of the
@@ -131,7 +134,7 @@ From [0.172.15 — outbound staging and journal restore](docs/changelog/0.172.15
   `engine/unsafe_literals.py` skips any file over `LITERAL_SCAN_MAX_BYTES` (1 MB) and reports no
   finding for it. `open_pr.py` refuses such a file instead of publishing it unscanned. The one
   caller that still lets an oversized file through is the inbound Hermes sync,
-  `sync_skill` in `features/common/hooks/learned_skills_sync.py:347`: it copies a learned skill
+  `sync_skill` in `features/common/hooks/learned_skills_sync.py`: it copies a learned skill
   into the user's own project, not out of it.
 - **`red_proof.py` restores a stale journal only onto the file it mutated.** The journal
   records the sha256 of both the original and the mutated content. A restore writes only a file
@@ -163,14 +166,20 @@ Structural properties that predate those waves:
   the job could be red and a PR still merge. Findings are redacted: this repository is public, so
   an unredacted report would publish the credential it just caught.
 - **`deps_guard.py`** fails the build on a third-party import that
-  `engine/requirements.txt` does not declare — in pre-commit and on all three CI Python
-  versions.
-- The runtime dependency surface is deliberately tiny: **`jsonschema` and `pyyaml`**. Everything
-  else is Python 3.10+ stdlib. Their imports differ on purpose — `jsonschema` is required, and
-  although it is imported lazily (inside the validation functions, so the entry points that
-  never validate do not pay for it) the `ImportError` is never swallowed, because a guarded
-  import would let validation silently pass when it is absent; `pyyaml` is optional and
-  guarded, degrading to a printed note.
+  `engine/requirements.txt` does not declare — in pre-commit and in CI, which runs Python 3.10
+  only (`.github/workflows/pylint.yml`).
+- The runtime dependency surface is deliberately tiny and declared in `engine/requirements.txt`:
+  **`jsonschema`, `pyyaml` and `pydantic`**, plus `tomli` on Python 3.10 (3.11+ has `tomllib`),
+  plus `semantica` for the optional MCP wrapper. Everything else is Python 3.10+ stdlib. Their
+  imports differ on purpose: `jsonschema` and `pydantic` are required, and the `ImportError` is
+  never swallowed, because a guarded import would let validation silently pass when the package
+  is absent (`jsonschema` is imported lazily, inside the validation functions, so entry points
+  that never validate do not pay for it); `pyyaml` is optional and guarded, degrading to a
+  printed note.
+- **Egress controls.** Third-party network egress is opt-in and lockable; see
+  [`docs/reference/data-access.md`](docs/reference/data-access.md),
+  [ADR-0034](docs/adr/0034-third-party-egress-is-opt-in-and-lockable.md) and
+  [ADR-0035](docs/adr/0035-host-allowlist-and-project-binding.md).
 
 There is still no secret-scanning **pre-commit** hook. That is now a decision rather than an
 omission, and both candidates were looked at:

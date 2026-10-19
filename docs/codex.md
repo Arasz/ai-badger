@@ -1,12 +1,27 @@
 # Codex support
 
-ai-badger supports Codex through its project scaffold. Add `codex` to `agents` in
+ai-badger supports Codex through a native plugin and its project scaffold. Add `codex` to `agents` in
 `.ai-badger/config.json`, then run `welcome-ai-badger` or `den-refresh`. Detection proposes
 Codex when its project or user configuration directory is present; a generic `AGENTS.md`
 alone does not identify the harness.
 
-This route serves local Codex CLI, desktop and IDE sessions. The framework does not install
-external Claude plugins into Codex or change user-global Codex settings.
+For Codex CLI user-wide skills and hooks, add the native catalog and install its plugin with
+`codex plugin marketplace add Arasz/ai-badger` and
+`codex plugin add ai-badger@ai-badger-codex`. The repository catalog at
+`.agents/plugins/marketplace.json` points to the Codex compatibility plugin, which discovers
+the root `skills/` package and registers native hooks from `hooks/codex-hooks.json`. Review
+and trust plugin hooks in Codex before relying on them. Codex desktop also reads the legacy
+`.claude-plugin/marketplace.json` format. Codex's CLI can add Git-backed marketplaces, but
+Claude plugin compatibility depends on each plugin's contents; verify third-party plugin
+skills and hooks before installing them. ai-badger emits native Codex marketplace commands
+for the marketplace-backed skills it declares.
+
+Use `codexScope: "project"` (the default) for repository skill links and hooks. Set
+`codexScope: "user"` in every repository where the ai-badger plugin is installed for your
+Codex user. The scaffold then removes its project skill and hook copies, preventing Codex
+from listing or running both copies. Installing the user plugin alone cannot change a
+repository's project scope. This option does not write to your Codex home; plugin installation
+remains an explicit Codex command.
 
 ## What is delivered
 
@@ -22,6 +37,11 @@ Skill selection follows the common include/exclude policy. Codex follows directo
 so skill scripts and references remain part of the same package. The scaffold removes stale or declined links only when it recognizes its own target. Existing
 user resources stay under user ownership; read preservation and conflict notes before assuming
 a resource was replaced.
+
+The project scaffold writes only `AGENTS.md` for Codex instructions. Codex reads at most one
+instruction file per directory, preferring `AGENTS.override.md` and then `AGENTS.md`. It does
+not load `CLAUDE.md` by default. A user configured `project_doc_fallback_filenames` can add
+other names, so keep `CLAUDE.md` out of that list when it duplicates the shared instructions.
 
 Standalone persona TOML contains `name`, `description` and `developer_instructions`. The
 scaffold omits Claude `model`, `level` and tool frontmatter rather than guessing OpenAI model
@@ -72,22 +92,30 @@ were delivered:
 | `prompt-markers/scripts/user_prompt_hook.py` | `UserPromptSubmit` | All submitted prompts |
 | `git-work/scripts/git_config_health_hook.py` | `SessionStart` | `startup|resume` |
 | `git-work/scripts/git_internals_guard.py` | `PreToolUse` | `^Bash$` |
+| Codex memory gate adapter for `ai-raccoon-memory` | `PreToolUse` | `^Bash$` |
+| `ai-raccoon-memory/scripts/memory_first_gate_post_hook.py` | `PostToolUse` | Memory search MCP tool names |
 
-The native shell tool matches `Bash`, including `exec_command`. User hook handlers are
-preserved; re-scaffolding refreshes owned registrations and removes declined ones.
+The native shell tool matches `Bash`, including `exec_command`. The Codex PostToolUse adapter
+skips failed MCP results so an unsuccessful memory search cannot credit its query. Its
+PreToolUse adapter allows the search when the memory lookup is unavailable, while a reachable
+backend with no hits still enforces the gate. Other hosts keep the shared gate's existing
+policy. User hook handlers are preserved; re-scaffolding refreshes owned registrations and
+removes declined ones.
 Deselecting Codex removes its managed MCP block, recognized hook handlers, managed persona
 TOMLs and the `.agents/skills/` links that point at ai-badger's own skills, even while
 `codex` remains a detected stack; operator entries stay.
 Malformed configuration and symlinks remain unchanged so cleanup can retry after repair. The
-scaffold supplies the project root to these shared scripts through `CLAUDE_PROJECT_DIR`,
-which is a compatibility environment variable rather than a Claude runtime requirement.
-Each approved command binds to the scaffolded absolute project root and uses isolated Python
-imports; nested repository markers cannot redirect execution. Moving or cloning a project
-requires re-scaffolding and reviewing the changed hook commands. Scripts with symlink paths
-are skipped. The framework repository keeps `.codex/hooks.json` untracked because
-its approved root is machine specific; `.codex/hooks.example.json` shows the generated shape.
+Codex commands use the native hook payload, and plugin hooks resolve scripts from
+`PLUGIN_ROOT`. Project commands do not set Claude home or project variables.
+The scaffolded runner exports `AI_BADGER_PROJECT_DIR` from an explicit project-root argument;
+hook payload `cwd` remains authoritative for per-call repository resolution. Each approved command
+binds to the scaffolded absolute project root and uses isolated Python imports, so nested repository
+markers cannot redirect execution. Moving or cloning a project requires re-scaffolding and reviewing
+the changed hook commands. Scripts with symlink paths are skipped. The framework repository keeps
+`.codex/hooks.json` untracked because its approved root is machine specific;
+`.codex/hooks.example.json` shows the generated shape.
 
-No MCP, `Stop`, file-edit, dispatch or transcript-accounting hooks are wired for Codex.
+No general `PostToolUse`, `Stop`, file-edit, dispatch or transcript-accounting hooks are wired for Codex.
 Native patch inputs differ from Claude file-edit inputs, so generated-file and other patch
 guard parity is not claimed. The capability matrix records this bounded support.
 

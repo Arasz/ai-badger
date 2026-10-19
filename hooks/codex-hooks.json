@@ -1,0 +1,53 @@
+{
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${PLUGIN_ROOT}/skills/prompt-markers/scripts/user_prompt_hook.py\""
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "matcher": "startup|resume",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${PLUGIN_ROOT}/skills/git-work/scripts/git_config_health_hook.py\""
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "^Bash$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${PLUGIN_ROOT}/skills/git-work/scripts/git_internals_guard.py\""
+          },
+          {
+            "type": "command",
+            "command": "python3 \"${PLUGIN_ROOT}/features/codex/adjustments/memory_first_gate_codex_hook.py\" \"${PLUGIN_ROOT}/skills/ai-raccoon-memory/scripts/memory_first_gate_hook.py\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "^(mcp__.+__)?memory_search$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${PLUGIN_ROOT}/features/codex/adjustments/memory_first_gate_post_hook.py\" \"${PLUGIN_ROOT}/skills/ai-raccoon-memory/scripts/memory_first_gate_post_hook.py\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}
