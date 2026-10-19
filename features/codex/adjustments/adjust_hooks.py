@@ -106,6 +106,9 @@ def adjust(context: dict[str, Any]) -> dict[str, Any]:
             continue
         is_credit_observer = script.endswith('memory_first_gate_post_hook.py')
         is_memory_gate = script.endswith('memory_first_gate_hook.py')
+        shared_path = context['target_dir'] / 'skills' / script
+        if (is_credit_observer or is_memory_gate) and not shared_path.is_file():
+            continue
         path = (gate_adapter if is_credit_observer else pre_gate_adapter if is_memory_gate
                 else context['target_dir'] / 'skills' / script)
         if not path.is_file():
@@ -120,11 +123,7 @@ def adjust(context: dict[str, Any]) -> dict[str, Any]:
             command = (PREFIX + 'python3 -I -c ' + shlex.quote(RUNNER) + ' '
                        + shlex.quote(str(context['target'].resolve())) + ' '
                        + shlex.quote(path_argument))
-            if is_credit_observer:
-                shared_path = context['target_dir'] / 'skills' / script
-                command += ' ' + shlex.quote(str(shared_path.resolve()))
-            elif is_memory_gate:
-                shared_path = context['target_dir'] / 'skills' / script
+            if is_credit_observer or is_memory_gate:
                 command += ' ' + shlex.quote(str(shared_path.resolve()))
             delivered = {'type': 'command', 'command': command}
             if 'timeout' in handler:

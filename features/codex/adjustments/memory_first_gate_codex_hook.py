@@ -18,38 +18,45 @@ def main(argv: Optional[List[str]] = None) -> int:
     hook = Path(args[-1]).resolve()
     if not hook.is_file():
         return 0
-    sys.path.insert(0, str(hook.parent))
+    original_path = sys.path[:]
+    missing = object()
+    previous_gate = sys.modules.get('memory_first_gate', missing)
+    gate = None
+    original_memory_hits = None
     try:
+        sys.path.insert(0, str(hook.parent))
         import memory_first_gate as gate  # pylint: disable=import-outside-toplevel
-    except ImportError:
-        return 0
+        unavailable = False
+        original_memory_hits = gate.memory_hits
 
-    unavailable = False
-    original_memory_hits = gate.memory_hits
+        def memory_hits(*call_args, **call_kwargs):
+            nonlocal unavailable
+            try:
+                result = original_memory_hits(*call_args, **call_kwargs)
+            except Exception:  # pylint: disable=broad-exception-caught  # Codex adapter fails open
+                unavailable = True
+                raise
+            if result is None:
+                unavailable = True
+            return result
 
-    def memory_hits(*call_args, **call_kwargs):
-        nonlocal unavailable
-        try:
-            result = original_memory_hits(*call_args, **call_kwargs)
-        except Exception:  # pylint: disable=broad-exception-caught  # Codex adapter fails open
-            unavailable = True
-            raise
-        if result is None:
-            unavailable = True
-        return result
-
-    gate.memory_hits = memory_hits
-    output = io.StringIO()
-    try:
+        gate.memory_hits = memory_hits
+        output = io.StringIO()
         with contextlib.redirect_stdout(output):
             namespace = runpy.run_path(str(hook), run_name='codex_memory_first_gate_hook')
             namespace['main']()
+        if not unavailable:
+            sys.stdout.write(output.getvalue())
     except Exception:  # pylint: disable=broad-exception-caught  # hooks must not block tools
         return 0
     finally:
-        gate.memory_hits = original_memory_hits
-    if not unavailable:
-        sys.stdout.write(output.getvalue())
+        if gate is not None and original_memory_hits is not None:
+            gate.memory_hits = original_memory_hits
+        sys.path[:] = original_path
+        if previous_gate is missing:
+            sys.modules.pop('memory_first_gate', None)
+        else:
+            sys.modules['memory_first_gate'] = previous_gate
     return 0
 
 

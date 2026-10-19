@@ -259,7 +259,17 @@ def test_project_hook_runner_exports_harness_agnostic_root(load_script, tmp_path
         'project': str(root), 'claude_project': None, 'claude_home': None}
 
 
-def test_memory_first_gate_uses_native_pre_tool_hook(load_script, tmp_path, monkeypatch, capsys):
+def test_memory_first_gate_uses_native_pre_tool_hook(load_script, tmp_path, monkeypatch, capsys, request):
+    original_path = sys.path[:]
+    previous_gate = sys.modules.pop('memory_first_gate', None)
+
+    def restore_import_state():
+        sys.path[:] = original_path
+        sys.modules.pop('memory_first_gate', None)
+        if previous_gate is not None:
+            sys.modules['memory_first_gate'] = previous_gate
+
+    request.addfinalizer(restore_import_state)
     arm = load_script('features/codex/adjustments/adjust_hooks.py')
     hook = load_script(
         'features/common/skills/ai-raccoon-memory/scripts/memory_first_gate_hook.py')
@@ -277,6 +287,7 @@ def test_memory_first_gate_uses_native_pre_tool_hook(load_script, tmp_path, monk
     assert (target_dir / 'hooks/codex_memory_first_gate_hook.py').is_file()
     assert 'codex_memory_first_gate_hook.py' in pre['hooks'][0]['command']
     assert 'skills/ai-raccoon-memory/scripts/memory_first_gate_hook.py' in pre['hooks'][0]['command']
+    assert str(tmp_path.resolve()) in pre['hooks'][0]['command']
 
     seen = {}
     denial = {'hookSpecificOutput': {'hookEventName': 'PreToolUse',
@@ -328,7 +339,17 @@ def test_codex_memory_gate_fails_open_only_when_backend_is_unavailable(
         assert decision['permissionDecision'] == 'deny'
 
 
-def test_memory_first_gate_post_hook_credits_codex_mcp_search(load_script, monkeypatch):
+def test_memory_first_gate_post_hook_credits_codex_mcp_search(load_script, monkeypatch, request):
+    original_path = sys.path[:]
+    previous_gate = sys.modules.pop('memory_first_gate', None)
+
+    def restore_import_state():
+        sys.path[:] = original_path
+        sys.modules.pop('memory_first_gate', None)
+        if previous_gate is not None:
+            sys.modules['memory_first_gate'] = previous_gate
+
+    request.addfinalizer(restore_import_state)
     hook = load_script(
         'features/common/skills/ai-raccoon-memory/scripts/memory_first_gate_post_hook.py')
     seen = {}

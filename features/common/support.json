@@ -1,7 +1,7 @@
 {
   "$schema": "../../schemas/support.schema.json",
   "description": "Agent capability matrix: what each agent supports and what ai-badger scaffolds for it.",
-  "lastUpdated": "2026-10-11",
+  "lastUpdated": "2026-10-19",
   "agents": {
     "claude": {
       "name": "Claude Code",
@@ -343,11 +343,6 @@
           "aiBadgerSupport": true,
           "configPath": ".codex/hooks.json",
           "wiredBy": "codex/adjustments/adjust_hooks.py"
-        },
-        "plugins": {
-          "supported": true,
-          "mechanism": "Native Codex plugin distribution",
-          "aiBadgerSupport": false
         },
         "cacheAwareDispatch": {
           "supported": true,
