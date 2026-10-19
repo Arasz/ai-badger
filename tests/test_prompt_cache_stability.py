@@ -14,7 +14,7 @@ from scaffold_helpers import _config
 ALL_AGENTS = ["claude", "copilot", "hermes", "pi", "codex"]
 
 # Provenance and identity, read by tooling — never pasted into a prompt.
-NOT_PROMPT_INPUT = {".ai-badger/manifest.json", ".ai-badger/project-id"}
+NOT_PROMPT_INPUT = {".ai-badger/manifest.json", ".ai-badger/project-id", ".codex/hooks.json"}
 
 DISCOVERY_FILES = (
     "CLAUDE.md",

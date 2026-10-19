@@ -288,12 +288,25 @@ def strip_codex_hook_roots(value: Any) -> Any:
             parts = shlex.split(command)
         except ValueError:
             return result
-        scripts = {"prompt-markers/scripts/user_prompt_hook.py",
+        scripts = {"skills/prompt-markers/scripts/user_prompt_hook.py",
+                   "skills/git-work/scripts/git_config_health_hook.py",
+                   "skills/git-work/scripts/git_internals_guard.py",
+                   "prompt-markers/scripts/user_prompt_hook.py",
                    "git-work/scripts/git_config_health_hook.py",
-                   "git-work/scripts/git_internals_guard.py"}
-        if (len(parts) == 8 and parts[:5] == ["env", "AI_BADGER_CODEX_HOOK=1", "python3", "-I", "-c"]
+                   "git-work/scripts/git_internals_guard.py",
+                   "hooks/codex_memory_first_gate_hook.py",
+                   "hooks/codex_memory_first_gate_post_hook.py"}
+        if (len(parts) >= 8 and parts[:5] == ["env", "AI_BADGER_CODEX_HOOK=1", "python3", "-I", "-c"]
                 and Path(parts[6]).is_absolute() and parts[7] in scripts):
+            root = Path(parts[6])
             parts[6] = "<scaffold-root>"
+            for index, argument in enumerate(parts[8:], start=8):
+                candidate = Path(argument)
+                if candidate.is_absolute():
+                    try:
+                        parts[index] = str(Path("<scaffold-root>") / candidate.relative_to(root))
+                    except ValueError:
+                        pass
             result["command"] = shlex.join(parts)
     return result
 

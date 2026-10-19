@@ -196,7 +196,8 @@ def install_skills(root: Path, config: Dict[str, Any],
 
                 install_cmd = _build_command(
                     install_template, source_url, skill["name"], scope, source_name)
-                if scope != "default" and "{scope}" not in install_template:
+                if (scope != "default" and "{scope}" not in install_template
+                        and instruction.get("scopeFlag", True)):
                     install_cmd += ["--scope", scope]
                 commands.append(install_cmd)
 

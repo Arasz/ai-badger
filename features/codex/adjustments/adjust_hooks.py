@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import shutil
 import sys
 from pathlib import Path
 import shlex
@@ -15,17 +16,20 @@ SCRIPTS = {
     'prompt-markers/scripts/user_prompt_hook.py': ('UserPromptSubmit', None),
     'git-work/scripts/git_config_health_hook.py': ('SessionStart', 'startup|resume'),
     'git-work/scripts/git_internals_guard.py': ('PreToolUse', '^Bash$'),
+    'ai-raccoon-memory/scripts/memory_first_gate_hook.py': ('PreToolUse', '^Bash$'),
+    'ai-raccoon-memory/scripts/memory_first_gate_post_hook.py':
+        ('PostToolUse', '^(mcp__.+__)?memory_search$'),
 }
 PREFIX = 'env AI_BADGER_CODEX_HOOK=1 '
 RUNNER = (
     "import os,pathlib,runpy,sys; "
     "root=pathlib.Path(sys.argv[1]); "
-    "script=root/'.ai-badger/skills'/sys.argv[2]; "
+    "os.environ['AI_BADGER_PROJECT_DIR']=str(root); "
+    "script=root/'.ai-badger'/sys.argv[2]; "
     "sys.exit(0) if not script.is_file() or not script.resolve().is_relative_to(root) "
     "or any(p.is_symlink() for p in (script,*script.parents) if p!=root and root in p.parents) else None; "
     "sys.exit(0) if any(p.is_symlink() for tree in (script.parent.parent,root/'.ai-badger/hooks') "
     "for p in (tree,*tree.rglob('*'))) else None; "
-    "os.environ['CLAUDE_PROJECT_DIR']=str(root); "
     "sys.path.insert(0,str(script.parent)); "
     "runpy.run_path(str(script),run_name='__main__')"
 )
@@ -53,9 +57,19 @@ def _add(groups: list, entry: dict, is_tool) -> None:
     groups.insert(at, entry)
 
 
+def _copy_adapter(source: Path, destination: Path, root: Path) -> None:
+    """Copy a Codex adapter only through project-owned directories."""
+    if symlink_parent(destination, root):
+        return
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    if not symlink_parent(destination, root):
+        shutil.copy2(source, destination)
+
+
 def adjust(context: dict[str, Any]) -> dict[str, Any]:
     """Merge compatible hooks, prune owned declines, and leave malformed config untouched."""
-    selected = 'codex' in context['config'].get('agents', [])
+    selected = ('codex' in context['config'].get('agents', [])
+                and context['config'].get('codexScope', 'project') == 'project')
     dst = context['target'] / '.codex/hooks.json'
     if symlink_parent(dst, context['target']):
         return {'applied': False, 'files': [], 'notes': 'Codex config discovery symlink preserved'}
@@ -82,17 +96,42 @@ def adjust(context: dict[str, Any]) -> dict[str, Any]:
         hooks[event] = clean
     declined = set(context['config'].get('exclude', {}).get('skills', []))
     is_tool = _is_tool(context['framework_root'])
+    gate_adapter = context['target_dir'] / 'hooks/codex_memory_first_gate_post_hook.py'
+    pre_gate_adapter = context['target_dir'] / 'hooks/codex_memory_first_gate_hook.py'
+    if selected and 'ai-raccoon-memory/scripts/memory_first_gate_post_hook.py' in SCRIPTS:
+        adapter_source = (context['framework_root'] /
+                          'features/codex/adjustments/memory_first_gate_post_hook.py')
+        if adapter_source.is_file():
+            _copy_adapter(adapter_source, gate_adapter, context['target'])
+    if selected and 'ai-raccoon-memory/scripts/memory_first_gate_hook.py' in SCRIPTS:
+        adapter_source = (context['framework_root'] /
+                          'features/codex/adjustments/memory_first_gate_codex_hook.py')
+        if adapter_source.is_file():
+            _copy_adapter(adapter_source, pre_gate_adapter, context['target'])
     for script, (event, matcher) in (SCRIPTS.items() if selected else []):
         if script.split('/', maxsplit=1)[0] in declined:
             continue
-        path = context['target_dir'] / 'skills' / script
+        is_credit_observer = script.endswith('memory_first_gate_post_hook.py')
+        is_memory_gate = script.endswith('memory_first_gate_hook.py')
+        shared_path = context['target_dir'] / 'skills' / script
+        if (is_credit_observer or is_memory_gate) and not shared_path.is_file():
+            continue
+        path = (gate_adapter if is_credit_observer else pre_gate_adapter if is_memory_gate
+                else context['target_dir'] / 'skills' / script)
         if not path.is_file():
             continue
         for group in incoming.get(event, []):
             handler = next((h for h in group.get('hooks', []) if script in h.get('command', '')), None)
             if handler is None:
                 continue
-            command = PREFIX + 'python3 -I -c ' + shlex.quote(RUNNER) + ' ' + shlex.quote(str(context['target'].resolve())) + ' ' + shlex.quote(script)
+            path_argument = ('hooks/codex_memory_first_gate_post_hook.py'
+                             if is_credit_observer else 'hooks/codex_memory_first_gate_hook.py'
+                             if is_memory_gate else f'skills/{script}')
+            command = (PREFIX + 'python3 -I -c ' + shlex.quote(RUNNER) + ' '
+                       + shlex.quote(str(context['target'].resolve())) + ' '
+                       + shlex.quote(path_argument))
+            if is_credit_observer or is_memory_gate:
+                command += ' ' + shlex.quote(str(shared_path.resolve()))
             delivered = {'type': 'command', 'command': command}
             if 'timeout' in handler:
                 delivered['timeout'] = handler['timeout']
@@ -110,4 +149,4 @@ def adjust(context: dict[str, Any]) -> dict[str, Any]:
     if not dst.exists() or dst.read_text() != new:
         dst.write_text(new, encoding='utf-8')
     return {'applied': True, 'files': [],
-            'notes': 'Codex hooks require project trust and /hooks review; prompt markers, Git health and Bash Git storage guard only; patch/delegation/accounting hooks not ported'}
+            'notes': 'Codex hooks require project trust and /hooks review; prompt markers, Git health, Bash Git storage guard, memory-first PreToolUse gate, and its PostToolUse memory-search credit observer are wired; unsupported hooks remain unported'}
