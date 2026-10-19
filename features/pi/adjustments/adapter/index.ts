@@ -24,6 +24,7 @@ import {
   createAwayState,
   createDeliveryRouter,
   hookLabel,
+  MEMORY_CONTEXT_CUSTOM_TYPE,
   parseDeliveryStdout,
   parseHookStdout,
   parsePostStdout,
@@ -629,6 +630,18 @@ export default async function (pi: ExtensionAPI, busDeps: BusDeps = realBusDeps(
     );
     const resolution = resolve(outcomes, { armed: away.armed(), hasUI: ctx.hasUI });
     for (const notice of resolution.notices) ctx.ui.notify(notice, "warning");
+    for (const context of resolution.context) {
+      // The gate's memory result: the agent receives it, the terminal shows nothing.
+      // A failed delivery never blocks the tool call the gate only meant to inform.
+      try {
+        await pi.sendMessage(
+          { customType: MEMORY_CONTEXT_CUSTOM_TYPE, content: context, display: false },
+          { deliverAs: "followUp" },
+        );
+      } catch {
+        // swallowed: the call proceeds, the context is lost for this turn
+      }
+    }
 
     if (resolution.action === "block") {
       return { block: true, reason: resolution.reason ?? "blocked by an ai-badger hook gate" };

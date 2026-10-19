@@ -10,11 +10,15 @@ export interface GateDecision {
   reason?: string;
   /** Claude's top-level `systemMessage`: a line for the user, never for the model. */
   systemMessage?: string;
+  /** Model-side context the gate delivered with its decision (Claude's `additionalContext`).
+   * The agent receives it; the user never sees it. */
+  additionalContext?: string;
 }
 
 /** What one gate run produced. Errors and absence are outcomes, never decisions. */
 export type GateOutcome =
-  | { kind: "decision"; decision: Decision; reason?: string; systemMessage?: string }
+  | { kind: "decision"; decision: Decision; reason?: string; systemMessage?: string;
+      additionalContext?: string }
   | { kind: "error"; reason: string }
   | { kind: "absent"; reason: string }
   /** The signal aborted before the spawn: no process ran — a cancellation, never a
@@ -45,6 +49,8 @@ export interface Resolution {
   /** One line per error, absence, or away-mode approval. The trail is the audit record. */
   notices: string[];
   autoApproved: boolean;
+  /** Model-side context the gate delivered: the agent receives it, the user does not see it. */
+  context: string[];
 }
 
 /** The PostToolUse payload: the five pre keys plus the result as a document, under
@@ -425,6 +431,9 @@ export interface AgentStartInjection {
 
 export const AI_BADGER_CUSTOM_TYPE = "ai-badger";
 
+/** The custom type of a gate-delivered memory context: agent-side only, never rendered. */
+export const MEMORY_CONTEXT_CUSTOM_TYPE = "ai-badger-memory";
+
 /** One mail envelope as the python delivery prints it into outcome.content:
  * `{sender: {sessionId, projectId}, content, timestamp}` — a shape guard:
  * anything else is not an envelope, never an exception. */
@@ -592,6 +601,12 @@ function systemMessageFrom(parsed: Record<string, unknown>): { systemMessage?: s
   return typeof message === "string" && message ? { systemMessage: message } : {};
 }
 
+/** The model-side context a gate carried with its decision, if any. */
+function contextFrom(scope: Record<string, unknown>): { additionalContext?: string } {
+  const context = scope.additionalContext;
+  return typeof context === "string" && context ? { additionalContext: context } : {};
+}
+
 function decisionFrom(parsed: unknown): GateDecision {
   if (!isRecord(parsed)) return { decision: "allow" };
   const scope = isRecord(parsed.hookSpecificOutput) ? parsed.hookSpecificOutput : parsed;
@@ -601,10 +616,11 @@ function decisionFrom(parsed: unknown): GateDecision {
     return {
       decision,
       reason: typeof reason === "string" ? reason : undefined,
+      ...contextFrom(scope),
       ...systemMessageFrom(parsed),
     };
   }
-  return { decision: "allow", ...systemMessageFrom(parsed) };
+  return { decision: "allow", ...contextFrom(scope), ...systemMessageFrom(parsed) };
 }
 
 function adviceFrom(parsed: unknown): { additionalContext?: string; systemMessage?: string } {
@@ -682,6 +698,7 @@ export function resolve(
   session: { armed: boolean; hasUI: boolean },
 ): Resolution {
   const notices: string[] = [];
+  const context: string[] = [];
   let denial: GateDecision | undefined;
   let question: GateDecision | undefined;
 
@@ -699,6 +716,9 @@ export function resolve(
       continue;
     }
     if (outcome.systemMessage) notices.push(outcome.systemMessage);
+    // Model-side context rides the decision whatever it is: the agent receives it, the
+    // user never sees it.
+    if (outcome.additionalContext) context.push(outcome.additionalContext);
     if (outcome.decision === "deny" && !denial) {
       denial = { decision: "deny", reason: outcome.reason };
     } else if (outcome.decision === "ask" && !question) {
@@ -707,23 +727,23 @@ export function resolve(
   }
 
   if (denial) {
-    return { action: "block", reason: denial.reason, notices, autoApproved: false };
+    return { action: "block", reason: denial.reason, notices, autoApproved: false, context };
   }
   if (question) {
     const reason = question.reason ?? "(no reason given)";
     if (session.armed) {
       notices.push(`ai-badger: away mode auto-approved — ${reason}`);
-      return { action: "allow", notices, autoApproved: true };
+      return { action: "allow", notices, autoApproved: true, context };
     }
     if (!session.hasUI) {
       notices.push(
         `ai-badger: hook gate asked but this run has no UI, tool call allowed — ${reason}`,
       );
-      return { action: "allow", notices, autoApproved: false };
+      return { action: "allow", notices, autoApproved: false, context };
     }
-    return { action: "confirm", reason: question.reason, notices, autoApproved: false };
+    return { action: "confirm", reason: question.reason, notices, autoApproved: false, context };
   }
-  return { action: "allow", notices, autoApproved: false };
+  return { action: "allow", notices, autoApproved: false, context };
 }
 
 /** Away mode is off unless the env says exactly `1`. */
