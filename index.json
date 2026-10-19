@@ -1,6 +1,6 @@
 {
   "$schema": "./schemas/index.schema.json",
-  "frameworkVersion": "0.207.2",
+  "frameworkVersion": "0.207.3",
   "stacks": {
     "ai-raccoon": {
       "skills": [
@@ -364,8 +364,8 @@
           "scope": "default"
         },
         {
-          "name": "get-raw-grep-result",
-          "path": "features/common/skills/get-raw-grep-result",
+          "name": "get-raw-text-search",
+          "path": "features/common/skills/get-raw-text-search",
           "scope": "default"
         },
         {

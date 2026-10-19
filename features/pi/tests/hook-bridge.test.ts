@@ -345,6 +345,47 @@ describe("a gate's systemMessage reaches the UI next to its decision", () => {
   });
 });
 
+describe("the memory-first gate's quiet decision", () => {
+  const quiet = {
+    hookSpecificOutput: {
+      hookEventName: "PreToolUse",
+      additionalContext: '## Memory context\n- hit: docs/merge.md\n\n{"textSearchInput":[]}',
+    },
+  };
+
+  test("a gate that carries context is an allow, not a deny", () => {
+    const decision = parseHookStdout(JSON.stringify(quiet));
+    expect(decision?.decision).toBe("allow");
+    expect(decision?.additionalContext).toContain("hit: docs/merge.md");
+  });
+
+  test("the context rides the resolution and the call is not blocked", () => {
+    const r = resolve(
+      [{ kind: "decision", decision: "allow", additionalContext: "## Memory context\n- hit" }],
+      { armed: false, hasUI: true },
+    );
+    expect(r.action).toBe("allow");
+    expect(r.context).toEqual(["## Memory context\n- hit"]);
+    expect(r.notices).toEqual([]);
+  });
+
+  test("a deny still blocks with its reason, and carries no context", () => {
+    const r = resolve(
+      [
+        {
+          kind: "decision",
+          decision: "deny",
+          reason: 'Memory-first: search memory for "foo" first, then re-run this search.',
+        },
+      ],
+      { armed: false, hasUI: true },
+    );
+    expect(r.action).toBe("block");
+    expect(r.reason).toContain("search memory");
+    expect(r.context).toEqual([]);
+  });
+});
+
 describe("pi tool events translate into the Claude shape ai-badger's hooks parse", () => {
   test("tool names map onto the names the shipped matchers use", () => {
     expect(claudeToolName("bash")).toBe("Bash");
@@ -483,6 +524,7 @@ describe("gate outcomes resolve into one action", () => {
       reason: undefined,
       notices: [],
       autoApproved: false,
+      context: [],
     });
   });
 
@@ -789,6 +831,7 @@ describe("an aborted-before-spawn hook is a silent cancellation", () => {
       action: "allow",
       notices: [],
       autoApproved: false,
+      context: [],
     });
   });
 

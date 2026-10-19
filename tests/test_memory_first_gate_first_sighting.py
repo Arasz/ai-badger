@@ -54,18 +54,20 @@ def _feed(monkeypatch, payload):
         payload if isinstance(payload, str) else json.dumps(payload)))
 
 
-def _bash(env, monkeypatch, capsys, command, session="s1"):
-    """Run the Claude PreToolUse hook on a Bash call; the deny reason, or None on pass."""
+def _decision(env, monkeypatch, capsys, command, session="s1"):
+    """Run the Claude PreToolUse hook on a Bash call; the hook's decision, or None on pass."""
     _feed(monkeypatch, {"hook_event_name": "PreToolUse", "session_id": session,
                         "cwd": str(env.tmp), "tool_name": "Bash",
                         "tool_input": {"command": command}})
     assert env.pre.main([]) == 0
     out = capsys.readouterr().out
-    if not out:
-        return None
-    decision = json.loads(out)["hookSpecificOutput"]
-    assert decision["permissionDecision"] == "deny"
-    return decision["permissionDecisionReason"]
+    return json.loads(out)["hookSpecificOutput"] if out else None
+
+
+def _bash(env, monkeypatch, capsys, command, session="s1"):
+    """The model-side context of a first sighting, or None when the gate has no opinion."""
+    decision = _decision(env, monkeypatch, capsys, command, session)
+    return decision.get("additionalContext") if decision else None
 
 
 def _tool(env, monkeypatch, capsys, name, tool_input):
@@ -73,7 +75,18 @@ def _tool(env, monkeypatch, capsys, name, tool_input):
                         "cwd": str(env.tmp), "tool_name": name, "tool_input": tool_input})
     assert env.pre.main([]) == 0
     out = capsys.readouterr().out
-    return json.loads(out)["hookSpecificOutput"]["permissionDecisionReason"] if out else None
+    return json.loads(out)["hookSpecificOutput"].get("additionalContext") if out else None
+
+
+def _record(context):
+    """The JSON record the gate delivered as context."""
+    return json.loads(context.split("\n\n", 1)[1])
+
+
+def _denied(env, monkeypatch, capsys, command):
+    """True when the gate still acts on the call: a one-line deny, no payload."""
+    decision = _decision(env, monkeypatch, capsys, command)
+    return bool(decision) and decision.get("permissionDecision") == "deny"
 
 
 def _memory_search(env, monkeypatch, query):
@@ -84,13 +97,13 @@ def _memory_search(env, monkeypatch, query):
 
 
 # ------------------------------------------------------------------ the owner's example
-def test_user_example_denied_first_then_unmarked_retry_passes(env, monkeypatch, capsys):
+def test_user_example_delivers_context_first_then_the_retry_passes(env, monkeypatch, capsys):
     """Mutation: detect only tokens[0] (the command starts with sed, so it slips through)."""
-    reason = _bash(env, monkeypatch, capsys, USER_EXAMPLE)
+    context = _bash(env, monkeypatch, capsys, USER_EXAMPLE)
 
-    assert reason is not None
-    assert "hit: docs/merge.md" in reason
-    assert "memory-checked" not in reason
+    assert context is not None
+    assert "hit: docs/merge.md" in context
+    assert "memory-checked" not in context
     assert "def merge_hooks" in env.calls[0][0]
     assert env.calls[0][1] == PROJECT
 
@@ -109,11 +122,11 @@ def test_first_sighting_launches_async_capture_and_returns_exact_pattern_hash(
         return SimpleNamespace(pid=1234)
 
     monkeypatch.setattr(env.gate.subprocess, "Popen", fake_popen)
-    reason = _bash(env, monkeypatch, capsys,
-                   "grep -n 'def merge_hooks' features/hook_wiring.py")
+    context = _bash(env, monkeypatch, capsys,
+                    "grep -n 'def merge_hooks' features/hook_wiring.py")
 
-    assert reason is not None
-    assert pattern_hash in reason
+    assert context is not None
+    assert pattern_hash in context
     assert len(launched) == 1
     capture_args = launched[0][0]
     assert "--capture" in capture_args
@@ -135,17 +148,17 @@ def test_first_sighting_returns_and_logs_search_result_with_pattern_hash_mapping
                         lambda *args, **kwargs: SimpleNamespace(pid=1236))
 
     command = "grep -n " + " ".join(f"-e {pattern}" for pattern in patterns) + " source.py"
-    reason = _bash(env, monkeypatch, capsys, command)
+    context = _bash(env, monkeypatch, capsys, command)
 
-    expected = {
-        "searchResult": {"mem_search_result_output": HITS},
-        "rawGrepInput": [
-            {"pattern": pattern,
-             "hash": hashlib.sha256(pattern.encode("utf-8")).hexdigest()}
-            for pattern in patterns
-        ],
-    }
-    assert json.loads(reason) == expected
+    expected_input = [
+        {"pattern": pattern,
+         "rawResultHash": hashlib.sha256(pattern.encode("utf-8")).hexdigest()}
+        for pattern in patterns
+    ]
+    assert _record(context) == {"textSearchInput": expected_input}
+    assert context.startswith(HITS)
+    expected = {"textSearchInput": expected_input,
+                "searchResult": {"mem_search_result_output": HITS}}
     lines = log_path.read_text(encoding="utf-8").splitlines()
     assert len(lines) == 1
     assert json.loads(lines[0]) == expected
@@ -162,8 +175,8 @@ def test_search_jsonl_log_stays_bounded_and_valid(env, monkeypatch):
     monkeypatch.setattr(env.gate, "SEARCH_LOG_PATH", log_path)
     monkeypatch.setattr(env.gate, "MAX_SEARCH_LOG_BYTES", 300)
     payload = {
+        "textSearchInput": [{"pattern": "needle", "rawResultHash": "f" * 64}],
         "searchResult": {"mem_search_result_output": "a" * 30},
-        "rawGrepInput": [{"pattern": "needle", "hash": "f" * 64}],
     }
 
     for _ in range(6):
@@ -189,10 +202,10 @@ def test_rg_first_sighting_launches_async_capture_with_exact_pattern_hash(
 
     monkeypatch.setattr(env.gate.subprocess, "Popen", fake_popen)
     command = "rg -n 'def _prune' features/hook_wiring.py"
-    reason = _bash(env, monkeypatch, capsys, command)
+    context = _bash(env, monkeypatch, capsys, command)
 
-    assert reason is not None
-    assert pattern_hash in reason
+    assert context is not None
+    assert pattern_hash in context
     assert len(launched) == 1
     capture_args = launched[0][0]
     assert "--capture" in capture_args
@@ -210,9 +223,9 @@ def test_rtk_rg_standalone_capture_uses_an_argv_payload(env, monkeypatch, capsys
                         lambda *args, **kwargs: launched.append((args, kwargs))
                         or SimpleNamespace(pid=1239))
 
-    reason = _bash(env, monkeypatch, capsys, "rtk rg -n rtkNeedle src/file.py")
+    context = _bash(env, monkeypatch, capsys, "rtk rg -n rtkNeedle src/file.py")
 
-    assert reason is not None and pattern_hash in reason
+    assert context is not None and pattern_hash in context
     assert len(launched) == 1
     capture_args = launched[0][0][0]
     capture_at = capture_args.index("--capture")
@@ -229,12 +242,12 @@ def test_hook_launched_capture_can_be_retrieved_from_same_working_directory(
     monkeypatch.chdir(env.tmp)
     command = f"grep -n {pattern} {shlex.quote(str(source))}"
 
-    reason = _bash(env, monkeypatch, capsys, command)
+    context = _bash(env, monkeypatch, capsys, command)
     pattern_hash = hashlib.sha256(pattern.encode("utf-8")).hexdigest()
-    assert reason is not None and pattern_hash in reason
+    assert context is not None and pattern_hash in context
 
     retrieval = load_script(
-        "features/common/skills/get-raw-grep-result/scripts/get_raw_grep_result.py")
+        "features/common/skills/get-raw-text-search/scripts/get_raw_text_search.py")
     deadline = time.monotonic() + 3
     result = retrieval.get_result(pattern_hash=pattern_hash)
     while result["status"] == "pending" and time.monotonic() < deadline:
@@ -249,9 +262,9 @@ def test_identical_retry_without_marker_passes_after_search(env, monkeypatch, ca
     """A completed memory search is sufficient; the marker no longer gates retry."""
     _bash(env, monkeypatch, capsys, "grep -n foo a.py")
 
-    reason = _bash(env, monkeypatch, capsys, "grep -n foo a.py")
+    context = _bash(env, monkeypatch, capsys, "grep -n foo a.py")
 
-    assert reason is None
+    assert context is None
     assert len(env.calls) == 1
 
 
@@ -287,9 +300,9 @@ def test_piped_rg_capture_does_not_replay_an_arbitrary_upstream(
                         or SimpleNamespace(pid=1237))
     command = "curl -X POST https://example.invalid/submit | rg responseNeedle"
 
-    reason = _bash(env, monkeypatch, capsys, command)
+    context = _bash(env, monkeypatch, capsys, command)
 
-    assert reason is not None
+    assert context is not None
     assert launched == []
 
 
@@ -305,9 +318,9 @@ def test_dynamic_file_operands_are_not_captured_with_changed_shell_semantics(
                         or SimpleNamespace(pid=1238))
     command = f"rg dynamicNeedle {operand}"
 
-    reason = _bash(env, monkeypatch, capsys, command)
+    context = _bash(env, monkeypatch, capsys, command)
 
-    assert reason is not None
+    assert context is not None
     assert launched == []
 
 
@@ -321,9 +334,9 @@ def test_glob_pattern_that_would_expand_is_not_captured(env, monkeypatch, capsys
                         lambda *args, **kwargs: launched.append((args, kwargs))
                         or SimpleNamespace(pid=1240))
 
-    reason = _bash(env, monkeypatch, capsys, "rg *.txt src/file.py")
+    context = _bash(env, monkeypatch, capsys, "rg *.txt src/file.py")
 
-    assert reason is not None
+    assert context is not None
     assert launched == []
 
 
@@ -337,16 +350,16 @@ def test_shell_expansion_patterns_are_not_captured(env, monkeypatch, capsys, pat
                         lambda *args, **kwargs: launched.append((args, kwargs))
                         or SimpleNamespace(pid=1241))
 
-    reason = _bash(env, monkeypatch, capsys, f"rg -e {pattern} src/file.py")
+    context = _bash(env, monkeypatch, capsys, f"rg -e {pattern} src/file.py")
 
-    assert reason is not None
+    assert context is not None
     assert launched == []
 
 
 def test_capture_worker_executes_argv_without_a_shell(
         env, monkeypatch, load_script):
     retrieval = load_script(
-        "features/common/skills/get-raw-grep-result/scripts/get_raw_grep_result.py")
+        "features/common/skills/get-raw-text-search/scripts/get_raw_text_search.py")
     pattern = "argvWorkerNeedle"
     scope = hashlib.sha256(os.path.realpath(env.tmp).encode("utf-8")).hexdigest()
     capture_key = f"{scope}:{hashlib.sha256(pattern.encode('utf-8')).hexdigest()}"
@@ -368,9 +381,9 @@ def test_capture_worker_executes_argv_without_a_shell(
 
 
 def test_never_searched_pattern_is_denied(env, monkeypatch, capsys):
-    reason = _bash(env, monkeypatch, capsys, "grep -n zebra f.py")
+    context = _bash(env, monkeypatch, capsys, "grep -n zebra f.py")
 
-    assert reason is not None
+    assert context is not None
     assert env.calls and "zebra" in env.calls[0][0]
 
 
@@ -415,9 +428,9 @@ def test_compound_with_one_seen_and_one_unseen_pattern_is_denied(env, monkeypatc
     """Mutation: `any` instead of `all`; the search query must carry only the unseen one."""
     _bash(env, monkeypatch, capsys, "grep foo a.py")
 
-    reason = _bash(env, monkeypatch, capsys, "grep foo a.py; rg quux b")
+    context = _bash(env, monkeypatch, capsys, "grep foo a.py; rg quux b")
 
-    assert reason is not None
+    assert context is not None
     assert "quux" in env.calls[-1][0] and "foo" not in env.calls[-1][0]
 
 
@@ -468,12 +481,13 @@ def test_no_executable_names_memory_search_then_post_hook_then_passes(
     """Owner rule: a search that could not run records nothing; the agent's own does."""
     env.state.reply = None
 
-    reason = _bash(env, monkeypatch, capsys, "grep -n widgetFactory f.py")
-    payload = json.loads(reason)
-    assert payload["searchResult"]["mem_search_result_output"] is None
-    assert payload["rawGrepInput"][0]["pattern"] == "widgetFactory"
-    assert "memory-checked" not in reason
-    assert _bash(env, monkeypatch, capsys, "grep -n widgetFactory f.py") is not None
+    decision = _decision(env, monkeypatch, capsys, "grep -n widgetFactory f.py")
+    assert decision["permissionDecision"] == "deny"
+    assert "widgetFactory" in decision["permissionDecisionReason"]
+    assert "{" not in decision["permissionDecisionReason"]
+    assert env.gate.unsearched(PROJECT, ["widgetFactory"]) == ["widgetFactory"]
+    assert _decision(env, monkeypatch, capsys,
+                     "grep -n widgetFactory f.py")["permissionDecision"] == "deny"
 
     _memory_search(env, monkeypatch, "widgetFactory")
 
@@ -483,9 +497,10 @@ def test_no_executable_names_memory_search_then_post_hook_then_passes(
 def test_search_raising_still_denies_and_exits_zero(env, monkeypatch, capsys):
     env.state.reply = RuntimeError("boom")
 
-    reason = _bash(env, monkeypatch, capsys, "grep -n foo f")
+    decision = _decision(env, monkeypatch, capsys, "grep -n foo f")
 
-    assert json.loads(reason)["searchResult"]["mem_search_result_output"] is None
+    assert decision["permissionDecision"] == "deny"
+    assert "foo" in decision["permissionDecisionReason"]
     assert env.gate.unsearched(PROJECT, ["foo"]) == ["foo"]
 
 
@@ -493,7 +508,25 @@ def test_fourth_new_pattern_denial_still_denies(env, monkeypatch, capsys):
     """Mutation: restore the 3-strike pass-through."""
     env.state.reply = None
     for _ in range(4):
-        assert _bash(env, monkeypatch, capsys, "grep -n foo f") is not None
+        decision = _decision(env, monkeypatch, capsys, "grep -n foo f")
+        assert decision["permissionDecision"] == "deny"
+
+
+# ------------------------------------------------------------------ the quiet gate
+def test_a_first_sighting_is_allowed_and_carries_the_memory_context(env, monkeypatch, capsys):
+    """The gate is not a failure: the call runs and the model receives the hits."""
+    decision = _decision(env, monkeypatch, capsys, "grep -n foo f.py")
+
+    assert "permissionDecision" not in decision
+    assert decision["hookEventName"] == "PreToolUse"
+    assert "hit: docs/merge.md" in decision["additionalContext"]
+
+
+def test_a_find_call_reports_its_pattern_in_the_text_search_input(env, monkeypatch, capsys):
+    """Regression: a find call used to report an empty search input."""
+    context = _bash(env, monkeypatch, capsys, "find . -name 'memory_first_gate*'")
+
+    assert _record(context)["textSearchInput"] == [{"pattern": "memory_first_gate*"}]
 
 
 # ------------------------------------------------------------------ persistence
@@ -538,7 +571,10 @@ def test_copilot_string_tool_args_on_both_hooks(env, monkeypatch, capsys):
                         "cwd": str(env.tmp), "toolName": "bash",
                         "toolArgs": json.dumps({"command": "grep -n gizmo f"})})
     assert env.pre.main([]) == 0
-    assert json.loads(capsys.readouterr().out)["permissionDecision"] == "deny"
+    decision = json.loads(capsys.readouterr().out)
+    assert decision["permissionDecision"] == "deny"
+    assert "gizmo" in decision["permissionDecisionReason"]
+    assert "{" not in decision["permissionDecisionReason"]
 
     _feed(monkeypatch, {"hookEventName": "postToolUse", "sessionId": "c1",
                         "cwd": str(env.tmp), "toolName": "memory_search",
@@ -610,9 +646,9 @@ def test_piped_grep_that_is_still_repo_search_stays_gated(env, command):
 
 
 def test_excluded_segment_does_not_exempt_a_file_grep_beside_it(env, monkeypatch, capsys):
-    reason = _bash(env, monkeypatch, capsys, "git log | grep fix && grep -rn fix src/")
+    context = _bash(env, monkeypatch, capsys, "git log | grep fix && grep -rn fix src/")
 
-    assert reason is not None
+    assert context is not None
     assert env.calls and "fix" in env.calls[0][0]
     assert env.gate.search_patterns(
         "Bash", {"command": "git log | grep alpha && grep -rn beta src/"}) == ["beta"]
@@ -762,7 +798,7 @@ def test_a_memory_search_for_another_project_credits_nothing(env, monkeypatch, c
                              "tool_name": "mcp__ai-raccoon__memory_search",
                              "tool_input": {"projectId": "other-project", "query": "widgetFactory"}})
 
-    assert _bash(env, monkeypatch, capsys, "grep -n widgetFactory f.py") is not None
+    assert _denied(env, monkeypatch, capsys, "grep -n widgetFactory f.py")
 
 
 def test_a_memory_search_without_a_project_id_credits_nothing(env, monkeypatch, capsys):
@@ -772,7 +808,7 @@ def test_a_memory_search_without_a_project_id_credits_nothing(env, monkeypatch, 
                              "tool_name": "mcp__ai-raccoon__memory_search",
                              "tool_input": {"query": "widgetFactory"}})
 
-    assert _bash(env, monkeypatch, capsys, "grep -n widgetFactory f.py") is not None
+    assert _denied(env, monkeypatch, capsys, "grep -n widgetFactory f.py")
 
 
 @pytest.mark.parametrize("payload", [
@@ -787,7 +823,7 @@ def test_a_failed_memory_search_credits_nothing(env, monkeypatch, capsys, payloa
     env.state.reply = None
     _post(env, monkeypatch, dict(payload, cwd=str(env.tmp)))
 
-    assert _bash(env, monkeypatch, capsys, "grep -n widgetFactory f.py") is not None
+    assert _denied(env, monkeypatch, capsys, "grep -n widgetFactory f.py")
 
 
 def test_a_successful_copilot_memory_search_credits_its_query(env, monkeypatch, capsys):

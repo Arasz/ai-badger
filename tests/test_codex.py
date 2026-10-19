@@ -324,13 +324,13 @@ def test_memory_gate_adapters_are_not_copied_through_hooks_symlink(load_script, 
     assert list(outside.iterdir()) == []
 
 
-@pytest.mark.parametrize(('backend_result', 'should_deny'), [
+@pytest.mark.parametrize(('backend_result', 'expect_output'), [
     (None, False),
     ('', True),
     ('matching memory', True),
 ])
 def test_codex_memory_gate_fails_open_only_when_backend_is_unavailable(
-        load_script, monkeypatch, capsys, backend_result, should_deny):
+        load_script, monkeypatch, capsys, backend_result, expect_output):
     adapter = load_script('features/codex/adjustments/memory_first_gate_codex_hook.py')
     shared_path = (Path(__file__).resolve().parents[1] /
                    'features/common/skills/ai-raccoon-memory/scripts/memory_first_gate_hook.py')
@@ -349,11 +349,13 @@ def test_codex_memory_gate_fails_open_only_when_backend_is_unavailable(
     assert adapter.main([str(shared_path)]) == 0
 
     output = capsys.readouterr().out
-    assert bool(output) is should_deny
-    if should_deny:
+    assert bool(output) is expect_output
+    if expect_output:
         decision = json.loads(output)['hookSpecificOutput']
         assert decision['hookEventName'] == 'PreToolUse'
-        assert decision['permissionDecision'] == 'deny'
+        # The quiet gate: the search runs and the memory result rides the context.
+        assert 'permissionDecision' not in decision
+        assert 'additionalContext' in decision
 
 
 def test_memory_first_gate_post_hook_credits_codex_mcp_search(load_script, monkeypatch, request):

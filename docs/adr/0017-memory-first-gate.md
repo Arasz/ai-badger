@@ -120,3 +120,52 @@ passed untouched. The gate now keys on the search pattern, not the session.
   start clears nothing. There is no pass-through: the escape is a search, then the marker.
 - Tests: `tests/test_memory_first_gate_first_sighting.py` covers the rule end to end; each
   row was mutation-checked (the mutation applied, the suite red, reverted).
+
+## Amendment (2026-10-20): the quiet gate — the memory result is the agent's, not the user's
+
+The gate's denial was a user-visible event. The memory hits travelled to the model inside the
+denial reason, and every host renders a denial as a refusal: Claude Code raised a permission
+prompt, Codex a blocked tool call, pi the reason as the tool result, Hermes a block message. The
+user read a memory dump as an error, and the process was neither quiet nor transparent.
+
+**Rule.** Where the host's tool-call seam can carry model-side context, the gate **allows** the
+search and hands the memory result to the model; it never denies and never puts a payload in a
+message a human reads. Where the host cannot, the gate denies with **one line** — what to search
+and to re-run — and the agent runs the search itself, so the data is the same on every host.
+
+**Capability matrix (measured 2026-10-20, not assumed).**
+
+| Host | Model-side context on the tool seam | Source |
+|---|---|---|
+| Claude Code 2.1.303 | `hookSpecificOutput.additionalContext` on `PreToolUse`, applied whether the decision is allow, ask or deny | the installed binary's hook-output parser (`XN()`, case `"PreToolUse"`, reads `n.additionalContext`); the field is capped at ≈ 8000 characters |
+| Codex 0.163.0 | the same field, in `pre-tool-use.command.output` | the JSON schema shipped inside the installed binary |
+| pi | the adapter owns the seam: `pi.sendMessage({display: false})` | `pi-badger-integration` `features/pi/adjustments/adapter/`; pi's own docs: `display` controls terminal rendering only |
+| Copilot CLI | none documented for `preToolUse` (`additionalContext` is documented under `postToolUse`, `sessionStart`, `notification`, `subagentStart`, `postToolUseFailure`) | `docs/work/2026-09-27-ai-raccoon-prompt-rag-hook-research.md` (Copilot reference, read 2026-09-28) |
+| Hermes CLI | none — `pre_tool_call` returns only a block/allow decision; context injection is per turn (`pre_llm_call`) | `features/common/hooks/ai_badger_hooks.py` |
+
+Claude Code, Codex and pi all speak the Claude envelope, so one host branch covers them.
+
+**Decision shapes.** `memory_first_gate.build_decision` now emits, for the Claude envelope,
+`{"hookSpecificOutput": {"hookEventName": "PreToolUse", "additionalContext": "<memory block>\n\n<textSearchInput json>"}}`
+— no `permissionDecision` at all, so the host keeps its own permission flow and the model
+receives the hits beside the call. Copilot and Hermes keep their deny, with the reason reduced
+to one line: `Memory-first: search memory for "…" (projectId=…) first, then re-run this search.`
+When the memory lookup could not run at all, every host denies with that one line, so the agent
+searches memory itself; the pattern is then credited by the agent's own `memory_search` through
+the existing rule.
+
+**The payload.** `rawGrepInput` is renamed `textSearchInput`: the gate's subject is text search,
+not grep. The array now carries **every** searched pattern of the call — grep, rg *and* find —
+with `rawResultHash` only where the gate captured a raw output (shell grep/rg). A `find` call
+used to report an empty array, which is the owner's reported bug. The same object is appended to
+`~/.ai-badger/memory-first-search/searches.jsonl`.
+
+**The rename.** The `get-raw-grep-result` skill and its `get_raw_grep_result.py` script become
+`get-raw-text-search` and `get_raw_text_search.py`; the gate's `RAW_GREP_SCRIPT` constant becomes
+`RAW_TEXT_SEARCH_SCRIPT`. The script's CLI flags (`--pattern`, `--pattern-hash`) keep their names.
+
+**Consequences.** The gate stops being something a user has to approve; on Claude Code, Codex and
+pi a first sighting is invisible. Copilot CLI and Hermes still interrupt once, with one line
+instead of a data dump — their hosts have no model-context channel on the tool seam, and
+pretending otherwise would silently drop the memory result. The enforcement is unchanged: the
+search still precedes the repo search, and the searched-pattern store still decides what passes.

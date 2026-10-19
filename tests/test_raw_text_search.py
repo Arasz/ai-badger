@@ -7,7 +7,7 @@ import os
 
 import pytest
 
-SCRIPT = "features/common/skills/get-raw-grep-result/scripts/get_raw_grep_result.py"
+SCRIPT = "features/common/skills/get-raw-text-search/scripts/get_raw_text_search.py"
 TTL_SECONDS = 120
 MAX_OUTPUT_BYTES = 1024 * 1024
 

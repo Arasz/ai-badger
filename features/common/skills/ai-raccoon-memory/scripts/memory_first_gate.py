@@ -1,10 +1,16 @@
-"""Shared memory-first gate: search-call matchers, the searched-pattern store, the deny decision.
+"""Shared memory-first gate: search-call matchers, the searched-pattern store, the decision.
 
 A repo text-search call (grep/egrep/fgrep/rg/find in any segment of a shell command, or a
 Grep/Glob/search_files tool) passes only when every pattern it searches for was already
-memory-searched for the project. The first sighting of a pattern
-is denied: the gate runs one memory search for it and records it as searched when the bank
-answered. An agent's own memory_search records its query too (the PostToolUse hook).
+memory-searched for the project.
+
+The first sighting of a pattern is the gate's moment. On a host whose tool-call seam
+carries model-side context (Claude Code, Codex and pi all speak the Claude envelope) the
+gate runs one memory search, hands the hits to the model as `additionalContext` and lets
+the search through: the agent gets the data, the user sees nothing. A host without that
+seam gets a one-line deny, and the agent runs the search itself. Either way the pattern
+is recorded as searched when the bank answered. An agent's own memory_search records its
+query too (the PostToolUse hook).
 
 Searched patterns live per project id in the audit store's hook_state table (file fallback
 under SEARCHED_DIR) and are never reset. record_search keeps the per-session memory_first
@@ -339,8 +345,12 @@ def is_text_search(tool_name: Any, tool_input: Any) -> bool:
     return search_patterns(tool_name, tool_input) is not None
 
 
-RAW_GREP_SCRIPT = (Path(__file__).resolve().parents[2] / "get-raw-grep-result" /
-                   "scripts" / "get_raw_grep_result.py")
+RAW_TEXT_SEARCH_SCRIPT = (Path(__file__).resolve().parents[2] / "get-raw-text-search" /
+                          "scripts" / "get_raw_text_search.py")
+
+# Hosts whose tool-call seam carries model-side context: the gate delivers the memory
+# results to the model and lets the search through, so the user never sees the gate.
+CONTEXT_HOSTS = ("claude",)
 
 
 def pattern_hash(pattern: str) -> str:
@@ -411,7 +421,7 @@ def capture_greps(tool_name: Any, tool_input: Any, cwd: str = "",
         keys = [pattern_hash(pattern) for pattern in patterns]
         try:
             subprocess.Popen(
-                [sys.executable, str(RAW_GREP_SCRIPT), "--capture",
+                [sys.executable, str(RAW_TEXT_SEARCH_SCRIPT), "--capture",
                  _capture_scope(cwd) + ":" + ",".join(keys), json.dumps(argv)],
                 cwd=cwd or os.getcwd(), stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL, start_new_session=True, close_fds=True)
@@ -675,16 +685,47 @@ def search_query(patterns: Iterable[str]) -> Tuple[str, List[str]]:
     return " ".join(included), included
 
 
-def search_result_payload(hits: Optional[str], captures: Optional[List[Tuple[str, str]]]
-                          ) -> Dict[str, Any]:
-    """Build the agent and JSONL record with each raw-result hash beside its exact pattern."""
+def text_search_input(patterns: Iterable[str],
+                      captures: Optional[List[Tuple[str, str]]] = None) -> List[Dict[str, Any]]:
+    """One entry per searched pattern: the pattern, and the handle of its captured raw output.
+
+    Every pattern of the call appears, not only the ones a shell grep/rg capture stored:
+    a `find` call has no capture but still has patterns.
+    """
+    handles = dict(captures or [])
+    out: List[Dict[str, Any]] = []
+    for pattern in patterns:
+        entry: Dict[str, Any] = {"pattern": pattern}
+        handle = handles.get(pattern)
+        if handle:
+            entry["rawResultHash"] = handle
+        out.append(entry)
+    return out
+
+
+def search_result_payload(patterns: Iterable[str], hits: Optional[str],
+                          captures: Optional[List[Tuple[str, str]]] = None) -> Dict[str, Any]:
+    """The record of one first sighting: the text-search input and the memory hits."""
     found = None if hits is None else hits.strip()[:HITS_MAX_CHARS] or "(no hits)"
     return {
+        "textSearchInput": text_search_input(patterns, captures),
         "searchResult": {"mem_search_result_output": found},
-        "rawGrepInput": [
-            {"pattern": pattern, "hash": key} for pattern, key in (captures or [])
-        ],
     }
+
+
+def context_text(payload: Dict[str, Any]) -> str:
+    """The model-side context of a first sighting: the memory block, then the search input."""
+    block = (payload.get("searchResult") or {}).get("mem_search_result_output") or ""
+    inputs = json.dumps({"textSearchInput": payload.get("textSearchInput") or []},
+                         ensure_ascii=False)
+    return f"{block}\n\n{inputs}"
+
+
+def one_line_reason(project: str, patterns: Iterable[str]) -> str:
+    """The one line a host without a model-context channel shows: what to search, then retry."""
+    quoted = ", ".join(f'"{pattern}"' for pattern in list(patterns)[:3])
+    return (f"Memory-first: search memory for {quoted} (projectId={project}) first, "
+            "then re-run this search.")
 
 
 def append_search_result(payload: Dict[str, Any]) -> None:
@@ -734,19 +775,14 @@ def append_search_result(payload: Dict[str, Any]) -> None:
         pass
 
 
-def deny_reason(project: str, unseen: List[str], hits: Optional[str],
-                captures: Optional[List[Tuple[str, str]]] = None) -> str:
-    """Return the structured search result and raw pattern handles as JSON."""
-    del project, unseen
-    return json.dumps(search_result_payload(hits, captures), ensure_ascii=False)
-
-
 def decide(host: str, tool_name: Any, tool_input: Any, session_id: Optional[str],
            cwd: str = "") -> Dict[str, Any]:
-    """The per-host deny payload for a search call that has not earned its pass, else {}.
+    """The per-host decision for a search call that has not earned its pass, else {}.
 
-    Fails open when the project id cannot be persisted or the searched patterns cannot be
-    recorded: a pattern the gate cannot remember would be denied forever.
+    A host that carries model-side context gets the memory results and lets the search
+    through; every other host gets a one-line deny and runs the search itself. Fails open
+    when the project id cannot be persisted or the searched patterns cannot be recorded:
+    a pattern the gate cannot remember would be denied forever.
     """
     started = time.monotonic()
     patterns = search_patterns(tool_name, tool_input)
@@ -759,30 +795,43 @@ def decide(host: str, tool_name: Any, tool_input: Any, session_id: Optional[str]
     if not unseen:
         return {}
     captures = capture_greps(tool_name, tool_input, cwd, set(unseen))
-    hits = None
-    if unseen:
+    context = None
+    if host in CONTEXT_HOSTS:
         query, queried = search_query(unseen)
+        hits = None
         try:
             hits = memory_hits(query, project, session_id,
                                SEARCH_SECONDS - (time.monotonic() - started))
         except Exception:  # pylint: disable=broad-exception-caught  # a gate never raises
             hits = None
-        if hits is not None and queried and not remember(project, queried):
-            return {}
-    payload = search_result_payload(hits, captures)
-    append_search_result(payload)
+        if hits is not None:
+            if queried and not remember(project, queried):
+                return {}
+            payload = search_result_payload(unseen, hits, captures)
+            append_search_result(payload)
+            context = context_text(payload)
+    else:
+        # No context channel: the agent searches memory itself, so nothing is recorded here.
+        append_search_result(search_result_payload(unseen, None, captures))
     return build_decision(host, tool_name, tool_input, session_id, cwd,
-                          reason=deny_reason(project, unseen, hits, captures))
+                          reason=one_line_reason(project, unseen), context=context)
 
 
 def build_decision(host: str, tool_name: str, tool_input: Any,  # pylint: disable=unused-argument
                    session_id: Optional[str], cwd: str = "",
-                   reason: Optional[str] = None) -> Dict[str, Any]:
-    """The per-host deny payload, or {} for an unknown host (fail open)."""
+                   reason: Optional[str] = None,
+                   context: Optional[str] = None) -> Dict[str, Any]:
+    """The per-host decision: the search runs with the memory results as model-side context
+    where the host carries context, else a one-line deny. {} for an unknown host."""
     reason = reason or _REASON.format(project_id=project_id(cwd))
     if host == "hermes":
         return {"action": "block", "message": reason}
     if host == "claude":
+        if context:
+            # No permission decision: the host keeps its own permission flow and the model
+            # receives the memory results alongside the call.
+            return {"hookSpecificOutput": {"hookEventName": "PreToolUse",
+                                           "additionalContext": context}}
         return {"hookSpecificOutput": {
             "hookEventName": "PreToolUse",
             "permissionDecision": "deny",
