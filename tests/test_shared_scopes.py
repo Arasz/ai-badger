@@ -103,6 +103,36 @@ def test_the_canonical_lookup_identity_is_reused(tmp_path, root, raccoon_cli_fak
         "11111111-2222-3333-4444-555555555555"
 
 
+def test_collecting_and_syncing_twice_changes_nothing(tmp_path, root):
+    """Repeated collect and repeated sync are each deterministic: the second run writes nothing."""
+    collection = tmp_path / "chosen collection"
+    first = _member(collection, "python-app", ["python"], "canonical-python")
+    second = _member(collection, "dotnet-app", ["dotnet"], "canonical-dotnet")
+    _test_write(first / "pyproject.toml", "[project]\n")
+    _test_write(second / "App.csproj", "<Project />\n")
+    args = ["--target", str(collection), "--repo", "python-app", "--repo", "dotnet-app"]
+    _success(_shared(root, "collect", *args))
+    source = collection / ".ai-badger"
+    parent_after_collect = _snapshot(source)
+    child_after_collect = _snapshot(first / ".ai-badger")
+    sibling_after_collect = _snapshot(second / ".ai-badger")
+
+    _success(_shared(root, "collect", *args))
+
+    assert _snapshot(source) == parent_after_collect
+    assert _snapshot(first / ".ai-badger") == child_after_collect
+    assert _snapshot(second / ".ai-badger") == sibling_after_collect
+
+    _success(_shared(root, "sync", "--target", str(first), "--source", str(source)))
+    synced_child = _snapshot(first / ".ai-badger")
+    synced_parent = _snapshot(source)
+    _success(_shared(root, "sync", "--target", str(first), "--source", str(source)))
+
+    assert _snapshot(first / ".ai-badger") == synced_child
+    assert _snapshot(source) == synced_parent
+    assert _snapshot(second / ".ai-badger") == sibling_after_collect
+
+
 @pytest.mark.parametrize("case", ["escape", "duplicate", "not-a-repository", "symlinked-scope"])
 def test_unsafe_membership_is_refused_before_any_write(tmp_path, root, case):
     """A member that escapes, overlaps, is not a repository, or borrows a scope is refused."""
