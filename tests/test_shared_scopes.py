@@ -7,6 +7,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 from conftest import _test_write
 from raccoon_cli_fake import raccoon_cli_fake  # noqa: F401  (fixture)
 from scaffold_helpers import _config
@@ -99,6 +101,41 @@ def test_the_canonical_lookup_identity_is_reused(tmp_path, root, raccoon_cli_fak
     assert result.returncode == 0, result.stdout + result.stderr
     assert (second / ".ai-badger" / "project-id").read_text(encoding="utf-8").strip() == \
         "11111111-2222-3333-4444-555555555555"
+
+
+@pytest.mark.parametrize("case", ["escape", "duplicate", "not-a-repository", "symlinked-scope"])
+def test_unsafe_membership_is_refused_before_any_write(tmp_path, root, case):
+    """A member that escapes, overlaps, is not a repository, or borrows a scope is refused."""
+    collection = tmp_path / "chosen collection"
+    first = _member(collection, "python-app", ["python"], "canonical-python")
+    _test_write(first / "pyproject.toml", "[project]\n")
+    outside = tmp_path / "outside-app"
+    outside.mkdir()
+    subprocess.run(["git", "init", "-q", str(outside)], check=True, capture_output=True, text=True)
+    _write_json(outside / ".ai-badger" / "config.json", _config(stacks=["python"]))
+    _test_write(outside / ".ai-badger" / "project-id", "canonical-outside\n")
+
+    if case == "escape":
+        members = ["../outside-app"]
+    elif case == "duplicate":
+        members = ["python-app", "python-app"]
+    elif case == "not-a-repository":
+        plain = collection / "plain"
+        plain.mkdir()
+        members = ["plain"]
+    else:
+        linked = collection / "linked-app"
+        linked.mkdir()
+        (linked / ".ai-badger").symlink_to(first / ".ai-badger")
+        members = ["linked-app"]
+
+    result = _shared(root, "collect", "--target", str(collection), *sum(
+        [["--repo", member] for member in members], []))
+
+    assert result.returncode == 1, result.stdout + result.stderr
+    assert "shared scope refused" in result.stderr
+    assert not (collection / ".ai-badger" / "shared-scope.json").exists()
+    assert json.loads((first / ".ai-badger" / "config.json").read_text())["stacks"] == ["python"]
 
 
 def test_pruning_a_member_leaves_it_standalone(tmp_path, root):
