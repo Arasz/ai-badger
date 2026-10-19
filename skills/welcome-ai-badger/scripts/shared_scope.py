@@ -11,6 +11,7 @@ from typing import Any
 
 from scaffold import DEFAULT_SKILLS, FRAMEWORK_ROOT, Scaffolder
 import badger_lib as bl
+import project_id
 
 
 def read_object(path: Path) -> dict[str, Any]:
@@ -69,6 +70,25 @@ def validate_config(config: dict[str, Any], root: Path) -> None:
     errors = bl.validate(config, bl.load_json(root / "schemas" / "config.schema.json"))
     if errors:
         raise ValueError("invalid shared config: " + "; ".join(errors))
+
+
+def ensure_identity(child: Path) -> None:
+    """Keep the child's own identity, reuse the bank's, or refuse — never mint one in doubt."""
+    aib = child / ".ai-badger"
+    try:
+        current = (aib / "project-id").read_text(encoding="utf-8").strip()
+    except OSError:
+        current = ""
+    if current:
+        return
+    name = project_id.project_name(child)
+    result = project_id.lookup_project_id(name)
+    if result.kind in ("hit", "not-found"):
+        project_id.ensure_project_id(aib, name, raccoon=True)
+        return
+    detail = result.note or "the canonical lookup did not answer"
+    raise ValueError(f"refusing to enroll {child}: it has no identity of its own and "
+                     f"{detail}. Give the child its own identity first, then enroll it.")
 
 
 def detach_links(child: Path, source: Path) -> None:
@@ -160,6 +180,7 @@ def link_instructions(child: Path, source: Path, mode: str) -> None:
 def materialize(child: Path, source: Path, authored: dict[str, Any],
                 parent: dict[str, Any], root: Path, mode: str) -> None:
     """Render a private child scaffold through the existing scaffolder."""
+    ensure_identity(child)
     config = merge(parent, authored["overrides"])
     config["stacks"] = parent["stacks"] if mode == "inherit" else authored["localStacks"]
     validate_config(config, root)

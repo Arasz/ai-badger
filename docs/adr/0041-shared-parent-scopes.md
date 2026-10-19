@@ -33,9 +33,11 @@ was edited — is dropped instead of left dangling, so a smaller membership neve
 child. Ordinary scaffold and refresh refuse enrolled children and name the sync
 command. Sync writes only the selected child; it does not refresh its parent or siblings.
 
-Existing project IDs stay byte-identical. A missing child ID uses the existing canonical
-lookup and registration flow, with uncertain lookup outcomes refusing enrollment before
-project writes. Runtime lookup keeps the existing nearest-child identity rule.
+Existing project IDs stay byte-identical. A missing child ID goes through the existing
+canonical lookup and registration flow: the bank's id for that name is reused verbatim, a
+name the bank does not know is minted and registered by that same flow, and an uncertain
+outcome — the lookup is unavailable, ambiguous, or malformed — refuses the enrollment before
+any project write. A shared collection never invents an identity in doubt. Runtime lookup keeps the existing nearest-child identity rule.
 
 ## Alternatives considered
 

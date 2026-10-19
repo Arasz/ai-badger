@@ -8,6 +8,7 @@ import sys
 from pathlib import Path
 
 from conftest import _test_write
+from raccoon_cli_fake import raccoon_cli_fake  # noqa: F401  (fixture)
 from scaffold_helpers import _config
 
 SHARED_SCRIPT = "features/common/skills/welcome-ai-badger/scripts/shared_scope.py"
@@ -18,13 +19,14 @@ def _write_json(path: Path, value: dict) -> None:
     _test_write(path, json.dumps(value, indent=2) + "\n")
 
 
-def _member(collection: Path, name: str, stacks: list[str], project_id: str) -> Path:
+def _member(collection: Path, name: str, stacks: list[str], project_id: str | None) -> Path:
     target = collection / name
     target.mkdir(parents=True)
     subprocess.run(["git", "init", "-q", str(target)], check=True,
                    capture_output=True, text=True)
     _write_json(target / ".ai-badger" / "config.json", _config(stacks=stacks))
-    _test_write(target / ".ai-badger" / "project-id", project_id + "\n")
+    if project_id is not None:
+        _test_write(target / ".ai-badger" / "project-id", project_id + "\n")
     return target
 
 
@@ -62,6 +64,41 @@ def test_parent_stacks_are_union_of_explicit_members(tmp_path, root):
     assert not (collection / ".ai-badger" / "instructions" / "react.instructions.md").exists()
     for path, identity in identities.items():
         assert (path / ".ai-badger" / "project-id").read_bytes() == identity
+
+
+def test_a_child_without_its_own_identity_is_refused(tmp_path, root):
+    """Enrollment must not invent an identity for a child that has none."""
+    collection = tmp_path / "chosen collection"
+    _member(collection, "python-app", ["python"], "canonical-python")
+    second = _member(collection, "dotnet-app", ["dotnet"], None)
+    _test_write(second / "App.csproj", "<Project />\n")
+    before = _snapshot(second / ".ai-badger")
+
+    result = _shared(root, "collect", "--target", str(collection),
+                     "--repo", "python-app", "--repo", "dotnet-app")
+
+    assert result.returncode == 1, result.stdout + result.stderr
+    assert "identity" in result.stderr
+    assert not (second / ".ai-badger" / "project-id").exists()
+    assert _snapshot(second / ".ai-badger") == before
+
+
+def test_the_canonical_lookup_identity_is_reused(tmp_path, root, raccoon_cli_fake, monkeypatch):
+    """The bank's own id for the child is written verbatim, never minted here."""
+    monkeypatch.setenv("AI_BADGER_RACCOON_REGISTER", "1")
+    raccoon_cli_fake.script(get={"exit": 0, "stdout": "11111111-2222-3333-4444-555555555555\n",
+                                 "stderr": ""})
+    collection = tmp_path / "chosen collection"
+    _member(collection, "python-app", ["python"], "canonical-python")
+    second = _member(collection, "dotnet-app", ["dotnet"], None)
+    _test_write(second / "App.csproj", "<Project />\n")
+
+    result = _shared(root, "collect", "--target", str(collection),
+                     "--repo", "python-app", "--repo", "dotnet-app")
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert (second / ".ai-badger" / "project-id").read_text(encoding="utf-8").strip() == \
+        "11111111-2222-3333-4444-555555555555"
 
 
 def test_removing_a_member_shrinks_the_union_and_keeps_the_child_recoverable(tmp_path, root):
