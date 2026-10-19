@@ -561,6 +561,7 @@ PR/review-loop behaviour activates only when `sourceControl.platform == "github"
 | You want | Read |
 |---|---|
 | The reference model — contracts, script/agent split, target repo shape | [framework-architecture.md](framework-architecture.md) |
+| To give a group of repositories one shared scope | [how-to](how-to/share-a-parent-scope-across-repositories.md) |
 | To run the scripts directly, or the test suite | [scripts.md](scripts.md) |
 | How ai-badger's vocabulary maps to each agent's own | [dictionary.md](dictionary.md) |
 | To add a stack, persona, invariant, instruction, or skill | [authoring-a-feature.md](authoring-a-feature.md) |

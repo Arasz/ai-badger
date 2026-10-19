@@ -11,6 +11,7 @@ If they need to look a fact up rather than follow steps, they need `../reference
 
 | File | Goal |
 |---|---|
+| [share-a-parent-scope-across-repositories.md](share-a-parent-scope-across-repositories.md) | Give a group of repositories one shared `.ai-badger` scope while each keeps its own identity and state |
 | [run-without-hooks.md](run-without-hooks.md) | Keep ai-badger useful on a machine where managed policy sets `disableAllHooks` |
 
 `../getting-started.md` and `../authoring-a-feature.md` are how-tos still sitting at the

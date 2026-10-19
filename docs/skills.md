@@ -175,6 +175,11 @@ Codex also receives native skills, personas, MCP and bounded hooks; see
 **When to use it.** A repository has never been scaffolded — "welcome-ai-badger", "scaffold this
 project", "add agent instructions here", "onboard this repo".
 
+**Shared scopes.** A group of repositories can share one parent `.ai-badger/`: the parent
+carries the union of their stacks, each repository keeps its own identity and state, and
+`shared_scope.py` enrolls, refreshes and removes members. The how-to is
+[share-a-parent-scope-across-repositories.md](how-to/share-a-parent-scope-across-repositories.md).
+
 ### den-refresh
 
 [`SKILL.md`](../features/common/skills/den-refresh/SKILL.md)
