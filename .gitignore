@@ -44,6 +44,8 @@ mutants/
 .mcp.json.bak-*
 # the .pi/mcp.json writer's safety copy before a rewrite (config_guard.write_with_backup)
 .pi/mcp.json.bak-*
+# rtk owns this pi extension and ties it to its own version (rtk init --agent pi)
+.pi/extensions/rtk.ts
 # local Semantica session-graph staging dir; the durable record lives in ai-raccoon memory
 .semantica/
 # red_proof.py's journal (design-tests skill); a killed run leaves this behind, and it is
