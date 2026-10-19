@@ -19,6 +19,7 @@ When cutting a release:
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
+| 0.206.0 | [0.206.0: Shared parent scopes](0.206.0-shared-parent-scopes.md) |
 | 0.205.1 | [Safe raw grep capture](0.205.1-safe-raw-grep-capture.md) |
 | 0.205.0 | [host-only MCP servers get real tags and intents](0.205.0-host-only-servers-get-real-intents.md) |
 | 0.204.1 | [native Codex auto-wm approvals](0.204.1-codex-auto-wm-approvals.md) |
