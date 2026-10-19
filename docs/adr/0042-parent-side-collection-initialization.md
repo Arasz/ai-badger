@@ -51,6 +51,14 @@ its `parentId`, which is what tells one collection's member from another's.
 `--dry-run` reports the members, the union and the identity decisions and writes nothing.
 `--register` is the only way a minted id reaches the operator's bank.
 
+The collection's own identity is local. The parent is a scope, not a project: the bank
+holds projects, and the parent's id only has to be stable, so that a child can name the
+collection it belongs to. It is kept when the parent has one and minted locally otherwise;
+it is never looked up in the bank and never registered there.
+
+A directory that is itself a member of another collection is refused before the first
+write, by the same rule that keeps an ordinary scaffold off a member.
+
 The `dir:stacks` index is kept in the parent's own descriptor, as an optional `memberStacks`
 map in the collection branch of `schemas/shared-scope.schema.json`. The descriptor stays a
 closed shape: an unknown field is still refused, and the child's descriptor shape is

@@ -265,6 +265,25 @@ def test_discover_reports_the_index_and_writes_nothing(tmp_path, root):
     assert not (app / ".ai-badger").exists()
 
 
+def test_a_target_that_is_itself_a_member_is_refused(tmp_path, root):
+    """A directory that is a member of another collection cannot become a collection."""
+    first = tmp_path / "first collection"
+    second = tmp_path / "second collection"
+    second.mkdir()
+    child = _child(first, "python-app")
+    _test_write(child / "pyproject.toml", "[project]\n")
+    _identity(child, "canonical-python\n")
+    _success(_shared(root, "init", "--target", str(first)))
+    moved = second / "python-app"
+    shutil.move(str(child), str(moved))
+    _repo(moved / "inner")
+
+    result = _shared(root, "init", "--target", str(moved))
+
+    assert result.returncode == 1, result.stdout + result.stderr
+    assert "shared-scope child" in result.stderr
+
+
 def test_a_directory_without_repositories_is_refused(tmp_path, root):
     """There is nothing to enrol, and the refusal names the directory it looked in."""
     collection = tmp_path / "source"

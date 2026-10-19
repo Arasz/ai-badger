@@ -466,6 +466,9 @@ def init(target: Path, root: Path, config_path: Path | None, register: bool = Fa
     if not children:
         raise ValueError(f"no repository found in {target}: a child is a direct subdirectory "
                          f"that carries a .git entry")
+    refusal = bl.shared_scope_refusal(target)
+    if refusal:
+        raise ValueError(refusal)
     source = target / ".ai-badger"
     # Nothing is written until every member is decided: a child whose identity the
     # canonical lookup cannot resolve, or a child already enrolled in another
@@ -495,7 +498,9 @@ def init(target: Path, root: Path, config_path: Path | None, register: bool = Fa
         for line in report:
             print(f"plan {line}")
         return
-    commit_identity(target, parent_plan, register)
+    # The collection is a scope, not a bank project: its identity is local, and only the
+    # members' identities reach the bank.
+    commit_identity(target, parent_plan, register=False)
     for child, plan in zip(children, plans):
         commit_identity(child, plan, register)
     Scaffolder(root, target, config, DEFAULT_SKILLS, install=False).run()
