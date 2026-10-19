@@ -109,10 +109,17 @@ def detach_links(child: Path, source: Path) -> None:
         checked.append((destination, raw_target))
 
     for destination, _raw_target in checked:
-        if destination.is_symlink():
+        if not destination.is_symlink():
+            continue
+        if destination.exists():
             content = destination.read_bytes()
             destination.unlink()
             destination.write_bytes(content)
+        else:
+            # The parent file is gone (the union shrank, or the parent was edited):
+            # there is no content to copy, so the owned link is dropped and the
+            # renderer writes the child's own file, or leaves it absent.
+            destination.unlink()
 
 
 def link_instructions(child: Path, source: Path, mode: str) -> None:

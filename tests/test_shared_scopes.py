@@ -64,6 +64,31 @@ def test_parent_stacks_are_union_of_explicit_members(tmp_path, root):
         assert (path / ".ai-badger" / "project-id").read_bytes() == identity
 
 
+def test_removing_a_member_shrinks_the_union_and_keeps_the_child_recoverable(tmp_path, root):
+    """A smaller membership must not strand the remaining child on a vanished parent file."""
+    collection = tmp_path / "chosen collection"
+    first = _member(collection, "python-app", ["python"], "canonical-python")
+    second = _member(collection, "dotnet-app", ["dotnet"], "canonical-dotnet")
+    _test_write(first / "pyproject.toml", "[project]\nname = 'python-app'\n")
+    _test_write(second / "App.csproj", "<Project />\n")
+    _success(_shared(root, "collect", "--target", str(collection),
+                     "--repo", "python-app", "--repo", "dotnet-app"))
+    shared = first / ".ai-badger" / "instructions" / "csharp.instructions.md"
+    assert shared.is_symlink(), "the union's instruction file must reach the child"
+
+    result = _shared(root, "collect", "--target", str(collection), "--repo", "python-app")
+
+    _success(result)
+    assert json.loads((collection / ".ai-badger" / "config.json").read_text())["stacks"] == ["python"]
+    assert json.loads((first / ".ai-badger" / "config.json").read_text())["stacks"] == ["python"]
+    assert not shared.is_symlink(), "a link to a vanished parent file must not survive"
+    assert not shared.exists()
+    links = json.loads((first / ".ai-badger" / "manifest.json").read_text())["sharedScope"]["links"]
+    assert all("csharp" not in entry["path"] for entry in links)
+    _success(_shared(root, "sync", "--target", str(first),
+                     "--source", str(collection / ".ai-badger")))
+
+
 def _snapshot(tree: Path) -> dict[str, tuple[str, bytes | str]]:
     """Observe content and raw link targets without traversing directory symlinks."""
     if tree.is_symlink():

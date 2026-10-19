@@ -28,7 +28,9 @@ every owned link's exact raw target and original canonical parent source.
 
 Before rendering, sync validates every recorded link and every destination ancestor. It
 detaches only exact owned links to private copies, then renders and re-links identical
-immutable files. Ordinary scaffold and refresh refuse enrolled children and name the sync
+immutable files. An owned link whose parent file is gone — the union shrank, or the parent
+was edited — is dropped instead of left dangling, so a smaller membership never strands a
+child. Ordinary scaffold and refresh refuse enrolled children and name the sync
 command. Sync writes only the selected child; it does not refresh its parent or siblings.
 
 Existing project IDs stay byte-identical. A missing child ID uses the existing canonical
