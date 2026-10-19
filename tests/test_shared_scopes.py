@@ -101,6 +101,49 @@ def test_the_canonical_lookup_identity_is_reused(tmp_path, root, raccoon_cli_fak
         "11111111-2222-3333-4444-555555555555"
 
 
+def test_pruning_a_member_leaves_it_standalone(tmp_path, root):
+    """A pruned member keeps its own identity, loses the links, and rejoins the ordinary flow."""
+    collection = tmp_path / "chosen collection"
+    first = _member(collection, "python-app", ["python"], "canonical-python")
+    second = _member(collection, "dotnet-app", ["dotnet"], "canonical-dotnet")
+    _test_write(first / "pyproject.toml", "[project]\n")
+    _test_write(second / "App.csproj", "<Project />\n")
+    _success(_shared(root, "collect", "--target", str(collection),
+                     "--repo", "python-app", "--repo", "dotnet-app"))
+    shared = second / ".ai-badger" / "instructions" / "csharp.instructions.md"
+    assert shared.is_symlink(), "the union's instruction file must reach the member"
+
+    result = _shared(root, "prune", "--target", str(collection), "--repo", "dotnet-app")
+
+    _success(result)
+    assert not shared.is_symlink(), "a pruned member keeps a private copy, not a link"
+    assert shared.is_file()
+    assert not (second / ".ai-badger" / "shared-scope.json").exists()
+    assert (second / ".ai-badger" / "project-id").read_text(encoding="utf-8").strip() == \
+        "canonical-dotnet"
+    members = json.loads((collection / ".ai-badger" / "shared-scope.json").read_text())["members"]
+    assert members == ["python-app"]
+    assert json.loads((collection / ".ai-badger" / "config.json").read_text())["stacks"] == ["python"]
+    assert (first / ".ai-badger" / "shared-scope.json").is_file()
+    assert json.loads((first / ".ai-badger" / "config.json").read_text())["stacks"] == ["python"]
+
+
+def test_pruning_a_repository_that_is_not_a_member_is_refused(tmp_path, root):
+    """Prune only ever removes an enrolled member."""
+    collection = tmp_path / "chosen collection"
+    _member(collection, "python-app", ["python"], "canonical-python")
+    stranger = _member(collection, "dotnet-app", ["dotnet"], "canonical-dotnet")
+    _test_write(stranger / "App.csproj", "<Project />\n")
+    _success(_shared(root, "collect", "--target", str(collection), "--repo", "python-app"))
+
+    result = _shared(root, "prune", "--target", str(collection), "--repo", "dotnet-app")
+
+    assert result.returncode == 1, result.stdout + result.stderr
+    assert "not an enrolled member" in result.stderr
+    assert json.loads((collection / ".ai-badger" / "shared-scope.json").read_text())["members"] == \
+        ["python-app"]
+
+
 def test_a_descriptor_with_an_unknown_field_is_refused(tmp_path, root):
     """The child's authored descriptor is a closed shape, not free-form JSON."""
     collection = tmp_path / "chosen collection"

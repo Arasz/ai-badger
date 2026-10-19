@@ -28,6 +28,10 @@ Only identical immutable files may link to the same relative path in the actual 
 project-owned files and contextual rendered output remain private. The manifest records
 every owned link's exact raw target and original canonical parent source.
 
+Pruning removes one enrolled member: its shared files become private copies, its
+identity is untouched, the parent's union shrinks to the remaining members, and the pruned
+repository rejoins the ordinary scaffold and refresh flow.
+
 Before rendering, sync validates every recorded link and every destination ancestor. It
 detaches only exact owned links to private copies, then renders and re-links identical
 immutable files. An owned link whose parent file is gone — the union shrank, or the parent

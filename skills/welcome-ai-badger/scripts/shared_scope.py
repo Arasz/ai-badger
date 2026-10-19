@@ -227,6 +227,31 @@ def collect(target: Path, names: list[str], root: Path, config_path: Path | None
         materialize(child, source, inputs, config, root, "inherit")
 
 
+def prune(target: Path, name: str, root: Path) -> None:
+    """Remove one enrolled member from the collection and leave it standalone."""
+    source = target / ".ai-badger"
+    enrolled = read_object(source / "shared-scope.json")
+    members = enrolled.get("members")
+    if not isinstance(members, list):
+        raise ValueError("the collection descriptor must list its members")
+    if name not in members:
+        raise ValueError(f"{name} is not an enrolled member of {target}")
+    child = (target / name).resolve()
+    if not child.is_relative_to(target.resolve()):
+        raise ValueError(f"repository escapes the collection: {name}")
+    inputs = descriptor(child, root)
+    detach_links(child, source)
+    (child / ".ai-badger" / "shared-scope.json").unlink(missing_ok=True)
+    current = read_object(child / ".ai-badger" / "config.json")
+    standalone = merge(inputs["overrides"], {"stacks": inputs["localStacks"]})
+    for key in ("frameworkVersion", "$schema"):
+        if key in current:
+            standalone[key] = current[key]
+    validate_config(standalone, root)
+    Scaffolder(root, child, standalone, DEFAULT_SKILLS, install=False).run()
+    collect(target, [member for member in members if member != name], root, None)
+
+
 def sync(child: Path, source: Path, root: Path) -> None:
     """Render one enrolled child using its local stacks and current parent defaults."""
     inputs = descriptor(child, root)
@@ -247,6 +272,10 @@ def main(argv: list[str] | None = None) -> int:
     sync_parser.add_argument("--target", required=True)
     sync_parser.add_argument("--source", required=True)
     sync_parser.add_argument("--root")
+    prune_parser = commands.add_parser("prune")
+    prune_parser.add_argument("--target", required=True)
+    prune_parser.add_argument("--repo", required=True)
+    prune_parser.add_argument("--root")
     args = parser.parse_args(argv)
     try:
         root = Path(args.root).resolve() if args.root else FRAMEWORK_ROOT
@@ -254,6 +283,8 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "collect":
             collect(target, args.repo, root,
                     Path(args.config).resolve() if args.config else None)
+        elif args.command == "prune":
+            prune(target, args.repo, root)
         else:
             sync(target, Path(args.source).resolve(), root)
     except (OSError, ValueError, KeyError) as exc:

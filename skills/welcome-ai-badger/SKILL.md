@@ -221,6 +221,11 @@ local settings. Objects merge and lists replace parent values.
 
 To refresh one child with its own stacks, run `shared_scope.py sync --target CHILD --source
 COLLECTION/.ai-badger --root FRAMEWORK`. Ordinary scaffold and den-refresh refuse shared
-children and print this recovery command. Verify child instruction and skill discovery,
+children and print this recovery command.
+
+To remove a member from the collection, run `shared_scope.py prune --target COLLECTION --repo
+CHILD --root FRAMEWORK`: the member keeps its own identity and its shared files as private
+copies, the parent's union shrinks to the remaining members, and the pruned repository
+rejoins the ordinary scaffold and refresh flow. Verify child instruction and skill discovery,
 then confirm the child's project ID remains its own. Do not replace `.ai-badger` directories
 with symlinks; only the recorded immutable files may share parent copies.
