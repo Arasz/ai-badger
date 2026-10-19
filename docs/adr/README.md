@@ -56,6 +56,8 @@ held two files numbered 0002. That collision was resolved in 0.22.0. One number,
 | [0039](0039-tools-feature-type.md) | A `tools` feature type, and per-harness wiring for rtk | Accepted (2026-10-17; amended 2026-10-18) | New `tools` registry row with rtk as first member; opt-in `config.tools.<name>.hooks`; ai-badger writes a marked (`AI_BADGER_TOOL=rtk`), guarded hook for Copilot, pi runs `rtk init --agent pi` gated on install+check; Claude, Codex and Hermes are proposal-only (amended 0.195.1: live check found Claude's `permissions.ask` bypassed by the rewrite, and Codex's `allow` skips approval; amended 0.197.0: an ai-badger guard script replaces `rtk hook claude|codex` and leaves a command a host rule names unrewritten, so Claude is native again and Codex waits for a live run); POSIX-only; Codex and Copilot compositions remain unverified |
 | [0040](0040-codex-user-plugin-and-deduplicated-scopes.md) | Codex user plugins with one active ai-badger scope | Accepted (2026-10-19) | Native Codex marketplace plugin delivery; project/user scope selection prevents duplicate skills and hooks; Codex-specific hook adapters preserve shared skill sources and fail open when memory lookup is unavailable |
 
+| [0041](0041-shared-parent-scopes.md) | Explicit shared parent scopes | Accepted (2026-10-19) | Existing scaffolder materializes union-stack collection children and local-stack sync; private authored descriptor and exact immutable per-file link ownership preserve child identity and mutable state |
+
 ## Writing a new one
 
 Take the next free number. Keep the filename kebab-case and imperative-ish

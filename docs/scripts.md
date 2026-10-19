@@ -109,6 +109,12 @@ python3 "$AI_BADGER/features/common/skills/welcome-ai-badger/scripts/scaffold.py
 
 - `detect.py` — data-driven stack detection from each stack's `detectionSignals` (ignores vendored
   and agent-tooling dirs like `node_modules`, `.venv`, `.claude`).
+- `shared_scope.py` (`welcome-ai-badger/scripts/`): `collect --target COLLECTION --repo CHILD`
+  (repeat `--repo` for every member, optionally supply `--config PARENT_CONFIG`) renders the
+  parent stack union and enrolls the selected children. `sync --target CHILD --source
+  COLLECTION/.ai-badger` refreshes one child with its local stacks. Both accept `--root`.
+  Edit child `.ai-badger/shared-scope.json` overrides for persistent local settings.
+
 - `scaffold.py` — materializes `.ai-badger/`, records provenance in `manifest.json`, preserves
   existing hand-authored discovery files by default, and never copies test files into a target.
   Flags: `--skills` (comma list; empty means the set already scaffolded), `--overwrite-agent-files`,
