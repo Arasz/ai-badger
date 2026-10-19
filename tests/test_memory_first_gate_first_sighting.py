@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import io
 import json
+import os
 import shlex
 import sys
 import time
@@ -115,8 +116,10 @@ def test_first_sighting_launches_async_capture_and_returns_exact_pattern_hash(
     assert len(launched) == 1
     capture_args = launched[0][0]
     assert "--capture" in capture_args
-    assert any(pattern_hash in arg for arg in capture_args)
-    assert "grep -n 'def merge_hooks' features/hook_wiring.py" in capture_args
+    capture_at = capture_args.index("--capture")
+    assert pattern_hash in capture_args[capture_at + 1]
+    assert json.loads(capture_args[capture_at + 2]) == [
+        "grep", "-n", pattern, "features/hook_wiring.py"]
     assert launched[0][1]["start_new_session"] is True
     assert launched[0][1]["stdin"] is env.gate.subprocess.DEVNULL
     assert launched[0][1]["cwd"] == str(env.tmp)
@@ -141,8 +144,28 @@ def test_rg_first_sighting_launches_async_capture_with_exact_pattern_hash(
     assert len(launched) == 1
     capture_args = launched[0][0]
     assert "--capture" in capture_args
-    assert any(pattern_hash in arg for arg in capture_args)
-    assert command in capture_args
+    capture_at = capture_args.index("--capture")
+    assert pattern_hash in capture_args[capture_at + 1]
+    assert json.loads(capture_args[capture_at + 2]) == [
+        "rg", "-n", pattern, "features/hook_wiring.py"]
+
+
+def test_rtk_rg_standalone_capture_uses_an_argv_payload(env, monkeypatch, capsys):
+    pattern = "rtkNeedle"
+    pattern_hash = hashlib.sha256(pattern.encode("utf-8")).hexdigest()
+    launched = []
+    monkeypatch.setattr(env.gate.subprocess, "Popen",
+                        lambda *args, **kwargs: launched.append((args, kwargs))
+                        or SimpleNamespace(pid=1239))
+
+    reason = _bash(env, monkeypatch, capsys, "rtk rg -n rtkNeedle src/file.py")
+
+    assert reason is not None and pattern_hash in reason
+    assert len(launched) == 1
+    capture_args = launched[0][0][0]
+    capture_at = capture_args.index("--capture")
+    assert json.loads(capture_args[capture_at + 2]) == [
+        "rg", "-n", pattern, "src/file.py"]
 
 
 def test_hook_launched_capture_can_be_retrieved_from_same_working_directory(
@@ -200,7 +223,96 @@ def test_same_pattern_in_compound_search_launches_capture_once(env, monkeypatch,
     _bash(env, monkeypatch, capsys,
           "grep -n shared src/a.py; rg -n shared src/b.py")
 
-    assert len(launched) == 1
+    assert launched == []
+
+
+def test_piped_rg_capture_does_not_replay_an_arbitrary_upstream(
+        env, monkeypatch, capsys):
+    """A capture must not repeat a potentially stateful or networked producer."""
+    launched = []
+    monkeypatch.setattr(env.gate.subprocess, "Popen",
+                        lambda *args, **kwargs: launched.append((args, kwargs))
+                        or SimpleNamespace(pid=1237))
+    command = "curl -X POST https://example.invalid/submit | rg responseNeedle"
+
+    reason = _bash(env, monkeypatch, capsys, command)
+
+    assert reason is not None
+    assert launched == []
+
+
+@pytest.mark.parametrize("operand", ["*.txt", "$SEARCH_ROOT/result.txt"])
+def test_dynamic_file_operands_are_not_captured_with_changed_shell_semantics(
+        env, monkeypatch, capsys, operand):
+    """A reconstructed command must not quote away glob or variable expansion."""
+    if "*" in operand:
+        (env.tmp / "matched.txt").write_text("dynamicNeedle\n", encoding="utf-8")
+    launched = []
+    monkeypatch.setattr(env.gate.subprocess, "Popen",
+                        lambda *args, **kwargs: launched.append((args, kwargs))
+                        or SimpleNamespace(pid=1238))
+    command = f"rg dynamicNeedle {operand}"
+
+    reason = _bash(env, monkeypatch, capsys, command)
+
+    assert reason is not None
+    assert launched == []
+
+
+def test_glob_pattern_that_would_expand_is_not_captured(env, monkeypatch, capsys):
+    (env.tmp / "matched.txt").write_text("content\n", encoding="utf-8")
+    source_dir = env.tmp / "src"
+    source_dir.mkdir()
+    (source_dir / "file.py").write_text("content\n", encoding="utf-8")
+    launched = []
+    monkeypatch.setattr(env.gate.subprocess, "Popen",
+                        lambda *args, **kwargs: launched.append((args, kwargs))
+                        or SimpleNamespace(pid=1240))
+
+    reason = _bash(env, monkeypatch, capsys, "rg *.txt src/file.py")
+
+    assert reason is not None
+    assert launched == []
+
+
+@pytest.mark.parametrize("pattern", ["foo{bar,baz}", "$?"])
+def test_shell_expansion_patterns_are_not_captured(env, monkeypatch, capsys, pattern):
+    source_dir = env.tmp / "src"
+    source_dir.mkdir()
+    (source_dir / "file.py").write_text("content\n", encoding="utf-8")
+    launched = []
+    monkeypatch.setattr(env.gate.subprocess, "Popen",
+                        lambda *args, **kwargs: launched.append((args, kwargs))
+                        or SimpleNamespace(pid=1241))
+
+    reason = _bash(env, monkeypatch, capsys, f"rg -e {pattern} src/file.py")
+
+    assert reason is not None
+    assert launched == []
+
+
+def test_capture_worker_executes_argv_without_a_shell(
+        env, monkeypatch, load_script):
+    retrieval = load_script(
+        "features/common/skills/get-raw-grep-result/scripts/get_raw_grep_result.py")
+    pattern = "argvWorkerNeedle"
+    scope = hashlib.sha256(os.path.realpath(env.tmp).encode("utf-8")).hexdigest()
+    capture_key = f"{scope}:{hashlib.sha256(pattern.encode('utf-8')).hexdigest()}"
+    argv = ["rg", "-n", pattern, "src/file with spaces.py"]
+    launched = []
+
+    def fake_popen(args, **kwargs):
+        launched.append((args, kwargs))
+        raise OSError("prevent worker process in test")
+
+    monkeypatch.setattr(retrieval.subprocess, "Popen", fake_popen)
+    retrieval.main(["--capture", capture_key, json.dumps(argv)])
+
+    assert launched
+    args, kwargs = launched[0]
+    assert args == argv
+    assert kwargs.get("shell", False) is False
+    assert "executable" not in kwargs
 
 
 def test_never_searched_pattern_is_denied(env, monkeypatch, capsys):
