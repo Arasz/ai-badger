@@ -1,7 +1,7 @@
 {
   "$schema": "./schemas/manifest.schema.json",
   "frameworkVersion": "0.204.0",
-  "frameworkCommit": "13b85cee87543e37a496b1db380fdea6aee82e77",
+  "frameworkCommit": "b7a9fdb586c6f68cca41f5b665b7528bc0d275d0",
   "frameworkDirty": true,
   "frameworkRoot": ".",
   "generatedAt": null,
@@ -14,7 +14,7 @@
   ],
   "skillScope": "default",
   "pluginScope": "default",
-  "configHash": "003e4dd38a25a43a8a1ea8d9d3e2afccebd7309045137a3de24d95567ea18867",
+  "configHash": "d377459c061775b45663b181012a15edfef982b7d1db69343e00dede548462ed",
   "generatedConfig": [
     {
       "path": ".claude/settings.json",
