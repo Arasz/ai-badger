@@ -13,8 +13,9 @@ does not make agent discovery or script execution work from a nested child repos
 
 `shared_scope.py collect` takes explicit relative repository paths. It scaffolds the parent
 with their stack union and materializes each selected child using that same union.
-`shared_scope.py sync` materializes one child with its original local stacks. Both commands
-use `Scaffolder`; there is one renderer and one native agent delivery pipeline.
+`shared_scope.py sync` materializes one child with its original local stacks, and
+`shared_scope.py prune` removes one enrolled member. All three use `Scaffolder`; there is
+one renderer and one native agent delivery pipeline.
 
 The private `.ai-badger/shared-scope.json` descriptor stores the parent source, mode,
 original local stacks and authored overrides. The child `config.json` is an effective
@@ -43,7 +44,8 @@ Existing project IDs stay byte-identical. A missing child ID goes through the ex
 canonical lookup and registration flow: the bank's id for that name is reused verbatim, a
 name the bank does not know is minted and registered by that same flow, and an uncertain
 outcome — the lookup is unavailable, ambiguous, or malformed — refuses the enrollment before
-any project write. A shared collection never invents an identity in doubt. Runtime lookup keeps the existing nearest-child identity rule.
+any project write. A shared collection never invents an identity in doubt. Runtime lookup
+keeps the existing nearest-child identity rule.
 
 ## Alternatives considered
 
