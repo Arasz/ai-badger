@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import copy
 import json
+import os
 from pathlib import Path
 from typing import Any
 
@@ -41,10 +42,50 @@ def members(target: Path, names: list[str]) -> list[Path]:
     return result
 
 
+def merge(parent: dict[str, Any], overrides: dict[str, Any]) -> dict[str, Any]:
+    """Merge objects recursively; an authored list replaces the inherited list."""
+    result = copy.deepcopy(parent)
+    for key, value in overrides.items():
+        if isinstance(value, dict) and isinstance(result.get(key), dict):
+            result[key] = merge(result[key], value)
+        else:
+            result[key] = copy.deepcopy(value)
+    return result
+
+
+def descriptor(child: Path) -> dict[str, Any]:
+    """Load authored child inputs, separate from the generated effective profile."""
+    path = child / ".ai-badger" / "shared-scope.json"
+    if path.exists():
+        return read_object(path)
+    config = read_object(child / ".ai-badger" / "config.json")
+    return {"mode": "inherit", "localStacks": config["stacks"],
+            "overrides": {key: value for key, value in config.items()
+                          if key not in {"stacks", "frameworkVersion", "$schema"}}}
+
+
+def validate_config(config: dict[str, Any], root: Path) -> None:
+    """Validate an effective profile before scaffold writes."""
+    errors = bl.validate(config, bl.load_json(root / "schemas" / "config.schema.json"))
+    if errors:
+        raise ValueError("invalid shared config: " + "; ".join(errors))
+
+
+def materialize(child: Path, source: Path, authored: dict[str, Any],
+                parent: dict[str, Any], root: Path, mode: str) -> None:
+    """Render a private child scaffold through the existing scaffolder."""
+    config = merge(parent, authored["overrides"])
+    config["stacks"] = parent["stacks"] if mode == "inherit" else authored["localStacks"]
+    validate_config(config, root)
+    Scaffolder(root, child, config, DEFAULT_SKILLS, install=False).run()
+    authored = dict(authored, mode=mode, source=os.path.relpath(source, child))
+    bl.dump_json(child / ".ai-badger" / "shared-scope.json", authored)
+
+
 def collect(target: Path, names: list[str], root: Path, config_path: Path | None) -> None:
-    """Recompute the parent stack union from its explicit membership."""
+    """Recompute the parent stack union and enroll its explicit members."""
     selected = members(target, names)
-    configs = [read_object(child / ".ai-badger" / "config.json") for child in selected]
+    authored = [descriptor(child) for child in selected]
     parent_path = config_path or target / ".ai-badger" / "config.json"
     if parent_path.exists():
         config = copy.deepcopy(read_object(parent_path))
@@ -52,12 +93,26 @@ def collect(target: Path, names: list[str], root: Path, config_path: Path | None
         config = {"frameworkVersion": bl.read_index(root)["frameworkVersion"],
                   "project": {"name": target.name}, "agents": ["claude"],
                   "commands": {}, "personaRouting": [], "docs": {}}
-    config["stacks"] = list(dict.fromkeys(stack for child in configs
-                                         for stack in child["stacks"]))
-    errors = bl.validate(config, bl.load_json(root / "schemas" / "config.schema.json"))
-    if errors:
-        raise ValueError("invalid collection config: " + "; ".join(errors))
+    config["stacks"] = list(dict.fromkeys(stack for child in authored
+                                         for stack in child["localStacks"]))
+    validate_config(config, root)
+    for child in authored:
+        effective = merge(config, child["overrides"])
+        effective["stacks"] = config["stacks"]
+        validate_config(effective, root)
     Scaffolder(root, target, config, DEFAULT_SKILLS, install=False).run()
+    source = target / ".ai-badger"
+    bl.dump_json(source / "shared-scope.json", {
+        "mode": "collection", "members": [str(child.relative_to(target)) for child in selected]})
+    for child, inputs in zip(selected, authored):
+        materialize(child, source, inputs, config, root, "inherit")
+
+
+def sync(child: Path, source: Path, root: Path) -> None:
+    """Render one enrolled child using its local stacks and current parent defaults."""
+    inputs = descriptor(child)
+    parent = read_object(source / "config.json")
+    materialize(child, source, inputs, parent, root, "sync")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -69,11 +124,19 @@ def main(argv: list[str] | None = None) -> int:
     collect_parser.add_argument("--repo", action="append", required=True)
     collect_parser.add_argument("--config")
     collect_parser.add_argument("--root")
+    sync_parser = commands.add_parser("sync")
+    sync_parser.add_argument("--target", required=True)
+    sync_parser.add_argument("--source", required=True)
+    sync_parser.add_argument("--root")
     args = parser.parse_args(argv)
     try:
-        collect(Path(args.target).resolve(), args.repo,
-                Path(args.root).resolve() if args.root else FRAMEWORK_ROOT,
-                Path(args.config).resolve() if args.config else None)
+        root = Path(args.root).resolve() if args.root else FRAMEWORK_ROOT
+        target = Path(args.target).resolve()
+        if args.command == "collect":
+            collect(target, args.repo, root,
+                    Path(args.config).resolve() if args.config else None)
+        else:
+            sync(target, Path(args.source).resolve(), root)
     except (OSError, ValueError, KeyError) as exc:
         parser.exit(1, f"shared scope refused: {exc}\n")
     return 0
