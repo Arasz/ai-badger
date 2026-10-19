@@ -114,8 +114,9 @@ python3 "$AI_BADGER/features/common/skills/welcome-ai-badger/scripts/scaffold.py
   parent stack union and enrolls the selected children. `sync --target CHILD --source
   COLLECTION/.ai-badger` refreshes one child with its local stacks. `prune --target
   COLLECTION --repo CHILD` removes one enrolled member: it keeps its identity, keeps private
-  copies of the files it shared, and rejoins the ordinary scaffold flow. All three accept
-  `--root`.
+  copies of the files it shared, and rejoins the ordinary scaffold flow (the last member
+  cannot be pruned). All three accept `--root`, and `--register` opts into registering a
+  newly minted child id with ai-raccoon (nothing is registered without it).
   Edit child `.ai-badger/shared-scope.json` overrides for persistent local settings.
 
 - `scaffold.py` — materializes `.ai-badger/`, records provenance in `manifest.json`, preserves

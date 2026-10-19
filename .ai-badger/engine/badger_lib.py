@@ -605,7 +605,13 @@ def load_json(path: Path) -> Any:
 
 
 def shared_scope_refusal(target: Path) -> Optional[str]:
-    """Return the sync command when target is an enrolled shared child."""
+    """Return the command that restores target, when it is an enrolled shared child.
+
+    The command depends on the mode the child was enrolled with: a child that carries
+    the parent's union is restored by `collect` (which re-materializes the union), a
+    child that carries its own stacks by `sync`. Naming `sync` for a union child would
+    quietly shrink it to its local stacks.
+    """
     profile_path = target / ".ai-badger" / "shared-scope.json"
     if not profile_path.is_file():
         return None
@@ -613,9 +619,16 @@ def shared_scope_refusal(target: Path) -> Optional[str]:
     if not isinstance(profile, dict) or profile.get("mode") not in {"inherit", "sync"}:
         return None
     source = (target / profile.get("source", "")).resolve()
+    command = "collect" if profile.get("mode") == "inherit" else "sync"
+    if command == "collect":
+        target_text = source.parent
+        arguments = f"collect --target {target_text}"
+    else:
+        target_text = target
+        arguments = f"sync --target {target} --source {source}"
     return (f"{target} is a shared-scope child; refresh it with: python3 "
             f"<framework>/features/common/skills/welcome-ai-badger/scripts/shared_scope.py "
-            f"sync --target {target} --source {source}")
+            f"{arguments}")
 
 
 def _default_new_file_mode() -> int:

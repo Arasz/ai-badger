@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -68,8 +69,11 @@ def test_parent_stacks_are_union_of_explicit_members(tmp_path, root):
         assert (path / ".ai-badger" / "project-id").read_bytes() == identity
 
 
-def test_a_child_without_its_own_identity_is_refused(tmp_path, root):
-    """Enrollment must not invent an identity for a child that has none."""
+def test_a_child_without_its_own_identity_is_refused(tmp_path, root, raccoon_cli_fake, monkeypatch):
+    """An identity the canonical lookup cannot resolve stops the enrollment before any write."""
+    monkeypatch.setenv("AI_BADGER_RACCOON_REGISTER", "1")
+    raccoon_cli_fake.script(get={"exit": 19, "stdout": "",
+                                 "stderr": "several projects are named 'dotnet-app'\n"})
     collection = tmp_path / "chosen collection"
     _member(collection, "python-app", ["python"], "canonical-python")
     second = _member(collection, "dotnet-app", ["dotnet"], None)
@@ -83,6 +87,7 @@ def test_a_child_without_its_own_identity_is_refused(tmp_path, root):
     assert "identity" in result.stderr
     assert not (second / ".ai-badger" / "project-id").exists()
     assert _snapshot(second / ".ai-badger") == before
+    assert not (collection / ".ai-badger").exists(), "a refused enrollment writes nothing"
 
 
 def test_the_canonical_lookup_identity_is_reused(tmp_path, root, raccoon_cli_fake, monkeypatch):
@@ -101,6 +106,132 @@ def test_the_canonical_lookup_identity_is_reused(tmp_path, root, raccoon_cli_fak
     assert result.returncode == 0, result.stdout + result.stderr
     assert (second / ".ai-badger" / "project-id").read_text(encoding="utf-8").strip() == \
         "11111111-2222-3333-4444-555555555555"
+
+
+def test_an_unknown_name_is_minted_locally_and_not_registered(tmp_path, root, raccoon_cli_fake,
+                                                               monkeypatch):
+    """A name the bank does not know gets a local id; the bank is not written to by default."""
+    monkeypatch.setenv("AI_BADGER_RACCOON_REGISTER", "1")
+    raccoon_cli_fake.script(get={"exit": 18, "stdout": "", "stderr": ""},
+                            register={"exit": 0, "stdout": "registered\n", "stderr": ""})
+    collection = tmp_path / "chosen collection"
+    _member(collection, "python-app", ["python"], "canonical-python")
+    second = _member(collection, "dotnet-app", ["dotnet"], None)
+    _test_write(second / "App.csproj", "<Project />\n")
+
+    result = _shared(root, "collect", "--target", str(collection),
+                     "--repo", "python-app", "--repo", "dotnet-app")
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    minted = (second / ".ai-badger" / "project-id").read_text(encoding="utf-8").strip()
+    assert minted and minted != "canonical-python"
+    assert not [call for call in raccoon_cli_fake.calls() if "register" in call["argv"]], \
+        "the default must not write to the operator's bank"
+
+
+def test_registering_is_opt_in(tmp_path, root, raccoon_cli_fake, monkeypatch):
+    """`--register` is the only way the shared scope writes to the bank."""
+    monkeypatch.setenv("AI_BADGER_RACCOON_REGISTER", "1")
+    raccoon_cli_fake.script(get={"exit": 18, "stdout": "", "stderr": ""},
+                            register={"exit": 0, "stdout": "registered\n", "stderr": ""})
+    collection = tmp_path / "chosen collection"
+    _member(collection, "python-app", ["python"], "canonical-python")
+    second = _member(collection, "dotnet-app", ["dotnet"], None)
+    _test_write(second / "App.csproj", "<Project />\n")
+
+    result = _shared(root, "collect", "--target", str(collection), "--register",
+                     "--repo", "python-app", "--repo", "dotnet-app")
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    registered = [call for call in raccoon_cli_fake.calls() if "register" in call["argv"]]
+    assert registered, "--register must reach the bank"
+    assert (second / ".ai-badger" / "project-id").read_text(encoding="utf-8").strip() in \
+        registered[0]["argv"]
+
+
+def test_the_mode_vocabulary_is_defined_once(tmp_path, root):
+    """The modes are one vocabulary, written in three places that must agree."""
+    import json as _json
+    import re as _re
+
+    lib = (root / "engine" / "badger_lib.py").read_text(encoding="utf-8")
+    found = _re.search(r'profile\.get\("mode"\) not in \{([^}]*)\}', lib)
+    assert found, "the refusal must name the modes it knows"
+    refusal_modes = set(_re.findall(r'"([^"]+)"', found.group(1)))
+    descriptor = _json.loads((root / "schemas" / "shared-scope.schema.json").read_text())
+    manifest = _json.loads((root / "schemas" / "manifest.schema.json").read_text())
+    descriptor_modes = set(descriptor["oneOf"][1]["properties"]["mode"]["enum"])
+    manifest_modes = set(manifest["properties"]["sharedScope"]["properties"]["mode"]["enum"])
+
+    assert refusal_modes == descriptor_modes == manifest_modes, \
+        f"the mode vocabulary drifted: {refusal_modes} / {descriptor_modes} / {manifest_modes}"
+
+
+def test_a_child_already_enrolled_in_another_collection_is_refused(tmp_path, root):
+    """A child that arrives with another collection's descriptor is refused, not re-enrolled."""
+    first = tmp_path / "first collection"
+    second = tmp_path / "second collection"
+    second.mkdir()
+    child = _member(first, "python-app", ["python"], "canonical-python")
+    _test_write(child / "pyproject.toml", "[project]\n")
+    _success(_shared(root, "collect", "--target", str(first), "--repo", "python-app"))
+    moved = second / "python-app"
+    shutil.move(str(child), str(moved))
+
+    result = _shared(root, "collect", "--target", str(second), "--repo", "python-app")
+
+    assert result.returncode == 1, result.stdout + result.stderr
+    assert "already enrolled" in result.stderr
+    assert not (second / ".ai-badger").exists(), "the second collection writes nothing"
+
+
+def test_pruning_the_last_member_is_refused(tmp_path, root):
+    """A collection keeps at least one member; the last one cannot be pruned."""
+    collection = tmp_path / "chosen collection"
+    only = _member(collection, "python-app", ["python"], "canonical-python")
+    _test_write(only / "pyproject.toml", "[project]\n")
+    _success(_shared(root, "collect", "--target", str(collection), "--repo", "python-app"))
+
+    result = _shared(root, "prune", "--target", str(collection), "--repo", "python-app")
+
+    assert result.returncode == 1, result.stdout + result.stderr
+    assert "last member" in result.stderr
+    assert (only / ".ai-badger" / "shared-scope.json").is_file(), "the member stays enrolled"
+    assert json.loads((collection / ".ai-badger" / "shared-scope.json").read_text())["members"] == \
+        ["python-app"]
+
+
+def test_only_identical_files_are_linked(tmp_path, root):
+    """A parent file that is not the generated one is never linked into a child."""
+    collection = tmp_path / "chosen collection"
+    child = _member(collection, "python-app", ["python"], "canonical-python")
+    _test_write(child / "pyproject.toml", "[project]\n")
+    _success(_shared(root, "collect", "--target", str(collection), "--repo", "python-app"))
+    parent_file = collection / ".ai-badger" / "instructions" / "python.instructions.md"
+    _test_write(parent_file, "the collection's own instructions\n")
+
+    result = _shared(root, "sync", "--target", str(child),
+                     "--source", str(collection / ".ai-badger"))
+
+    _success(result)
+    own = child / ".ai-badger" / "instructions" / "python.instructions.md"
+    assert not own.is_symlink(), "a file that is not identical must not be linked"
+    assert own.read_text(encoding="utf-8") != "the collection's own instructions\n"
+
+
+def test_the_ownership_ledger_records_no_machine_specific_paths(tmp_path, root):
+    """The manifest is a committed file; it must not carry this machine's paths."""
+    collection = tmp_path / "chosen collection"
+    child = _member(collection, "python-app", ["python"], "canonical-python")
+    _test_write(child / "pyproject.toml", "[project]\n")
+    _success(_shared(root, "collect", "--target", str(collection), "--repo", "python-app"))
+    manifest = json.loads((child / ".ai-badger" / "manifest.json").read_text())
+
+    shared = manifest["sharedScope"]
+    assert not Path(shared["source"]).is_absolute(), shared["source"]
+    for entry in shared["links"]:
+        assert not Path(entry["source"]).is_absolute(), entry["source"]
+        assert not Path(entry["target"]).is_absolute(), entry["target"]
 
 
 def test_collecting_and_syncing_twice_changes_nothing(tmp_path, root):

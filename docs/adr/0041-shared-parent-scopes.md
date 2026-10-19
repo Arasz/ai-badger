@@ -31,21 +31,36 @@ every owned link's exact raw target and original canonical parent source.
 
 Pruning removes one enrolled member: its shared files become private copies, its
 identity is untouched, the parent's union shrinks to the remaining members, and the pruned
-repository rejoins the ordinary scaffold and refresh flow.
+repository rejoins the ordinary scaffold and refresh flow. A collection keeps at least one
+member: the last one cannot be pruned, because an empty collection is not a state the
+configuration can express.
 
 Before rendering, sync validates every recorded link and every destination ancestor. It
 detaches only exact owned links to private copies, then renders and re-links identical
 immutable files. An owned link whose parent file is gone — the union shrank, or the parent
 was edited — is dropped instead of left dangling, so a smaller membership never strands a
-child. Ordinary scaffold and refresh refuse enrolled children and name the sync
-command. Sync writes only the selected child; it does not refresh its parent or siblings.
+child. Ordinary scaffold and refresh refuse enrolled children and name the command that
+restores them: `collect` for a child that carries the union, `sync` for one that carries its
+own stacks. Sync writes only the selected child; it does not refresh its parent or siblings.
+
+The ownership ledger records paths, not this machine's layout: a link's source is relative
+to the parent's `.ai-badger`, and the collection's own path is relative to the child. The
+child's manifest is a committed file, so an absolute path in it would ship one machine's
+directory into every clone.
+
+Enrollment decides every member's identity before it writes anything, so a refusal leaves
+the collection exactly as it was. A child that arrives carrying another collection's
+identity is refused rather than enrolled twice.
 
 Existing project IDs stay byte-identical. A missing child ID goes through the existing
 canonical lookup and registration flow: the bank's id for that name is reused verbatim, a
-name the bank does not know is minted and registered by that same flow, and an uncertain
-outcome — the lookup is unavailable, ambiguous, or malformed — refuses the enrollment before
-any project write. A shared collection never invents an identity in doubt. Runtime lookup
-keeps the existing nearest-child identity rule.
+name the bank does not know is minted locally, and an uncertain outcome — the lookup is
+unavailable, ambiguous, or malformed — refuses the enrollment before any project write. The
+decision is made once, in one place, and the write path never re-decides it, so a lookup
+that comes back ambiguous on the way in cannot turn into a minted id on the way out. The
+shared scope does not write to the bank unless `--register` says so: a collection must not
+silently register projects in the operator's memory bank. A shared collection never invents
+an identity in doubt. Runtime lookup keeps the existing nearest-child identity rule.
 
 ## Alternatives considered
 
