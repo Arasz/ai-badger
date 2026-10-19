@@ -7,6 +7,7 @@ the Claude/Copilot hooks use; session start clears nothing.
 # pylint: disable=redefined-outer-name  # module-local fixture reuse; see pyproject.toml
 from __future__ import annotations
 
+import json
 import os
 import sys
 
@@ -82,7 +83,8 @@ def test_search_files_blocked_on_first_sighting(hooks, fake_gate, proj_a, monkey
         tool_name="search_files", args={"pattern": "MemorySearch"}, task_id="t1")
 
     assert _block(out)
-    assert "memory_search" in out["message"]
+    assert json.loads(out["message"]) == {
+        "searchResult": {"mem_search_result_output": None}, "rawGrepInput": []}
     assert "memory-checked" not in out["message"]
 
 
