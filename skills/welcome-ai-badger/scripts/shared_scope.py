@@ -83,7 +83,9 @@ def without_empty_values(settings: dict[str, Any]) -> dict[str, Any]:
         elif isinstance(value, list):
             if value:
                 result[key] = value
-        elif value:
+        elif value is None or value == "":
+            continue
+        else:
             result[key] = value
     return result
 
@@ -448,6 +450,12 @@ def sync(child: Path, source: Path, root: Path, register: bool = False) -> None:
     materialize(child, source, inputs, plan_config(inputs, parent, root, "sync"), root, "sync")
 
 
+def _identity_word(plan: tuple[str, str]) -> str:
+    """The report's word for an identity decision: kept, reused from the bank, or minted."""
+    return {"keep": "kept", "reuse": "reused from the bank",
+            "mint": "minted locally"}[plan[0]]
+
+
 def discover(target: Path, root: Path) -> None:
     """Report the direct child repositories, their stacks and the union. Writes nothing."""
     children, skipped = discover_children(target)
@@ -509,7 +517,9 @@ def init(target: Path, root: Path, config_path: Path | None, register: bool = Fa
               for name, child_input in zip(names, inputs)]
     report += [f"skipped {name}: {reason}" for name, reason in skipped]
     report.append(f"union {','.join(config['stacks'])}")
-    report += [f"identity {name}: {plan[0]}" for name, plan in zip(names, plans)]
+    report.append(f"parent identity: {_identity_word(parent_plan)}")
+    report += [f"identity {name}: {_identity_word(plan)}"
+               for name, plan in zip(names, plans)]
     if dry_run:
         for line in report:
             print(f"plan {line}")
