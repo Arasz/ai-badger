@@ -147,7 +147,7 @@ names it (the sqlite pair today), **claude-only** when the stack decides.
 | [scripts-tooling-refactor](#scripts-tooling-refactor) | Convert a `scripts/` directory into a tested, tooling-language-native layout | default | by name |
 | [worktree-agent-isolation](#worktree-agent-isolation) | Give each parallel agent its own git worktree and integrate via PRs | default | by name |
 | [pre-push-gate-debugging](#pre-push-gate-debugging) | Debug a blocked pre-push quality gate one lane at a time | default | by name |
-| [get-raw-grep-result](#get-raw-grep-result) | Retrieve the raw output of an asynchronous memory-first grep capture by pattern or pattern hash | default | by name |
+| [get-raw-text-search](#get-raw-text-search) | Retrieve the raw output of an asynchronous memory-first text-search capture by pattern or pattern hash | default | by name |
 | [sqlite-schema-review](#sqlite-schema-review) | Review SQLite DDL and migrations against scratch-database evidence | opt-in | by name |
 | [sqlite-bank-space-diagnosis](#sqlite-bank-space-diagnosis) | Diagnose a bloated SQLite file and its WAL read-only before reclaiming | opt-in | by name |
 

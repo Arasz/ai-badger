@@ -83,9 +83,8 @@ def test_search_files_blocked_on_first_sighting(hooks, fake_gate, proj_a, monkey
         tool_name="search_files", args={"pattern": "MemorySearch"}, task_id="t1")
 
     assert _block(out)
-    assert json.loads(out["message"]) == {
-        "searchResult": {"mem_search_result_output": None}, "rawGrepInput": []}
-    assert "memory-checked" not in out["message"]
+    assert "MemorySearch" in out["message"]
+    assert "{" not in out["message"]
 
 
 def test_memory_search_with_the_pattern_unblocks_search_files(

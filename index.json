@@ -364,8 +364,8 @@
           "scope": "default"
         },
         {
-          "name": "get-raw-grep-result",
-          "path": "features/common/skills/get-raw-grep-result",
+          "name": "get-raw-text-search",
+          "path": "features/common/skills/get-raw-text-search",
           "scope": "default"
         },
         {

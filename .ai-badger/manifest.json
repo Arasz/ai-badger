@@ -1,7 +1,7 @@
 {
   "$schema": "./schemas/manifest.schema.json",
   "frameworkVersion": "0.207.2",
-  "frameworkCommit": "6cf21db9bb11fc12e47a36eaa732191a774f017b",
+  "frameworkCommit": "9a4e0187c9bd6cb660b462ef3d67ae0d1c158a98",
   "frameworkDirty": true,
   "frameworkRoot": ".",
   "generatedAt": null,
@@ -560,12 +560,12 @@
       "source": "features/common/skills/ai-raccoon-memory",
       "target": ".ai-badger/skills/ai-raccoon-memory",
       "frameworkVersion": "0.207.2",
-      "hash": "f9d8c87a3517730a7d6c7b458437f19c5972261748d0b3002e0d70cf99f0f7e1",
+      "hash": "bd54d64a97d98cb87c1b054bb3f86beea1126280f6fff7a70bcefcfce33bd548",
       "dirMeta": {
         "file_count": 13,
         "dir_count": 1
       },
-      "sourceHash": "f9d8c87a3517730a7d6c7b458437f19c5972261748d0b3002e0d70cf99f0f7e1",
+      "sourceHash": "bd54d64a97d98cb87c1b054bb3f86beea1126280f6fff7a70bcefcfce33bd548",
       "sourceMeta": {
         "file_count": 13,
         "dir_count": 1
@@ -934,16 +934,16 @@
     {
       "feature": "skills",
       "stack": "common",
-      "name": "get-raw-grep-result",
-      "source": "features/common/skills/get-raw-grep-result",
-      "target": ".ai-badger/skills/get-raw-grep-result",
+      "name": "get-raw-text-search",
+      "source": "features/common/skills/get-raw-text-search",
+      "target": ".ai-badger/skills/get-raw-text-search",
       "frameworkVersion": "0.207.2",
-      "hash": "0add84827a43127eedde9f57e6635dedfdf37ea2c93f1f0f7547f11642591d17",
+      "hash": "0be88f89e3e18cd777f173d1823383e9494cce4f9511ff012df539902359258d",
       "dirMeta": {
         "file_count": 3,
         "dir_count": 1
       },
-      "sourceHash": "0add84827a43127eedde9f57e6635dedfdf37ea2c93f1f0f7547f11642591d17",
+      "sourceHash": "0be88f89e3e18cd777f173d1823383e9494cce4f9511ff012df539902359258d",
       "sourceMeta": {
         "file_count": 3,
         "dir_count": 1
@@ -2015,9 +2015,9 @@
     {
       "feature": "adjustments",
       "stack": "claude",
-      "name": "adjustments/.claude/skills/get-raw-grep-result",
+      "name": "adjustments/.claude/skills/get-raw-text-search",
       "source": "features/claude/adjustments/adjust_skills.py",
-      "target": ".claude/skills/get-raw-grep-result",
+      "target": ".claude/skills/get-raw-text-search",
       "frameworkVersion": "0.207.2",
       "hash": "02a4b86fbc983d9fb302f93eb674787a545d65c40204ac9c46bbaa452ce150d5"
     },
@@ -2498,9 +2498,9 @@
     {
       "feature": "adjustments",
       "stack": "copilot",
-      "name": "adjustments/.github/skills/get-raw-grep-result",
+      "name": "adjustments/.github/skills/get-raw-text-search",
       "source": "features/copilot/adjustments/adjust_skills.py",
-      "target": ".github/skills/get-raw-grep-result",
+      "target": ".github/skills/get-raw-text-search",
       "frameworkVersion": "0.207.2",
       "hash": "54042cfd8d94054ed08fc1d3f74694f3a35c01c6ddc7930cfff62d71eadcaa1c"
     },
@@ -2955,7 +2955,7 @@
       "target": ".ai-badger/hooks/memory_first_gate.py",
       "frameworkVersion": "0.207.2",
       "hash": "c3af0003f21768f8e415b8e7e8adc908f75ab5ff4b51fd4fc04b980c93528f0f",
-      "outputHash": "4ce0744a7cf6638f72c385b9abc6774acfff401f4b0dca80c54928cd8b75fd39"
+      "outputHash": "1bb442a20cc78a64f826b17557a94fc63a4f369f533c3bfdf913d50adbcd01c6"
     },
     {
       "feature": "adjustments",

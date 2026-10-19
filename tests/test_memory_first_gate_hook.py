@@ -1,4 +1,4 @@
-"""PreToolUse hook for the memory-first gate: stdin payload -> deny JSON.
+"""PreToolUse hook for the memory-first gate: stdin payload -> the host's decision.
 
 Exit 0 on every path is a hard requirement: Copilot command preToolUse hooks are
 fail-closed, so a crash would deny the tool call it was only meant to gate.
@@ -43,7 +43,8 @@ def _out(capsys):
 
 
 # ------------------------------------------------------------------ gate mode
-def test_claude_grep_without_marker_is_denied(hook, monkeypatch, capsys, tmp_path):
+def test_claude_grep_without_a_memory_result_is_denied_in_one_line(
+        hook, monkeypatch, capsys, tmp_path):
     payload = {
         "hook_event_name": "PreToolUse",
         "session_id": "t1",
@@ -57,8 +58,29 @@ def test_claude_grep_without_marker_is_denied(hook, monkeypatch, capsys, tmp_pat
     assert rc == 0
     out = _out(capsys)["hookSpecificOutput"]
     assert out["permissionDecision"] == "deny"
-    payload = json.loads(out["permissionDecisionReason"])
-    assert payload == {"searchResult": {"mem_search_result_output": None}, "rawGrepInput": []}
+    reason = out["permissionDecisionReason"]
+    assert "MemorySearch" in reason
+    assert "{" not in reason
+
+
+def test_claude_grep_carries_the_memory_result_as_context(hook, monkeypatch, capsys, tmp_path):
+    """The search runs and the model gets the hits: no denial, no user-visible payload."""
+    sys.modules["memory_first_gate"].memory_hits = lambda *_a, **_k: "## Memory context\n- hit"
+    payload = {
+        "hook_event_name": "PreToolUse",
+        "session_id": "t1",
+        "cwd": str(tmp_path / "checkout"),
+        "tool_name": "Grep",
+        "tool_input": {"pattern": "MemorySearch"},
+    }
+
+    rc = _run(hook, monkeypatch, payload)
+
+    assert rc == 0
+    out = _out(capsys)["hookSpecificOutput"]
+    assert "permissionDecision" not in out
+    assert "hit" in out["additionalContext"]
+    assert "MemorySearch" in out["additionalContext"]
 
 
 def test_claude_search_of_a_searched_pattern_passes(hook, monkeypatch, capsys, tmp_path):
@@ -92,8 +114,9 @@ def test_copilot_camelcase_payload_is_denied(hook, monkeypatch, capsys, tmp_path
     assert rc == 0
     out = _out(capsys)
     assert out["permissionDecision"] == "deny"
-    payload = json.loads(out["permissionDecisionReason"])
-    assert payload == {"searchResult": {"mem_search_result_output": None}, "rawGrepInput": []}
+    reason = out["permissionDecisionReason"]
+    assert "x" in reason
+    assert "{" not in reason
 
 
 def test_copilot_bash_search_command_is_denied(hook, monkeypatch, capsys):
