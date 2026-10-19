@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -61,3 +62,71 @@ def test_parent_stacks_are_union_of_explicit_members(tmp_path, root):
     assert not (collection / ".ai-badger" / "instructions" / "react.instructions.md").exists()
     for path, identity in identities.items():
         assert (path / ".ai-badger" / "project-id").read_bytes() == identity
+
+
+def _snapshot(tree: Path) -> dict[str, tuple[str, bytes | str]]:
+    """Observe content and raw link targets without traversing directory symlinks."""
+    if tree.is_symlink():
+        return {".": ("link", os.readlink(tree))}
+    snapshot = {}
+    for base, directories, files in os.walk(tree, followlinks=False):
+        for name in directories + files:
+            path = Path(base) / name
+            relative = path.relative_to(tree).as_posix()
+            if path.is_symlink():
+                snapshot[relative] = ("link", os.readlink(path))
+            elif path.is_file():
+                snapshot[relative] = ("file", path.read_bytes())
+            else:
+                snapshot[relative] = ("directory", "")
+    return snapshot
+
+
+def _collected_pair(tmp_path: Path, root: Path,
+                    parent_config: dict | None = None) -> tuple[Path, Path, Path]:
+    collection = tmp_path / "chosen collection"
+    first = _member(collection, "python-app", ["python"], "canonical-python")
+    second = _member(collection, "dotnet-app", ["dotnet"], "canonical-dotnet")
+    _test_write(first / "pyproject.toml", "[project]\nname = 'python-app'\n")
+    _test_write(second / "App.csproj", "<Project />\n")
+    args = ["collect", "--target", str(collection),
+            "--repo", "python-app", "--repo", "dotnet-app"]
+    if parent_config is not None:
+        path = tmp_path / "parent-config.json"
+        _write_json(path, parent_config)
+        args.extend(["--config", str(path)])
+    _success(_shared(root, *args))
+    return collection / ".ai-badger", first, second
+
+
+def test_sync_inherits_parent_objects_and_replaces_child_lists(tmp_path, root):
+    """Local commands merge, list filters replace, and the selected child stays isolated."""
+    parent_config = _config(stacks=["python", "dotnet"], commands={
+        "build": "parent-build", "lint": "parent-lint", "test": "parent-test"})
+    parent_config["exclude"] = {"skills": ["task", "design-tests"]}
+    parent_config["docs"] = {"architecture": "docs/architecture.md"}
+    source, child, sibling = _collected_pair(tmp_path, root, parent_config)
+    descriptor_path = child / ".ai-badger" / "shared-scope.json"
+    assert descriptor_path.is_file(), "collect must persist authored child overrides separately"
+    descriptor = json.loads(descriptor_path.read_text())
+    descriptor["overrides"]["commands"] = {"test": "child-test"}
+    descriptor["overrides"]["exclude"] = {"skills": ["task"]}
+    _write_json(descriptor_path, descriptor)
+    parent_before, sibling_before = _snapshot(source), _snapshot(sibling)
+    child_id = (child / ".ai-badger" / "project-id").read_bytes()
+
+    result = _shared(root, "sync", "--target", str(child), "--source", str(source))
+
+    _success(result)
+    config = json.loads((child / ".ai-badger" / "config.json").read_text())
+    assert config["commands"] == {
+        "build": "parent-build", "lint": "parent-lint", "test": "child-test"}
+    assert config["exclude"]["skills"] == ["task"]
+    assert config["docs"]["architecture"] == "docs/architecture.md"
+    assert config["stacks"] == ["python"]
+    assert (child / ".ai-badger" / "instructions" / "python.instructions.md").is_file()
+    assert not (child / ".ai-badger" / "instructions" / "csharp.instructions.md").exists()
+    assert (child / ".ai-badger" / "skills" / "design-tests" / "SKILL.md").is_file()
+    assert (child / ".ai-badger" / "project-id").read_bytes() == child_id
+    assert _snapshot(source) == parent_before
+    assert _snapshot(sibling) == sibling_before
