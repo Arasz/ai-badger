@@ -56,6 +56,9 @@ each agent's discovery file: for Claude Code that is `CLAUDE.md`, `.claude/agent
 
 - `den-refresh` pulls framework updates into a scaffolded repo with its existing config.
 - `feed-badger` sends project-agnostic improvements back to this repo as a draft PR.
+- A group of repositories can share one scope: the parent carries the union of their stacks
+  and each repository keeps its own identity
+  ([how-to](docs/how-to/share-a-parent-scope-across-repositories.md)).
 
 Copilot, Hermes and pi users clone the framework instead: see
 [Route B](docs/getting-started.md#route-b--clone-the-framework-and-point-ai_badger-at-it).
@@ -72,6 +75,7 @@ external plugins are in [Install modes](docs/skills.md#install-modes).
 | Hooks | Behaviour that fires unasked: memory context, the dispatch gate, the generated-file guard, the drift notice | [Hooks](docs/framework-architecture.md#hooks) |
 | Gates | CI and pre-push checks that exit non-zero instead of warning | [scripts.md](docs/scripts.md) |
 | Task pipeline | `/task` runs one backlog item end to end; `task-graph` holds its step DAG | [task](docs/skills.md#task) |
+| Shared scope | A group of repositories shares one parent `.ai-badger` while each keeps its own identity and state | [how-to](docs/how-to/share-a-parent-scope-across-repositories.md) |
 | MCP servers | Bundled servers, `task-graph` among them, written into the agent's MCP config | [Bundled MCP servers](docs/framework-architecture.md#bundled-mcp-servers) |
 | Tool recommendations | Each prompt is matched against an index of your MCP tools, and the best few are suggested to the agent | [retrieval.md](docs/retrieval.md) |
 
@@ -131,8 +135,11 @@ The full tree is in [Repository layout](docs/framework-architecture.md#repositor
 Start at [`docs/README.md`](docs/README.md), the documentation map. The main pages are
 [getting-started](docs/getting-started.md), [skills](docs/skills.md),
 [scripts](docs/scripts.md), [dictionary](docs/dictionary.md),
-[retrieval](docs/retrieval.md) and the [ADR index](docs/adr/README.md). Screenshots used by the
-docs are in [`docs/screenshots/`](docs/screenshots/README.md).
+[retrieval](docs/retrieval.md) and the [ADR index](docs/adr/README.md). A how-to answers
+"I need to do X": [sharing one scope across repositories](docs/how-to/share-a-parent-scope-across-repositories.md)
+is the one for a group of repos, and
+[run without hooks](docs/how-to/run-without-hooks.md) for a machine whose policy disables
+them. Screenshots used by the docs are in [`docs/screenshots/`](docs/screenshots/README.md).
 
 ## Contributing & Security
 

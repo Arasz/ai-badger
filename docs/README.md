@@ -20,6 +20,7 @@ Everything written down about this project, grouped by what you came here to do.
 | [dictionary.md](dictionary.md) | How ai-badger's vocabulary (skills, hooks, instructions, personas, scaffolding) maps onto each supported agent's native terminology |
 | [reference/data-access.md](reference/data-access.md) | Every way ai-badger's scripts, hooks, skills and declared MCP servers can send project data off the machine, with the default and the switch for each |
 | [how-to/run-without-hooks.md](how-to/run-without-hooks.md) | Limited mode for machines where managed policy disables Claude Code hooks: turning it on, the check-in, and what it cannot replace |
+| [how-to/share-a-parent-scope-across-repositories.md](how-to/share-a-parent-scope-across-repositories.md) | One shared `.ai-badger` scope for a group of repositories: enrolling members, the parent's defaults, refreshing and removing one, and the identity rules |
 | [scripts.md](scripts.md) | Running the framework scripts and the test suite |
 | [hermes-claude-compatibility.md](hermes-claude-compatibility.md) | Claude Code features mapped to their Hermes Agent equivalents — hook systems, session tracking, statusline, delegation, gaps |
 
