@@ -604,6 +604,20 @@ def load_json(path: Path) -> Any:
         return json.load(fh)
 
 
+def shared_scope_refusal(target: Path) -> Optional[str]:
+    """Return the sync command when target is an enrolled shared child."""
+    profile_path = target / ".ai-badger" / "shared-scope.json"
+    if not profile_path.is_file():
+        return None
+    profile = load_json(profile_path)
+    if not isinstance(profile, dict) or profile.get("mode") not in {"inherit", "sync"}:
+        return None
+    source = (target / profile.get("source", "")).resolve()
+    return (f"{target} is a shared-scope child; refresh it with: python3 "
+            f"<framework>/features/common/skills/welcome-ai-badger/scripts/shared_scope.py "
+            f"sync --target {target} --source {source}")
+
+
 def _default_new_file_mode() -> int:
     """`0o666 & ~umask` — what the OS would give a plain `open(..., "w")`, read without a race."""
     current = os.umask(0)

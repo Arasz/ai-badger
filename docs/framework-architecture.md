@@ -654,3 +654,13 @@ flowchart TD
   instruction, plugin entry, or skill, and the two commands you must run afterward.
 - [`adr/`](adr/README.md) — the decisions behind the shapes described here, one file each,
   never edited after acceptance.
+
+## Shared parent collections
+
+An explicit collection reuses the existing scaffold pipeline for its parent and selected
+children. Collect renders the parent stack union into each enrolled child; sync selects the
+child's original local stacks; prune removes one member and leaves it standalone. Authored
+child settings live in a private `.ai-badger/shared-scope.json` (a closed shape, see
+`schemas/shared-scope.schema.json`), separately from generated effective `config.json`.
+Immutable identical per-file links can share the parent store. Identity and mutable data
+stay local. See [ADR-0041](adr/0041-shared-parent-scopes.md) for ownership and recovery.

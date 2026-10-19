@@ -112,6 +112,16 @@ def test_every_advertised_lane_is_dispatchable(lane):
     assert lane in done.stdout
 
 
+def test_pytest_lane_uses_two_workers(tmp_path):
+    """Keep the full CI suite parallel without oversubscribing small runners."""
+    record = tmp_path / "pytest-argv.txt"
+    python = _shim(tmp_path / "py-record", f'printf "%s\\n" "$*" > {record}')
+    done = _run("pytest", env={"AIB_PYTHON": python})
+
+    assert done.returncode == 0, done.stdout
+    assert record.read_text(encoding="utf-8").strip() == "-m pytest -q -n 2"
+
+
 # ── the hook's `unset` and badger_lib's list are one enumeration in two languages ──
 #
 # verify.sh drops git's hook environment in shell; `badger_lib.git_env` drops it in Python.

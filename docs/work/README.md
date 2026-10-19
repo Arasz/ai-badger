@@ -207,3 +207,4 @@ the first plain-markdown record here.
 | `2026-10-19-codex-native-support-research.md` | Codex-native support research covering discovery, skills, marketplaces, hook contracts, configuration scope, and memory-first hook selection. |
 | `2026-10-19-raw-grep-capture-evidence.md` | Evidence record for asynchronous raw grep capture, retrieval by pattern hash, TTL, and Codex compatibility. |
 | `2026-10-19-codex-auto-wm-hook.md` | Research and execution record for Codex-native auto-wm hook output, explicit legacy-hook migration, and release verification. |
+| `2026-10-19-shared-parent-scope.md` | Task plan and research for shared parent scopes, union stacks, child configuration inheritance, and safe resource links. |

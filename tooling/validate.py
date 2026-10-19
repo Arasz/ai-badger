@@ -168,6 +168,7 @@ INLINED_BODY_GLOBS = ("*/invariants/*.md", "*/instructions/*.md", "*/mcp/*/*.md"
 SCHEMAS_WITHOUT_LOCAL_INSTANCES = {
     "config.schema.json": "instances live in consumer projects (.ai-badger/config.json)",
     "manifest.schema.json": "instances live in consumer projects (.ai-badger/manifest.json)",
+    "shared-scope.schema.json": "instances live in consumer projects (.ai-badger/shared-scope.json)",
     "learned-skills.schema.json": "instances live in consumer projects (skills-data/)",
     "agents.schema.json": "vocabulary schema, referenced by others; no standalone instance",
     "mcp-tools.schema.json": "instances live in consumer projects (.ai-badger/mcp-tools.json)",
