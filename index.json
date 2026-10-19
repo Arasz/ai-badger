@@ -356,6 +356,11 @@
           "scope": "default"
         },
         {
+          "name": "get-raw-grep-result",
+          "path": "features/common/skills/get-raw-grep-result",
+          "scope": "default"
+        },
+        {
           "name": "git-work",
           "path": "features/common/skills/git-work",
           "scope": "default"

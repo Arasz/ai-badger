@@ -1,17 +1,13 @@
-"""Memory-first gate: the first sighting of each search pattern runs a memory search.
-
-A repo text-search call passes only when (a) every pattern it searches for was already
-memory-searched for this project and (b) a call carrying a `command` string ends with the
-`# memory-checked` marker. The first sighting is denied; the hook searches memory itself
-and records the pattern when the search answered. Searched patterns persist per project
-and are never reset.
-"""
+"""The first sighting of a repo search pattern searches memory and captures raw output."""
 # pylint: disable=redefined-outer-name  # module-local fixture reuse; see pyproject.toml
 from __future__ import annotations
 
+import hashlib
 import io
 import json
+import shlex
 import sys
+import time
 from types import SimpleNamespace
 
 import badger_store
@@ -23,7 +19,6 @@ HITS = "## Memory context\n- hit: docs/merge.md"
 USER_EXAMPLE = ("sed -n 50,95p features/codex/adjustments/adjust_hooks.py; echo '---'; "
                 "grep -n \"def merge_hooks\\|def _prune\\|append\\|extend\" "
                 "features/common/skills/welcome-ai-badger/scripts/hook_wiring.py | head -20")
-MARK = "  # memory-checked"
 
 
 @pytest.fixture
@@ -87,58 +82,146 @@ def _memory_search(env, monkeypatch, query):
 
 
 # ------------------------------------------------------------------ the owner's example
-def test_user_example_denied_first_with_hits_then_marker_retry_passes(env, monkeypatch, capsys):
+def test_user_example_denied_first_then_unmarked_retry_passes(env, monkeypatch, capsys):
     """Mutation: detect only tokens[0] (the command starts with sed, so it slips through)."""
     reason = _bash(env, monkeypatch, capsys, USER_EXAMPLE)
 
     assert reason is not None
     assert "hit: docs/merge.md" in reason
-    assert "# memory-checked" in reason
+    assert "memory-checked" not in reason
     assert "def merge_hooks" in env.calls[0][0]
     assert env.calls[0][1] == PROJECT
 
-    assert _bash(env, monkeypatch, capsys, USER_EXAMPLE + MARK) is None
+    assert _bash(env, monkeypatch, capsys, USER_EXAMPLE) is None
     assert len(env.calls) == 1  # the retry ran no second search
 
 
-def test_identical_retry_without_marker_is_still_denied(env, monkeypatch, capsys):
-    """Mutation: drop the marker check (a searched pattern alone unlocks)."""
+def test_first_sighting_launches_async_capture_and_returns_exact_pattern_hash(
+        env, monkeypatch, capsys):
+    pattern = "def merge_hooks"
+    pattern_hash = hashlib.sha256(pattern.encode("utf-8")).hexdigest()
+    launched = []
+
+    def fake_popen(args, **kwargs):
+        launched.append((args, kwargs))
+        return SimpleNamespace(pid=1234)
+
+    monkeypatch.setattr(env.gate.subprocess, "Popen", fake_popen)
+    reason = _bash(env, monkeypatch, capsys,
+                   "grep -n 'def merge_hooks' features/hook_wiring.py")
+
+    assert reason is not None
+    assert pattern_hash in reason
+    assert len(launched) == 1
+    capture_args = launched[0][0]
+    assert "--capture" in capture_args
+    assert any(pattern_hash in arg for arg in capture_args)
+    assert "grep -n 'def merge_hooks' features/hook_wiring.py" in capture_args
+    assert launched[0][1]["start_new_session"] is True
+    assert launched[0][1]["stdin"] is env.gate.subprocess.DEVNULL
+    assert launched[0][1]["cwd"] == str(env.tmp)
+
+
+def test_rg_first_sighting_launches_async_capture_with_exact_pattern_hash(
+        env, monkeypatch, capsys):
+    pattern = "def _prune"
+    pattern_hash = hashlib.sha256(pattern.encode("utf-8")).hexdigest()
+    launched = []
+
+    def fake_popen(args, **kwargs):
+        launched.append((args, kwargs))
+        return SimpleNamespace(pid=1235)
+
+    monkeypatch.setattr(env.gate.subprocess, "Popen", fake_popen)
+    command = "rg -n 'def _prune' features/hook_wiring.py"
+    reason = _bash(env, monkeypatch, capsys, command)
+
+    assert reason is not None
+    assert pattern_hash in reason
+    assert len(launched) == 1
+    capture_args = launched[0][0]
+    assert "--capture" in capture_args
+    assert any(pattern_hash in arg for arg in capture_args)
+    assert command in capture_args
+
+
+def test_hook_launched_capture_can_be_retrieved_from_same_working_directory(
+        env, monkeypatch, capsys, load_script):
+    pattern = "captureNeedle_73"
+    source = env.tmp / "capture-source.txt"
+    source.write_text(chr(10).join(("before", pattern + " result", "after")) + chr(10),
+                      encoding="utf-8")
+    monkeypatch.chdir(env.tmp)
+    command = f"grep -n {pattern} {shlex.quote(str(source))}"
+
+    reason = _bash(env, monkeypatch, capsys, command)
+    pattern_hash = hashlib.sha256(pattern.encode("utf-8")).hexdigest()
+    assert reason is not None and pattern_hash in reason
+
+    retrieval = load_script(
+        "features/common/skills/get-raw-grep-result/scripts/get_raw_grep_result.py")
+    deadline = time.monotonic() + 3
+    result = retrieval.get_result(pattern_hash=pattern_hash)
+    while result["status"] == "pending" and time.monotonic() < deadline:
+        time.sleep(0.02)
+        result = retrieval.get_result(pattern_hash=pattern_hash)
+
+    assert result["status"] == "ready"
+    assert "captureNeedle_73 result" in result["stdout"]
+
+
+def test_identical_retry_without_marker_passes_after_search(env, monkeypatch, capsys):
+    """A completed memory search is sufficient; the marker no longer gates retry."""
     _bash(env, monkeypatch, capsys, "grep -n foo a.py")
 
     reason = _bash(env, monkeypatch, capsys, "grep -n foo a.py")
 
-    assert reason is not None and "# memory-checked" in reason
+    assert reason is None
     assert len(env.calls) == 1
 
 
-def test_marker_on_a_never_searched_pattern_is_denied(env, monkeypatch, capsys):
-    """Mutation: let the marker alone unlock."""
-    reason = _bash(env, monkeypatch, capsys, "grep -n zebra f.py" + MARK)
+def test_already_searched_pattern_does_not_replay_grep(env, monkeypatch, capsys):
+    launched = []
+    monkeypatch.setattr(env.gate.subprocess, "Popen",
+                        lambda *args, **kwargs: launched.append((args, kwargs)))
+    _memory_search(env, monkeypatch, "already-searched-pattern")
+
+    assert _bash(env, monkeypatch, capsys,
+                 "grep already-searched-pattern src/file.py") is None
+    assert launched == []
+
+
+def test_same_pattern_in_compound_search_launches_capture_once(env, monkeypatch, capsys):
+    launched = []
+    monkeypatch.setattr(env.gate.subprocess, "Popen",
+                        lambda *args, **kwargs: launched.append((args, kwargs))
+                        or SimpleNamespace(pid=1236))
+
+    _bash(env, monkeypatch, capsys,
+          "grep -n shared src/a.py; rg -n shared src/b.py")
+
+    assert len(launched) == 1
+
+
+def test_never_searched_pattern_is_denied(env, monkeypatch, capsys):
+    reason = _bash(env, monkeypatch, capsys, "grep -n zebra f.py")
 
     assert reason is not None
     assert env.calls and "zebra" in env.calls[0][0]
 
 
-def test_spoofed_marker_inside_a_quoted_word_is_denied(env, monkeypatch, capsys):
-    env.gate.remember(PROJECT, ["# memory-checked", "foo"])
-
-    assert _bash(env, monkeypatch, capsys, "grep '# memory-checked' f") is not None
-    # the raw line ends in the marker, but the lexer reads it as an argument, not a comment
-    assert _bash(env, monkeypatch, capsys, "grep foo f \\ # memory-checked") is not None
-
-
-def test_same_pattern_other_flags_and_path_with_marker_passes(env, monkeypatch, capsys):
+def test_same_pattern_with_other_flags_and_path_passes(env, monkeypatch, capsys):
     """Mutation: key on the command string instead of the pattern."""
     _bash(env, monkeypatch, capsys, "grep -n foo a.py")
 
-    assert _bash(env, monkeypatch, capsys, "grep -rn foo src/ other/" + MARK) is None
+    assert _bash(env, monkeypatch, capsys, "grep -rn foo src/ other/") is None
 
 
 def test_agent_memory_search_containing_the_pattern_counts(env, monkeypatch, capsys):
     """Mutation: the post hook records nothing but telemetry."""
     _memory_search(env, monkeypatch, "Where is merge_hooks defined?")
 
-    assert _bash(env, monkeypatch, capsys, "grep -n merge_hooks f.py" + MARK) is None
+    assert _bash(env, monkeypatch, capsys, "grep -n merge_hooks f.py") is None
     assert not env.calls
 
 
@@ -146,13 +229,12 @@ def test_memory_search_on_another_topic_unlocks_nothing(env, monkeypatch, capsys
     """Mutation: restore the session-wide unlock."""
     _memory_search(env, monkeypatch, "release ritual")
 
-    assert _bash(env, monkeypatch, capsys, "grep -n foo f.py" + MARK) is not None
+    assert _bash(env, monkeypatch, capsys, "grep -n foo f.py") is not None
 
 
-def test_grep_tool_seen_pattern_passes_without_marker(env, monkeypatch, capsys):
-    """Mutation: demand the marker from a tool that has no command string."""
+def test_grep_tool_seen_pattern_passes_after_memory_search(env, monkeypatch, capsys):
     first = _tool(env, monkeypatch, capsys, "Grep", {"pattern": "fooBar"})
-    assert first is not None and "# memory-checked" in first
+    assert first is not None
 
     assert _tool(env, monkeypatch, capsys, "Grep", {"pattern": "fooBar", "path": "src"}) is None
     assert _tool(env, monkeypatch, capsys, "Glob", {"pattern": "**/*.md"}) is not None
@@ -162,14 +244,14 @@ def test_a_new_pattern_in_the_same_shape_is_denied(env, monkeypatch, capsys):
     """Mutation: treat every pattern as seen once one was."""
     _bash(env, monkeypatch, capsys, "grep -n foo a.py")
 
-    assert _bash(env, monkeypatch, capsys, "grep -n bar a.py" + MARK) is not None
+    assert _bash(env, monkeypatch, capsys, "grep -n bar a.py") is not None
 
 
 def test_compound_with_one_seen_and_one_unseen_pattern_is_denied(env, monkeypatch, capsys):
     """Mutation: `any` instead of `all`; the search query must carry only the unseen one."""
     _bash(env, monkeypatch, capsys, "grep foo a.py")
 
-    reason = _bash(env, monkeypatch, capsys, "grep foo a.py; rg quux b" + MARK)
+    reason = _bash(env, monkeypatch, capsys, "grep foo a.py; rg quux b")
 
     assert reason is not None
     assert "quux" in env.calls[-1][0] and "foo" not in env.calls[-1][0]
@@ -178,10 +260,10 @@ def test_compound_with_one_seen_and_one_unseen_pattern_is_denied(env, monkeypatc
 def test_alternation_is_split_into_patterns(env, monkeypatch, capsys):
     """Mutation: drop the `\\|` / bare `|` split."""
     _bash(env, monkeypatch, capsys, "grep 'alpha1\\|beta2' f")
-    assert _bash(env, monkeypatch, capsys, "rg beta2" + MARK) is None
+    assert _bash(env, monkeypatch, capsys, "rg beta2") is None
 
     _bash(env, monkeypatch, capsys, "rg 'gamma3|delta4' src")
-    assert _bash(env, monkeypatch, capsys, "grep -E delta4 f" + MARK) is None
+    assert _bash(env, monkeypatch, capsys, "grep -E delta4 f") is None
 
 
 def test_pattern_extraction(env):
@@ -207,8 +289,8 @@ def test_pattern_extraction(env):
 def test_regex_escapes_are_normalized(env, monkeypatch, capsys):
     _memory_search(env, monkeypatch, "foo.bar and def merge")
 
-    assert _bash(env, monkeypatch, capsys, "grep 'foo\\.bar' f" + MARK) is None
-    assert _bash(env, monkeypatch, capsys, "grep '^def merge\\b' f" + MARK) is None
+    assert _bash(env, monkeypatch, capsys, "grep 'foo\\.bar' f") is None
+    assert _bash(env, monkeypatch, capsys, "grep '^def merge\\b' f") is None
 
 
 def test_sed_and_cat_are_never_touched(env, monkeypatch, capsys):
@@ -217,19 +299,19 @@ def test_sed_and_cat_are_never_touched(env, monkeypatch, capsys):
 
 
 # ------------------------------------------------------------------ search unavailable
-def test_no_executable_names_memory_search_then_post_hook_then_marker_passes(
+def test_no_executable_names_memory_search_then_post_hook_then_passes(
         env, monkeypatch, capsys):
     """Owner rule: a search that could not run records nothing; the agent's own does."""
     env.state.reply = None
 
     reason = _bash(env, monkeypatch, capsys, "grep -n widgetFactory f.py")
     assert "memory_search" in reason and "widgetfactory" in reason.lower()
-    assert "# memory-checked" in reason
-    assert _bash(env, monkeypatch, capsys, "grep -n widgetFactory f.py" + MARK) is not None
+    assert "memory-checked" not in reason
+    assert _bash(env, monkeypatch, capsys, "grep -n widgetFactory f.py") is not None
 
     _memory_search(env, monkeypatch, "widgetFactory")
 
-    assert _bash(env, monkeypatch, capsys, "grep -n widgetFactory f.py" + MARK) is None
+    assert _bash(env, monkeypatch, capsys, "grep -n widgetFactory f.py") is None
 
 
 def test_search_raising_still_denies_and_exits_zero(env, monkeypatch, capsys):
@@ -245,7 +327,7 @@ def test_fourth_new_pattern_denial_still_denies(env, monkeypatch, capsys):
     """Mutation: restore the 3-strike pass-through."""
     env.state.reply = None
     for _ in range(4):
-        assert _bash(env, monkeypatch, capsys, "grep -n foo f" + MARK) is not None
+        assert _bash(env, monkeypatch, capsys, "grep -n foo f") is not None
 
 
 # ------------------------------------------------------------------ persistence
@@ -267,7 +349,7 @@ def test_store_missing_falls_back_to_the_file(env, monkeypatch, capsys):
     monkeypatch.setattr(badger_store, "open_audit", _broken)
     _bash(env, monkeypatch, capsys, "grep -n foo f")
 
-    assert _bash(env, monkeypatch, capsys, "grep -n foo f" + MARK) is None
+    assert _bash(env, monkeypatch, capsys, "grep -n foo f") is None
     lines = (env.tmp / "memory-first-searched" / PROJECT).read_text().splitlines()
     assert "p:foo" in lines
 
@@ -275,7 +357,7 @@ def test_store_missing_falls_back_to_the_file(env, monkeypatch, capsys):
 def test_seen_pattern_survives_a_new_session(env, monkeypatch, capsys):
     _bash(env, monkeypatch, capsys, "grep -n foo f", session="old")
 
-    assert _bash(env, monkeypatch, capsys, "grep -n foo f" + MARK, session="new") is None
+    assert _bash(env, monkeypatch, capsys, "grep -n foo f", session="new") is None
 
 
 def test_unknown_project_never_persists(env):
@@ -299,15 +381,15 @@ def test_copilot_string_tool_args_on_both_hooks(env, monkeypatch, capsys):
 
     _feed(monkeypatch, {"hookEventName": "preToolUse", "sessionId": "c1",
                         "cwd": str(env.tmp), "toolName": "bash",
-                        "toolArgs": json.dumps({"command": "grep -n gizmo f" + MARK})})
+                        "toolArgs": json.dumps({"command": "grep -n gizmo f"})})
     assert env.pre.main([]) == 0
     assert capsys.readouterr().out == ""
 
 
 # ------------------------------------------------------------------ excluded upstream programs
-def test_grep_over_git_log_passes_without_search_or_marker(env, monkeypatch, capsys):
+def test_grep_over_git_log_passes_without_search(env, monkeypatch, capsys):
     """Owner rule: memory cannot answer a filter over live command output.
-    Mutation: return [] instead of skipping the segment -> the marker is demanded -> red."""
+    Mutation: return [] instead of skipping the segment -> memory search is demanded -> red."""
     assert _bash(env, monkeypatch, capsys, "git log | grep fix") is None
     assert not env.calls
     assert env.gate.unsearched(PROJECT, ["fix"]) == ["fix"]
@@ -398,24 +480,6 @@ def test_stored_entries_carry_their_kind(env):
     env.gate.record_query(PROJECT, "Bar baz")
 
     assert env.gate.searched(PROJECT) == {"p:foo", "q:bar baz"}
-
-
-# ------------------------------------------------------------------ the marker
-def test_a_search_for_the_marker_word_itself_can_carry_the_marker(env, monkeypatch, capsys):
-    """Mutation: restore the 'no parsed word contains memory-checked' rule -> red."""
-    _bash(env, monkeypatch, capsys, "grep -rn memory-checked docs")
-
-    assert _bash(env, monkeypatch, capsys, "grep -rn memory-checked docs # memory-checked") is None
-
-
-def test_a_marker_the_lexer_reads_as_a_word_is_refused(env, monkeypatch, capsys):
-    """Mutation: drop the parse(command) == parse(command without marker) comparison -> red."""
-    env.gate.remember(PROJECT, ["foo"])
-
-    # the raw text ends in the marker, but an escaped blank glues `#` into a word
-    assert _bash(env, monkeypatch, capsys, "git log | grep foo f \\\t# memory-checked") is not None
-    assert _bash(env, monkeypatch, capsys, "grep foo f\\ # memory-checked") is not None
-    assert _bash(env, monkeypatch, capsys, "grep foo f\n# memory-checked") is None
 
 
 # ------------------------------------------------------------------ fail open
@@ -532,7 +596,7 @@ def test_a_memory_search_for_another_project_credits_nothing(env, monkeypatch, c
                              "tool_name": "mcp__ai-raccoon__memory_search",
                              "tool_input": {"projectId": "other-project", "query": "widgetFactory"}})
 
-    assert _bash(env, monkeypatch, capsys, "grep -n widgetFactory f.py" + MARK) is not None
+    assert _bash(env, monkeypatch, capsys, "grep -n widgetFactory f.py") is not None
 
 
 def test_a_memory_search_without_a_project_id_credits_nothing(env, monkeypatch, capsys):
@@ -542,7 +606,7 @@ def test_a_memory_search_without_a_project_id_credits_nothing(env, monkeypatch, 
                              "tool_name": "mcp__ai-raccoon__memory_search",
                              "tool_input": {"query": "widgetFactory"}})
 
-    assert _bash(env, monkeypatch, capsys, "grep -n widgetFactory f.py" + MARK) is not None
+    assert _bash(env, monkeypatch, capsys, "grep -n widgetFactory f.py") is not None
 
 
 @pytest.mark.parametrize("payload", [
@@ -557,7 +621,7 @@ def test_a_failed_memory_search_credits_nothing(env, monkeypatch, capsys, payloa
     env.state.reply = None
     _post(env, monkeypatch, dict(payload, cwd=str(env.tmp)))
 
-    assert _bash(env, monkeypatch, capsys, "grep -n widgetFactory f.py" + MARK) is not None
+    assert _bash(env, monkeypatch, capsys, "grep -n widgetFactory f.py") is not None
 
 
 def test_a_successful_copilot_memory_search_credits_its_query(env, monkeypatch, capsys):
@@ -568,7 +632,7 @@ def test_a_successful_copilot_memory_search_credits_its_query(env, monkeypatch, 
                              "toolArgs": json.dumps({"projectId": PROJECT, "query": "widgetFactory"}),
                              "toolResult": {"resultType": "success"}})
 
-    assert _bash(env, monkeypatch, capsys, "grep -n widgetFactory f.py" + MARK) is None
+    assert _bash(env, monkeypatch, capsys, "grep -n widgetFactory f.py") is None
 
 
 @pytest.mark.parametrize("command", ["grep -f patterns.txt target.py",
