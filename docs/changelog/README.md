@@ -19,6 +19,7 @@ When cutting a release:
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
+| 0.207.4 | [A collection can be initialized from the parent side](0.207.4-parent-side-collection-initialization.md) |
 | 0.207.3 | [the memory-first gate goes quiet: the memory result is the agent's, not the user's](0.207.3-quiet-memory-first-gate.md) |
 | 0.207.2 | [the shared parent scope, reviewed](0.207.2-shared-parent-scope-review-fixes.md) |
 | 0.207.1 | [the pi read gate is withdrawn: text search is the subject](0.207.1-pi-read-gate-withdrawn.md) |
