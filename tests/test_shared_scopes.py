@@ -200,6 +200,18 @@ def test_pruning_a_member_leaves_it_standalone(tmp_path, root):
     assert json.loads((collection / ".ai-badger" / "config.json").read_text())["stacks"] == ["python"]
     assert (first / ".ai-badger" / "shared-scope.json").is_file()
     assert json.loads((first / ".ai-badger" / "config.json").read_text())["stacks"] == ["python"]
+    assert "sharedScope" not in json.loads(
+        (second / ".ai-badger" / "manifest.json").read_text())
+
+    refresh = subprocess.run([
+        sys.executable,
+        str(root / "features/common/skills/den-refresh/scripts/refresh.py"),
+        "--root", str(root), "--target", str(second)], capture_output=True,
+        text=True, timeout=120)
+
+    assert refresh.returncode == 0, refresh.stdout + refresh.stderr
+    assert (second / ".ai-badger" / "project-id").read_text(encoding="utf-8").strip() == \
+        "canonical-dotnet"
 
 
 def test_pruning_a_repository_that_is_not_a_member_is_refused(tmp_path, root):
