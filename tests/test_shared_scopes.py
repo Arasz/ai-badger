@@ -101,6 +101,24 @@ def test_the_canonical_lookup_identity_is_reused(tmp_path, root, raccoon_cli_fak
         "11111111-2222-3333-4444-555555555555"
 
 
+def test_a_descriptor_with_an_unknown_field_is_refused(tmp_path, root):
+    """The child's authored descriptor is a closed shape, not free-form JSON."""
+    collection = tmp_path / "chosen collection"
+    first = _member(collection, "python-app", ["python"], "canonical-python")
+    _test_write(first / "pyproject.toml", "[project]\n")
+    _success(_shared(root, "collect", "--target", str(collection), "--repo", "python-app"))
+    descriptor_path = first / ".ai-badger" / "shared-scope.json"
+    descriptor = json.loads(descriptor_path.read_text())
+    descriptor["unexpected"] = True
+    _write_json(descriptor_path, descriptor)
+
+    result = _shared(root, "sync", "--target", str(first),
+                     "--source", str(collection / ".ai-badger"))
+
+    assert result.returncode == 1, result.stdout + result.stderr
+    assert "unexpected" in result.stderr
+
+
 def test_removing_a_member_shrinks_the_union_and_keeps_the_child_recoverable(tmp_path, root):
     """A smaller membership must not strand the remaining child on a vanished parent file."""
     collection = tmp_path / "chosen collection"

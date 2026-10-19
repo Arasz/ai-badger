@@ -19,7 +19,9 @@ use `Scaffolder`; there is one renderer and one native agent delivery pipeline.
 The private `.ai-badger/shared-scope.json` descriptor stores the parent source, mode,
 original local stacks and authored overrides. The child `config.json` is an effective
 snapshot. Objects merge recursively and lists replace inherited lists, so a later parent
-edit propagates without converting generated settings into authored overrides.
+edit propagates without converting generated settings into authored overrides. The
+descriptor is a closed shape (`schemas/shared-scope.schema.json`): an unknown field is a
+mistake, not an extension.
 
 Only identical immutable files may link to the same relative path in the actual parent
 `.ai-badger` store. Directories remain real. Identity, state, configuration, manifests,

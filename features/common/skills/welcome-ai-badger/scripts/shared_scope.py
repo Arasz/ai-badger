@@ -54,15 +54,24 @@ def merge(parent: dict[str, Any], overrides: dict[str, Any]) -> dict[str, Any]:
     return result
 
 
-def descriptor(child: Path) -> dict[str, Any]:
+def descriptor(child: Path, root: Path) -> dict[str, Any]:
     """Load authored child inputs, separate from the generated effective profile."""
     path = child / ".ai-badger" / "shared-scope.json"
     if path.exists():
-        return read_object(path)
+        return validate_descriptor(read_object(path), root)
     config = read_object(child / ".ai-badger" / "config.json")
-    return {"mode": "inherit", "localStacks": config["stacks"],
-            "overrides": {key: value for key, value in config.items()
-                          if key not in {"stacks", "frameworkVersion", "$schema"}}}
+    return validate_descriptor({"mode": "inherit", "localStacks": config["stacks"],
+                                 "overrides": {key: value for key, value in config.items()
+                                               if key not in {"stacks", "frameworkVersion", "$schema"}}},
+                               root)
+
+
+def validate_descriptor(value: dict[str, Any], root: Path) -> dict[str, Any]:
+    """The descriptor is a closed shape: an unknown field is a mistake, not an extension."""
+    errors = bl.validate(value, bl.load_json(root / "schemas" / "shared-scope.schema.json"))
+    if errors:
+        raise ValueError("invalid shared-scope descriptor: " + "; ".join(errors))
+    return value
 
 
 def validate_config(config: dict[str, Any], root: Path) -> None:
@@ -195,7 +204,7 @@ def materialize(child: Path, source: Path, authored: dict[str, Any],
 def collect(target: Path, names: list[str], root: Path, config_path: Path | None) -> None:
     """Recompute the parent stack union and enroll its explicit members."""
     selected = members(target, names)
-    authored = [descriptor(child) for child in selected]
+    authored = [descriptor(child, root) for child in selected]
     parent_path = config_path or target / ".ai-badger" / "config.json"
     if parent_path.exists():
         config = copy.deepcopy(read_object(parent_path))
@@ -220,7 +229,7 @@ def collect(target: Path, names: list[str], root: Path, config_path: Path | None
 
 def sync(child: Path, source: Path, root: Path) -> None:
     """Render one enrolled child using its local stacks and current parent defaults."""
-    inputs = descriptor(child)
+    inputs = descriptor(child, root)
     parent = read_object(source / "config.json")
     materialize(child, source, inputs, parent, root, "sync")
 
