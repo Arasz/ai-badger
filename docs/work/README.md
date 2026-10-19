@@ -208,3 +208,4 @@ the first plain-markdown record here.
 | `2026-10-19-raw-grep-capture-evidence.md` | Evidence record for asynchronous raw grep capture, retrieval by pattern hash, TTL, and Codex compatibility. |
 | `2026-10-19-codex-auto-wm-hook.md` | Research and execution record for Codex-native auto-wm hook output, explicit legacy-hook migration, and release verification. |
 | `2026-10-19-shared-parent-scope.md` | Task plan and research for shared parent scopes, union stacks, child configuration inheritance, and safe resource links. |
+| `2026-10-20-quiet-memory-first-gate-plan.md` | Plan for the quiet memory-first gate: the gate allows the search and hands the memory result to the model where the host carries context (measured in the installed Claude Code and Codex binaries), a one-line deny where it does not, the `textSearchInput` payload, and the `get-raw-text-search` rename. |
