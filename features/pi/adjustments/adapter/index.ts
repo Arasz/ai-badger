@@ -45,6 +45,14 @@ import {
   splitMailCard,
 } from "./hook-bridge.ts";
 import {
+  parseReadGateStdout,
+  readGateEnabled,
+  readGatePayload,
+  readGateScript,
+  readPattern,
+  type ReadGateOutcome,
+} from "./read-gate.ts";
+import {
   advanceAllowed,
   compactingActive,
   decideTick,
@@ -67,6 +75,9 @@ const GATE_TIMEOUT_MS = 5000;
 const BUS_SPAWN_TIMEOUT_MS = 30_000;
 const HOOKS_CONFIG = [".ai-badger", "hooks", "hooks.json"];
 const DELIVERY_SCRIPT = [".ai-badger", "hooks", "message_delivery_hook.py"];
+/** The read gate's budget: the framework gate caps its own memory search at 4 s, so 10 s is
+ * an outer bound that never truncates a search the gate decided to run. */
+const READ_GATE_TIMEOUT_MS = 10_000;
 
 /** A timer handle, typed minimally so tests can inject spies. `unref` keeps a live
  * session's poller from delaying pi's exit (pi exits via process.exit on every path). */
@@ -250,6 +261,32 @@ export async function runGate(
     };
   }
   return { kind: "decision", ...decision };
+}
+
+/** One read's memory-first check: the framework's own memory-first hook, asked about the
+ * path the read names. Every failure — no script, a crash, a timeout, a killed process —
+ * lets the read through: the gate never stands between the model and a file it could not
+ * get an answer about. */
+async function readGateOutcome(
+  event: { toolName: string; input: Record<string, unknown> },
+  ctx: ExtensionContext,
+): Promise<ReadGateOutcome> {
+  const path = readPattern(event.input);
+  if (path === null) return { kind: "allow" };
+  const script = readGateScript(ctx.cwd);
+  if (!existsSync(script)) return { kind: "allow" };
+  const payload = readGatePayload(path, {
+    cwd: ctx.cwd,
+    sessionId: resolveSessionId(ctx, process.env),
+  });
+  const run = await runHook("python3", [script], payload, {
+    cwd: ctx.cwd,
+    signal: ctx.signal,
+    timeoutMs: READ_GATE_TIMEOUT_MS,
+    label: script,
+  });
+  if (run.kind !== "exited" || run.code !== 0) return { kind: "allow" };
+  return parseReadGateStdout(run.stdout, path);
 }
 
 /** Every gate outcome for one tool call, including "there are no gates here". */
@@ -621,6 +658,18 @@ export default async function (pi: ExtensionAPI, busDeps: BusDeps = realBusDeps(
         "ai-badger: pi.registerCommand is missing — this pi build's extension API has moved; commands are unavailable.",
         "warning",
       );
+    }
+
+    // Memory first for a read: the bank answers before the file is read, and the model
+    // re-issues the read for the raw content when the answer was not enough.
+    if (event.toolName === "read" && readGateEnabled(process.env)) {
+      const readOutcome = await readGateOutcome(
+        { toolName: event.toolName, input: event.input as Record<string, unknown> },
+        ctx,
+      );
+      if (readOutcome.kind === "block") {
+        return { block: true, reason: readOutcome.reason };
+      }
     }
 
     const outcomes = await gateOutcomes(
