@@ -47,6 +47,7 @@ import {
   type PostOutcome,
   splitMailCard,
 } from "./hook-bridge.ts";
+import { countCaptured, formatMemStatus, isRawSearchFetch } from "./mem-status.ts";
 import {
   advanceAllowed,
   compactingActive,
@@ -359,6 +360,21 @@ export default async function (pi: ExtensionAPI, busDeps: BusDeps = realBusDeps(
   /** The gate's model-side context, stashed per tool call until that call's result carries
    * it. A blocked call never gets a result, so nothing is stashed for it. */
   const gateContext = new Map<string, string[]>();
+  /** The memory-first gate's counters for this session: what it captured, and what the
+   * agent fetched back. The footer shows both — a capture nobody fetches is cost
+   * without use. */
+  const memStatus = { captured: 0, fetched: 0 };
+  /** Writes the gate's footer segment; a session with no capture shows no status at all. */
+  const publishMemStatus = (ctx: ExtensionContext): void => {
+    try {
+      ctx.ui?.setStatus?.(
+        "mem",
+        memStatus.captured > 0 ? formatMemStatus(memStatus) : undefined,
+      );
+    } catch {
+      // The footer is cosmetic: never let it break the gate.
+    }
+  };
   // Away mode lives here because pi has no API letting one extension answer another's dialog:
   // the confirm this adapter raises can only be pre-empted by this adapter.
   const away = createAwayState(process.env);
@@ -634,6 +650,14 @@ export default async function (pi: ExtensionAPI, busDeps: BusDeps = realBusDeps(
       ctx,
     );
     const resolution = resolve(outcomes, { armed: away.armed(), hasUI: ctx.hasUI });
+    // The memory-first gate's counters: what it captured on this call, and whether this
+    // call is the agent fetching one of those raw results back.
+    memStatus.captured += countCaptured(resolution.context);
+    if (event.toolName === "bash") {
+      const command = (event.input as { command?: unknown }).command;
+      if (typeof command === "string" && isRawSearchFetch(command)) memStatus.fetched += 1;
+    }
+    publishMemStatus(ctx);
     for (const notice of resolution.notices) ctx.ui.notify(notice, "warning");
     if (resolution.action === "block") {
       return { block: true, reason: resolution.reason ?? "blocked by an ai-badger hook gate" };
