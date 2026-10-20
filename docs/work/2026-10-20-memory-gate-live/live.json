@@ -188,5 +188,59 @@
       "one_agent_run": true,
       "turns": 6
     }
+  },
+  "nested_call": {
+    "adapter_rev": "62479893",
+    "pattern": "complete-project-scope-code-review",
+    "prompt": "Use the codemode tool exactly once to run this bash command and print its output: grep -rn 'complete-project-scope-code-review' features/ | head -3 . Then stop.",
+    "exit": 0,
+    "nested_call_ids": [
+      "call_192ffe8a3f194556b794ca49/1"
+    ],
+    "analysis": {
+      "agent_runs": 1,
+      "turns": 2,
+      "user_messages": [
+        "Use the codemode tool exactly once to run this bash command and print its output: grep -rn 'complete-project-scope-code-review' features/ | head -3 . Then stop."
+      ],
+      "assistant_messages": 2,
+      "tool_results_with_block": 0,
+      "tool_results": 1,
+      "user_messages_with_block": 0,
+      "messages_with_block": [],
+      "custom_messages": []
+    },
+    "verdict": {
+      "a_nested_call_happened": true,
+      "parent_result_carries_the_block": false,
+      "no_block_in_a_message": true
+    }
+  },
+  "nested_call_fixed": {
+    "adapter_rev": "working tree",
+    "pattern": "review-gate-diff-verification",
+    "prompt": "Use the codemode tool exactly once to run this bash command and print its output: grep -rn 'review-gate-diff-verification' features/ | head -3 . Then stop.",
+    "exit": 0,
+    "nested_call_ids": [
+      "call_01a159d94c2975bb90224983/1"
+    ],
+    "analysis": {
+      "agent_runs": 1,
+      "turns": 2,
+      "user_messages": [
+        "Use the codemode tool exactly once to run this bash command and print its output: grep -rn 'review-gate-diff-verification' features/ | head -3 . Then stop."
+      ],
+      "assistant_messages": 2,
+      "tool_results_with_block": 1,
+      "tool_results": 1,
+      "user_messages_with_block": 0,
+      "messages_with_block": [],
+      "custom_messages": []
+    },
+    "verdict": {
+      "a_nested_call_happened": true,
+      "parent_result_carries_the_block": true,
+      "no_block_in_a_message": true
+    }
   }
 }

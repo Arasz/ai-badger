@@ -233,6 +233,43 @@ records a pattern as searched only when it fires, so the second grep found an
 already-searched pattern and legitimately carried no context. Fixed by excluding the
 already-picked pattern.)*
 
+## Check F — A NESTED call: the live test found a real defect in the fix
+
+ADR-0045's second decision covers nested calls: "a nested call (`<parent id>/<n>`) travels
+with its parent". The headless runs never produced one — a nested call happens when an
+extension runs a tool on the model's behalf, and pi's `codemode` running `bash` is the
+common case. So the harness grew a check that asks the model to reach a search *through*
+codemode, and the result was a defect in 0.210.0 itself.
+
+The adapter's own trace, live, with the released 0.210.0 adapter:
+
+```
+tool_call  bash      id=call_052ee…/1   → allow + additionalContext  → stash callId=call_052ee…/1  contexts=1
+tool_result bash      id=call_052ee…/1   → take pre=1   store=[]      ← the NESTED result took it
+tool_result codemode  id=call_052ee…     → take pre=0   store=[]      ← the PARENT got nothing
+```
+
+The gate searched, the pattern was recorded as searched — and the model received **no**
+memory result at all. The ADR's premise was wrong: pi *does* report a nested call's result
+(as a `tool_result` event carrying the nested id), it just does not put it in the
+transcript — it routes it to the calling tool. So the nested result took the context out of
+the store and handed it to a tool that never shows it to the model, and the parent's result
+found the store empty. A nested call's memory result was not misplaced; it was lost.
+
+| | released 0.210.0 | with the fix |
+|---|---|---|
+| a nested call happened | yes | yes |
+| the parent's result carries the block | **no** | **yes** |
+| the block in a message | no | no |
+
+The fix: a nested id takes nothing (`takeGateContext`), so the nested context waits for the
+parent's result — the result the model reads. TDD: the new test was watched fail first,
+with the failure output showing the nested take. The pi suite (212 tests) and the type
+check are green, and the live run above is the after.
+
+This is the case the headless harness could not reach and the ADR got wrong; it is why the
+live test exists.
+
 ## Notes for the next run
 
 - The gate's "already searched" store lives in `~/.ai-badger/ai-badger.db` (the `hook_state`

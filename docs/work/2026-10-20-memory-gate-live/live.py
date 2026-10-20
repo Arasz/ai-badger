@@ -285,6 +285,52 @@ def live_two_greps(gate, outdir, rev=FIXED_REV, label="two_greps"):
     }
 
 
+def live_nested_call(gate, outdir, rev=FIXED_REV, label="nested_call"):
+    """A NESTED call: the model runs a search through codemode, so the gate fires on a
+    call it did not issue itself.
+
+    The nested call's result reaches the calling tool, not the model — so the memory
+    result must travel with the parent, whose result the model does read. The pre-fix
+    adapter lost it: the nested result took the context out of the store and the parent
+    found it empty.
+    """
+    install(rev)
+    pattern = pick_pattern(gate)
+    session_dir = Path("/tmp/memgate-live-sessions") / f"session-{label}"
+    session_dir.mkdir(parents=True, exist_ok=True)
+    prompt = (f"Use the codemode tool exactly once to run this bash command and print its "
+              f"output: grep -rn '{pattern}' features/ | head -3 . Then stop.")
+    cmd = ["pi", "-p", "--mode", "json", "--model", MODEL, "--tools", "+codemode",
+           "--no-mcp", "--session-dir", str(session_dir), prompt]
+    proc = subprocess.run(cmd, cwd=str(REPO), capture_output=True, text=True,
+                          timeout=900, check=False)
+    (outdir / "nested.jsonl").write_text(proc.stdout, encoding="utf-8")
+    analysis = analyze([json.loads(line) for line in proc.stdout.splitlines()
+                        if line.strip().startswith("{")])
+    nested_ids = []
+    for line in proc.stdout.splitlines():
+        try:
+            rec = json.loads(line)
+        except ValueError:
+            continue
+        if rec.get("type") == "tool_execution_start":
+            nested_ids.append(rec.get("toolCallId"))
+    nested_seen = [i for i in nested_ids if isinstance(i, str) and "/" in i]
+    return {
+        "adapter_rev": rev or "working tree",
+        "pattern": pattern,
+        "prompt": prompt,
+        "exit": proc.returncode,
+        "nested_call_ids": nested_seen,
+        "analysis": analysis,
+        "verdict": {
+            "a_nested_call_happened": bool(nested_seen),
+            "parent_result_carries_the_block": analysis["tool_results_with_block"] > 0,
+            "no_block_in_a_message": not analysis["messages_with_block"],
+        },
+    }
+
+
 def live_no_hit_call(gate, outdir):
     """A live run whose pattern the bank cannot answer: the gate has nothing to hand the
     model, so it lets the call through and carries nothing — nothing may ride along to a
@@ -346,11 +392,15 @@ def main():
     if only in (None, "two_greps"):
         results["two_greps"] = live_two_greps(gate, outdir)
         results["two_greps_prefix"] = live_two_greps(gate, outdir, PRE_FIX_REV, "two_greps_prefix")
+    if only in (None, "nested_call"):
+        results["nested_call"] = live_nested_call(gate, outdir)
+        # the same run against the working tree: the fix under test
+        results["nested_call_fixed"] = live_nested_call(gate, outdir, None, "nested_call_fixed")
 
     install(None)   # leave the user-scope extension on the current working tree
     live_json.write_text(json.dumps(results, indent=2), encoding="utf-8")
     for key in ("prefix", "postfix", "hook_guard", "no_hit_call", "two_greps",
-                "two_greps_prefix"):
+                "two_greps_prefix", "nested_call", "nested_call_fixed"):
         if key in results:
             print(key, json.dumps(results[key]["verdict"]))
     print("wrote", live_json)
