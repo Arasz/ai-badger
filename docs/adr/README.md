@@ -59,6 +59,7 @@ held two files numbered 0002. That collision was resolved in 0.22.0. One number,
 | [0041](0041-shared-parent-scopes.md) | Explicit shared parent scopes | Accepted (2026-10-19) | Existing scaffolder materializes union-stack collection children and local-stack sync; private authored descriptor and exact immutable per-file link ownership preserve child identity and mutable state |
 
 | [0042](0042-parent-side-collection-initialization.md) | Parent-side collection initialization | Accepted (2026-10-19) | `discover` and `init` initialize a collection from the directory that holds its repositories: depth-1 discovery of every `.git` child, the union of the children's stacks in the parent, every child enrolled (a fresh one scaffolded, a scaffolded one converted) with its own identity; amends ADR-0041's "never discovers" rule |
+| [0043](0043-model-group-and-thinking-level-split.md) | Model group and thinking level split in the persona frontmatter | Accepted (2026-10-20) | The persona's `level:` key is retired: `model:` carries a model group (low, medium, high, top) or a concrete model id, `thinking:` carries pi's thinking level, and a new model map owns the group-to-family anchors, priced from the leaderboard CSV. Supersedes ADR-0027 in part; narrows ADR-0033's knob to the new values |
 
 ## Writing a new one
 

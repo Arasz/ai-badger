@@ -5,6 +5,8 @@
 **Supersedes:** Nothing. Extends ADR-0027 (dual-key persona lanes) with a project opt-out
 of its `model:` half.
 
+Narrowed by [ADR-0043](0043-model-group-and-thinking-level-split.md) (2026-10-20): the knob keeps its shape, but the value it strips is now a model group or a concrete model id, and the bare Claude lane it was written about is gone.
+
 ## Context
 
 ADR-0027 kept `model:` beside `level:` everywhere (grandfather) because Claude routes on the

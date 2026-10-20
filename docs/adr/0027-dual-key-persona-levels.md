@@ -2,6 +2,8 @@
 
 Amended by [ADR-0037](0037-accept-provider-model-pins.md): native pi pins and the OpenRouter planner routing guard.
 
+Superseded in part by [ADR-0043](0043-model-group-and-thinking-level-split.md) (2026-10-20): the `level:` key is retired, the bare Claude lane leaves `model:`, and a persona carries `model:` (a model group or a concrete id) beside `thinking:`.
+
 **Date:** 2026-09-06
 **Status:** Accepted
 **Author:** PKG-3 lane (tiers/pkg3-lanes)
