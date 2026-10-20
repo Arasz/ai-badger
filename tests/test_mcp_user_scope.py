@@ -129,6 +129,32 @@ def test_the_removal_note_names_the_server_and_its_scope(make_scaffolder, tmp_pa
     assert any("mem" in note and "user" in note for note in scaf.ctx.notes)
 
 
+def test_a_stale_entry_comes_back_out_of_the_copilot_and_pi_files(make_scaffolder, tmp_path):
+    """Every project file the scope decision covers, not only .mcp.json.
+
+    The Copilot CLI reads .github/mcp.json and pi reads .pi/mcp.json; a project-scoped
+    copy of a user-scoped server in either of them is the same collision.
+    """
+    _declare(tmp_path, "python", {"name": "mem", "command": "echo mem", "declare": True})
+    target = make_scaffolder.target
+    (target / ".github").mkdir(parents=True, exist_ok=True)
+    (target / ".pi").mkdir(parents=True, exist_ok=True)
+    _test_write(target / ".github" / "mcp.json", json.dumps({
+        "mcpServers": {"mem": {"command": "echo mem", "tools": ["*"]}}
+    }), encoding="utf-8")
+    _test_write(target / ".pi" / "mcp.json", json.dumps({
+        "mcpServers": {"mem": {"command": "echo mem", "exposure": "direct"}}
+    }), encoding="utf-8")
+
+    scaf = _scaf(make_scaffolder, tmp_path, _config(scope={"mem": "user"}))
+    project_servers, user_servers = scaf.mcp.split_servers_by_scope(scaf.mcp.declared_servers())
+    scaf.mcp.generate_copilot_mcp_json(project_servers)
+    scaf.mcp.generate_pi_mcp_json()
+
+    assert "mem" not in _servers(target / ".github" / "mcp.json")
+    assert "mem" not in _servers(target / ".pi" / "mcp.json")
+
+
 def test_a_user_scoped_server_is_still_proposed_for_the_user_global_config(make_scaffolder,
                                                                            tmp_path):
     """User scope is not a silent drop: the operator is told what to register."""
@@ -209,6 +235,41 @@ def test_a_scope_override_for_a_server_nobody_declares_is_reported(make_scaffold
     scaf.mcp.declared_servers()
 
     assert any("mrm" in note for note in scaf.ctx.notes)
+
+
+def test_the_unmatched_name_is_reported_once_per_run(make_scaffolder, tmp_path):
+    """The declaration set is read more than once per run; the report is not a per-call echo."""
+    _declare(tmp_path, "python", {"name": "mem", "command": "echo mem", "declare": True})
+    scaf = _scaf(make_scaffolder, tmp_path, _config(scope={"mrm": "user"}))
+
+    scaf.mcp.declared_servers()
+    scaf.mcp.declared_servers()
+
+    assert len([note for note in scaf.ctx.notes if "mrm" in note]) == 1
+
+
+def test_a_scope_override_for_a_server_that_is_declared_but_unavailable_is_not_reported(
+        make_scaffolder, tmp_path):
+    """The server is declared; its binary is missing. That is not an unknown name."""
+    _declare(tmp_path, "python", {"name": "mem", "command": "not-a-binary-on-this-path",
+                                  "declare": True})
+    scaf = _scaf(make_scaffolder, tmp_path, _config(scope={"mem": "user"}))
+
+    scaf.mcp.declared_servers()
+
+    assert not any("no declared MCP server matches" in note for note in scaf.ctx.notes)
+
+
+def test_a_user_scoped_server_is_not_a_project_server(make_scaffolder, tmp_path):
+    """The approval route follows the scope: there is no project entry to approve.
+
+    Claude's .claude/settings.json approves the servers this project writes into
+    .mcp.json; a user-scoped server is not one of them.
+    """
+    _declare(tmp_path, "python", {"name": "mem", "command": "echo mem", "declare": True})
+    scaf = _scaf(make_scaffolder, tmp_path, _config(scope={"mem": "user"}))
+
+    assert scaf.mcp.project_server_names() == []
 
 
 def test_the_scope_decision_reaches_the_per_agent_adjustments(make_scaffolder, tmp_path):

@@ -392,11 +392,14 @@ class McpTools:
         the same run is a contradiction the generated files should not carry (#186).
         """
         self.note_retired_declaration_files()
-        declared = {srv["name"]: dict(srv) for srv in self.collect_catalog_mcp_servers()
+        catalog = self.collect_catalog_mcp_servers()
+        declared_names = [srv["name"] for srv in catalog if srv.get("declare")]
+        declared = {srv["name"]: dict(srv) for srv in catalog
                     if srv.get("declare") and self._server_available(srv)}
-        # Checked against the declaration set before the decline removes a name: a declined
-        # server is refused, not unknown.
-        self._note_unknown_scope_overrides(declared)
+        # Checked against the declared names, before the decline removes one (a declined
+        # server is refused, not unknown) and before the availability gate (a server whose
+        # binary is missing is still a declared server — it just cannot be launched here).
+        self._note_unknown_scope_overrides(declared_names)
         for name in self.declined_servers():
             declared.pop(name, None)
         # The project's scope decision lands on the declaration itself, so every consumer
