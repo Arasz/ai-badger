@@ -118,3 +118,28 @@ pi-specific on purpose. The framework-side fix (decision 1) is host-independent.
 - `features/pi/tests/adapter-memory-context.test.ts`,
   `features/pi/tests/hook-bridge.test.ts` — the delivery contract and the store's
   semantics.
+
+## Amendment — 2026-10-20: a nested call's result is reported after all
+
+**Status:** Accepted. Decision 2 above stands — the gate's model-side context rides the
+tool result, and a nested call's context travels with its parent. What was wrong is one
+premise underneath it, and one line of code that followed the premise instead of the
+decision.
+
+The premise: "a nested call (`<parent id>/<n>`, **which pi never reports as its own
+result**) travels with its parent". pi *does* report it. A nested call produces a
+`tool_result` event like any other call, carrying the nested id — measured live in pi
+1.3.0: `tool_result bash id=call_052ee…/1` arrives, and it arrives **before** its
+parent's result. What pi does not do is put that result in the transcript: it reaches the
+calling tool, which reports it as it sees fit, and the model reads the *parent's* result.
+
+The code followed the premise: `takeGateContext()` matched a nested id and took the
+nested call's context there, deleting it from the store. The parent's result then found
+an empty store, and the memory result was handed to a tool that never showed it to the
+model. Measured live, before the fix: the gate searched, the pattern was recorded, and the
+model received **no** memory result at all.
+
+The fix makes the code match the decision that was already made: a nested id takes
+nothing, so the nested context waits for the parent's result — which is the result the
+model reads. The decision does not reopen; the amendment records the correction, the
+measured evidence, and the one line that changed.
