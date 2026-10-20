@@ -604,13 +604,18 @@ export type GateContextStore = Map<string, string[]>;
 export const GATE_CONTEXT_MAX = 64;
 
 /** The context stashed for *id* and for the calls nested under it (`<id>/<n>`), removed from
- * the store. A nested call's result never arrives as its own event, so its context would
- * otherwise be lost with the call it belongs to. */
+ * the store. A nested call's context travels with its parent.
+ *
+ * A nested id takes nothing: pi does report a nested call's result, but that result
+ * reaches the calling tool, not the model. Taking it there would hand the memory result
+ * to a tool that never shows it to the model, and the parent would find the store empty.
+ * The nested context waits for the parent's result, which the model does read. */
 export function takeGateContext(
   store: GateContextStore,
   id: string | undefined,
 ): string[] {
   if (store.size === 0 || id === undefined) return [];
+  if (id.includes("/")) return [];
   const taken: string[] = [];
   for (const key of [...store.keys()]) {
     if (key === id || key.startsWith(`${id}/`)) {

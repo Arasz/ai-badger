@@ -880,6 +880,16 @@ describe("the gate's context waits for its call's result, and only that call's",
     expect(store.get("call-2")).toEqual(["memory for call 2"]);
   });
 
+  test("a nested call's own result does not take the context — it waits for the parent", () => {
+    // pi DOES report a nested call's result (as a tool_result event), but that result
+    // never reaches the model: it goes to the calling tool. A nested call's context
+    // therefore stays stashed until the parent's result carries it.
+    const store: GateContextStore = new Map([["call-1/0", ["memory for a nested call"]]]);
+    expect(takeGateContext(store, "call-1/0")).toEqual([]);
+    expect(store.get("call-1/0")).toEqual(["memory for a nested call"]);
+    expect(takeGateContext(store, "call-1")).toEqual(["memory for a nested call"]);
+  });
+
   test("another call's context is not taken", () => {
     const store: GateContextStore = new Map([["call-1", ["memory for call 1"]]]);
     expect(takeGateContext(store, "call-2")).toEqual([]);
