@@ -16,19 +16,24 @@ import adapter from "../adjustments/adapter/index.ts";
 type Handler = (event: unknown, ctx: unknown) => Promise<unknown>;
 
 /** Install the default export against a fake pi. */
-async function loadAdapter(): Promise<{ toolCall: Handler }> {
+async function loadAdapter(): Promise<{ toolCall: Handler; toolResult: Handler; sessionStart: Handler }> {
 	const on = new Map<string, Handler>();
 	await adapter({
 		on: (event: string, handler: Handler) => on.set(event, handler),
 		registerCommand: () => undefined,
 	} as never);
-	return { toolCall: on.get("tool_call")! };
+	return {
+		toolCall: on.get("tool_call")!,
+		toolResult: on.get("tool_result")!,
+		sessionStart: on.get("session_start")!,
+	};
 }
 
 /** A pi extension context whose footer status is recorded. */
 function fakeCtx(cwd: string): {
 	cwd: string;
 	hasUI: boolean;
+	mode: string;
 	ui: { notify: () => void; setStatus: (key: string, text: string | undefined) => void };
 	statuses: Array<[string, string | undefined]>;
 } {
@@ -36,6 +41,7 @@ function fakeCtx(cwd: string): {
 	return {
 		cwd,
 		hasUI: false,
+		mode: "tui",
 		ui: {
 			notify: () => undefined,
 			setStatus: (key: string, text: string | undefined) => statuses.push([key, text]),
@@ -43,6 +49,9 @@ function fakeCtx(cwd: string): {
 		statuses,
 	};
 }
+
+const FETCH_COMMAND =
+	"python3 .ai-badger/skills/get-raw-text-search/scripts/get_raw_text_search.py --pattern-hash abc";
 
 describe("the memory gate's footer status in pi", () => {
 	let dir: string;
@@ -58,8 +67,9 @@ describe("the memory gate's footer status in pi", () => {
 	/**
 	 * Write a gate that answers every bash call except a raw-result fetch, with the
 	 * gate's context: one captured pattern, and one the gate could not capture.
+	 * `deny` makes it deny the fetch instead — the retrieval never runs.
 	 */
-	function writeGate(): void {
+	function writeGate(deny = false): void {
 		const hooksDir = join(dir, ".ai-badger", "hooks");
 		mkdirSync(hooksDir, { recursive: true });
 		const context = [
@@ -73,6 +83,16 @@ describe("the memory gate's footer status in pi", () => {
 				],
 			}),
 		].join("\n");
+		const answer = JSON.stringify({
+			hookSpecificOutput: { hookEventName: "PreToolUse", additionalContext: context },
+		});
+		const denyAnswer = JSON.stringify({
+			hookSpecificOutput: {
+				hookEventName: "PreToolUse",
+				permissionDecision: "deny",
+				permissionDecisionReason: "guarded",
+			},
+		});
 		const script = join(dir, "gate.sh");
 		writeFileSync(
 			script,
@@ -80,11 +100,9 @@ describe("the memory gate's footer status in pi", () => {
 				"#!/bin/sh",
 				"payload=$(cat)",
 				'case "$payload" in',
-				"  *get_raw_text_search*) exit 0 ;;",
+				`  *get_raw_text_search*) printf '%s' '${deny ? denyAnswer : ""}'; exit 0 ;;`,
 				"esac",
-				`printf '%s' '${JSON.stringify({
-					hookSpecificOutput: { hookEventName: "PreToolUse", additionalContext: context },
-				})}'`,
+				`printf '%s' '${answer}'`,
 			].join("\n"),
 		);
 		chmodSync(script, 0o755);
@@ -98,41 +116,102 @@ describe("the memory gate's footer status in pi", () => {
 		);
 	}
 
-	test("a captured search shows up in the footer", async () => {
-		writeGate();
-		const { toolCall } = await loadAdapter();
-		const ctx = fakeCtx(dir);
-
+	/** One gated grep: the gate answers it, and the call runs. */
+	async function capture(
+		toolCall: Handler,
+		toolResult: Handler,
+		ctx: ReturnType<typeof fakeCtx>,
+	): Promise<void> {
 		await toolCall(
 			{ toolName: "bash", toolCallId: "call-1", input: { command: "grep -rn foo src/" } },
 			ctx,
 		);
+		await toolResult(
+			{
+				toolName: "bash",
+				toolCallId: "call-1",
+				input: { command: "grep -rn foo src/" },
+				content: [{ type: "text", text: "src/a.ts:1:foo" }],
+			},
+			ctx,
+		);
+	}
 
-		expect(ctx.statuses.at(-1)).toEqual(["mem", "[mem 1 0/1%]"]);
+	test("a captured search shows up in the footer", async () => {
+		writeGate();
+		const { toolCall, toolResult } = await loadAdapter();
+		const ctx = fakeCtx(dir);
+
+		await capture(toolCall, toolResult, ctx);
+
+		expect(ctx.statuses.at(-1)).toEqual(["mem", "[mem 1 0%]"]);
 	});
 
 	test("a raw-result fetch is counted, and the footer follows", async () => {
 		writeGate();
-		const { toolCall } = await loadAdapter();
+		const { toolCall, toolResult } = await loadAdapter();
 		const ctx = fakeCtx(dir);
 
+		await capture(toolCall, toolResult, ctx);
 		await toolCall(
-			{ toolName: "bash", toolCallId: "call-1", input: { command: "grep -rn foo src/" } },
+			{ toolName: "bash", toolCallId: "call-2", input: { command: FETCH_COMMAND } },
 			ctx,
 		);
-		await toolCall(
+		await toolResult(
 			{
 				toolName: "bash",
 				toolCallId: "call-2",
-				input: {
-					command:
-						"python3 .ai-badger/skills/get-raw-text-search/scripts/get_raw_text_search.py --pattern-hash abc",
-				},
+				input: { command: FETCH_COMMAND },
+				content: [{ type: "text", text: '{"status":"ready"}' }],
 			},
 			ctx,
 		);
 
-		expect(ctx.statuses.at(-1)).toEqual(["mem", "[mem 1 1/1%]"]);
+		expect(ctx.statuses.at(-1)).toEqual(["mem", "[mem 1 100%]"]);
+	});
+
+	test("a denied fetch is not counted — the retrieval never ran", async () => {
+		writeGate(true);
+		const { toolCall, toolResult } = await loadAdapter();
+		const ctx = fakeCtx(dir);
+
+		await capture(toolCall, toolResult, ctx);
+		const blocked = await toolCall(
+			{ toolName: "bash", toolCallId: "call-2", input: { command: FETCH_COMMAND } },
+			ctx,
+		);
+
+		expect(blocked).toMatchObject({ block: true });
+		expect(ctx.statuses.at(-1)).toEqual(["mem", "[mem 1 0%]"]);
+	});
+
+	test("a new session starts the counters over", async () => {
+		writeGate();
+		const { toolCall, toolResult, sessionStart } = await loadAdapter();
+		const ctx = fakeCtx(dir);
+
+		await capture(toolCall, toolResult, ctx);
+		await toolCall(
+			{ toolName: "bash", toolCallId: "call-2", input: { command: FETCH_COMMAND } },
+			ctx,
+		);
+		await toolResult(
+			{
+				toolName: "bash",
+				toolCallId: "call-2",
+				input: { command: FETCH_COMMAND },
+				content: [{ type: "text", text: '{"status":"ready"}' }],
+			},
+			ctx,
+		);
+		expect(ctx.statuses.at(-1)).toEqual(["mem", "[mem 1 100%]"]);
+
+		// /new, /resume, /fork and /clone re-fire session_start on the same adapter.
+		await sessionStart({}, ctx);
+		expect(ctx.statuses.at(-1)).toEqual(["mem", undefined]);
+
+		await capture(toolCall, toolResult, ctx);
+		expect(ctx.statuses.at(-1)).toEqual(["mem", "[mem 1 0%]"]);
 	});
 
 	test("a gate that captured nothing shows no status at all", async () => {
@@ -144,13 +223,10 @@ describe("the memory gate's footer status in pi", () => {
 				hooks: { PreToolUse: [{ matcher: "Bash", hooks: [{ type: "command", command: "true" }] }] },
 			}),
 		);
-		const { toolCall } = await loadAdapter();
+		const { toolCall, toolResult } = await loadAdapter();
 		const ctx = fakeCtx(dir);
 
-		await toolCall(
-			{ toolName: "bash", toolCallId: "call-1", input: { command: "grep -rn foo src/" } },
-			ctx,
-		);
+		await capture(toolCall, toolResult, ctx);
 
 		expect(ctx.statuses.at(-1)).toEqual(["mem", undefined]);
 	});

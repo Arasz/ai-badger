@@ -23,8 +23,14 @@ function gateContext(entries: Array<{ pattern: string; rawResultHash?: string }>
 
 describe("the memory gate's footer status", () => {
 	test("the segment is bracketed, in the style the other pi extensions use", () => {
-		expect(formatMemStatus({ captured: 12, fetched: 9 })).toBe("[mem 12 9/12%]");
-		expect(formatMemStatus({ captured: 0, fetched: 0 })).toBe("[mem 0 0/0%]");
+		expect(formatMemStatus({ captured: 12, fetched: 9 })).toBe("[mem 12 75%]");
+		expect(formatMemStatus({ captured: 0, fetched: 0 })).toBe("[mem 0 0%]");
+	});
+
+	test("the fetched share is a percentage, rounded", () => {
+		expect(formatMemStatus({ captured: 3, fetched: 1 })).toBe("[mem 3 33%]");
+		expect(formatMemStatus({ captured: 4, fetched: 3 })).toBe("[mem 4 75%]");
+		expect(formatMemStatus({ captured: 4, fetched: 4 })).toBe("[mem 4 100%]");
 	});
 
 	test("only a pattern with a captured raw output counts as captured", () => {

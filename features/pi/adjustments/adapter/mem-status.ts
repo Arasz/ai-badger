@@ -16,9 +16,11 @@ export interface MemStatus {
 	fetched: number;
 }
 
-/** The footer segment, in the bracketed style the other pi extensions use. */
+/** The footer segment, in the bracketed style the other pi extensions use: the number of
+ * captured searches, and the share of them the agent fetched, as a percentage. */
 export function formatMemStatus(status: MemStatus): string {
-	return `[mem ${status.captured} ${status.fetched}/${status.captured}%]`;
+	const pct = status.captured > 0 ? Math.round((status.fetched / status.captured) * 100) : 0;
+	return `[mem ${status.captured} ${pct}%]`;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

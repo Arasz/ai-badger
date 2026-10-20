@@ -650,13 +650,9 @@ export default async function (pi: ExtensionAPI, busDeps: BusDeps = realBusDeps(
       ctx,
     );
     const resolution = resolve(outcomes, { armed: away.armed(), hasUI: ctx.hasUI });
-    // The memory-first gate's counters: what it captured on this call, and whether this
-    // call is the agent fetching one of those raw results back.
+    // The memory-first gate's counters: what it captured on this call. The fetch counter
+    // waits for the call to run — a denied or declined retrieval fetched nothing.
     memStatus.captured += countCaptured(resolution.context);
-    if (event.toolName === "bash") {
-      const command = (event.input as { command?: unknown }).command;
-      if (typeof command === "string" && isRawSearchFetch(command)) memStatus.fetched += 1;
-    }
     publishMemStatus(ctx);
     for (const notice of resolution.notices) ctx.ui.notify(notice, "warning");
     if (resolution.action === "block") {
@@ -690,6 +686,14 @@ export default async function (pi: ExtensionAPI, busDeps: BusDeps = realBusDeps(
   });
 
   pi.on("tool_result", async (event, ctx) => {
+    // The fetch counter: the call ran, so the raw result was fetched.
+    if (event.toolName === "bash") {
+      const command = (event.input as { command?: unknown } | undefined)?.command;
+      if (typeof command === "string" && isRawSearchFetch(command)) {
+        memStatus.fetched += 1;
+        publishMemStatus(ctx);
+      }
+    }
     const outcomes = await postHookOutcomes(
       {
         toolName: event.toolName,
@@ -736,6 +740,11 @@ export default async function (pi: ExtensionAPI, busDeps: BusDeps = realBusDeps(
   // (/new, /resume, /fork, /clone re-fire session_start after session_shutdown, F10)
   // clear any prior timer and reset state: the first tick of a session always probes.
   pi.on("session_start", (_event, ctx) => {
+    // The gate's counters are per session: a rebind (/new, /resume, /fork, /clone)
+    // re-fires this handler, and the new session must not inherit the old one's numbers.
+    memStatus.captured = 0;
+    memStatus.fetched = 0;
+    publishMemStatus(ctx);
     if (busTimer !== null) {
       try {
         busDeps.clearInterval(busTimer);
