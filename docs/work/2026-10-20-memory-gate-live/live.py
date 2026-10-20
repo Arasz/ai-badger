@@ -80,10 +80,17 @@ def install(rev):
     return sorted(p.name for p in EXT.iterdir() if p.suffix in (".ts", ".json"))
 
 
-def pick_pattern(gate):
-    """A pattern the gate has not searched for this project and that the bank answers."""
+def pick_pattern(gate, exclude=()):
+    """A pattern the gate has not searched for this project and that the bank answers.
+
+    *exclude* holds patterns already picked: the gate records a pattern as searched only
+    when it fires, so two picks in one run must be different strings or the second grep
+    finds an already-searched pattern and carries no context.
+    """
     project = gate.project_id(str(REPO))
     for pattern in CANDIDATES:
+        if pattern in exclude:
+            continue
         if not gate.unsearched(project, [pattern]):
             continue
         query, _ = gate.search_query([pattern])
@@ -236,6 +243,48 @@ def live_hook_guard(gate):
     }
 
 
+def live_two_greps(gate, outdir, rev=FIXED_REV, label="two_greps"):
+    """Two gate hits in ONE turn, on the adapter at *rev*.
+
+    ADR-0045 claims the fixed delivery "costs nothing" and "stays in the transcript": the
+    second search's memory result rides its own tool result, the first one is still in the
+    transcript when the model makes the second call, and neither costs an extra model call.
+    The pre-fix arm is the control: the same two greps, the same prompt, the old adapter.
+    """
+    install(rev)
+    first = pick_pattern(gate)
+    second = pick_pattern(gate, exclude={first})   # a different unseen pattern
+    session_dir = Path("/tmp/memgate-live-sessions") / f"session-{label}"
+    session_dir.mkdir(parents=True, exist_ok=True)
+    prompt = (f"Use the grep tool exactly twice: first with pattern {first} and path "
+              f"features, then with pattern {second} and path features. Then stop.")
+    proc, records = run_pi(prompt, session_dir)
+    (outdir / f"{label}.jsonl").write_text(proc.stdout, encoding="utf-8")
+    analysis = analyze(records)
+    tool_calls = 0
+    for rec in records:
+        if rec.get("type") != "message_end":
+            continue
+        for block in (rec.get("message") or {}).get("content") or []:
+            if isinstance(block, dict) and block.get("type") == "toolCall":
+                tool_calls += 1
+    return {
+        "adapter_rev": rev,
+        "patterns": [first, second],
+        "prompt": prompt,
+        "exit": proc.returncode,
+        "tool_calls": tool_calls,
+        "analysis": analysis,
+        "verdict": {
+            "both_blocks_on_tool_results": analysis["tool_results_with_block"] >= 2,
+            "no_block_in_a_message": not analysis["messages_with_block"],
+            "one_user_message": len(analysis["user_messages"]) == 1,
+            "one_agent_run": analysis["agent_runs"] == 1,
+            "turns": analysis["turns"],
+        },
+    }
+
+
 def live_no_hit_call(gate, outdir):
     """A live run whose pattern the bank cannot answer: the gate has nothing to hand the
     model, so it lets the call through and carries nothing — nothing may ride along to a
@@ -278,22 +327,33 @@ def live_no_hit_call(gate, outdir):
 
 def main():
     outdir = Path(sys.argv[1])
+    only = sys.argv[2] if len(sys.argv) > 2 else None
     outdir.mkdir(parents=True, exist_ok=True)
     gate = load("gate", SCRIPTS / "memory_first_gate.py")
     results = {}
+    live_json = outdir / "live.json"
+    if only:
+        results = json.loads(live_json.read_text(encoding="utf-8")) if live_json.exists() else {}
 
-    results["prefix"] = live_pi_run("prefix", PRE_FIX_REV, gate, outdir)
-    results["postfix"] = live_pi_run("postfix", FIXED_REV, gate, outdir)
-    results["hook_guard"] = live_hook_guard(gate)
-    results["no_hit_call"] = live_no_hit_call(gate, outdir)
+    if only in (None, "prefix"):
+        results["prefix"] = live_pi_run("prefix", PRE_FIX_REV, gate, outdir)
+    if only in (None, "postfix"):
+        results["postfix"] = live_pi_run("postfix", FIXED_REV, gate, outdir)
+    if only in (None, "hook_guard"):
+        results["hook_guard"] = live_hook_guard(gate)
+    if only in (None, "no_hit_call"):
+        results["no_hit_call"] = live_no_hit_call(gate, outdir)
+    if only in (None, "two_greps"):
+        results["two_greps"] = live_two_greps(gate, outdir)
+        results["two_greps_prefix"] = live_two_greps(gate, outdir, PRE_FIX_REV, "two_greps_prefix")
 
     install(None)   # leave the user-scope extension on the current working tree
-    (outdir / "live.json").write_text(json.dumps(results, indent=2), encoding="utf-8")
-    for key in ("prefix", "postfix"):
-        print(key, json.dumps(results[key]["verdict"]))
-    print("hook_guard", json.dumps(results["hook_guard"]["verdict"]))
-    print("no_hit_call", json.dumps(results["no_hit_call"]["verdict"]))
-    print("wrote", outdir / "live.json")
+    live_json.write_text(json.dumps(results, indent=2), encoding="utf-8")
+    for key in ("prefix", "postfix", "hook_guard", "no_hit_call", "two_greps",
+                "two_greps_prefix"):
+        if key in results:
+            print(key, json.dumps(results[key]["verdict"]))
+    print("wrote", live_json)
 
 
 if __name__ == "__main__":

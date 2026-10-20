@@ -202,6 +202,37 @@ channel), but the *rule* still has to be made in pi-badger-integration: `rag-cor
 `memory_context.py`'s `injected_turn()` now does. Until then, any pi extension that
 delivers a memory block as a message can still drive a session by its own context.
 
+## Check E — Two gate hits in one turn: the "costs nothing" claim, by contrast
+
+ADR-0045's second claim is that the fixed delivery "costs nothing" and "stays in the
+transcript" — the result is model-side, it is persisted, and it costs no extra model call.
+The A/B for that is one prompt, **two** greps, two adapters:
+
+| | post-fix (0.210.0) | pre-fix (0.209.0) |
+|---|---|---|
+| blocks on tool results | **2** (one per call, in front of the grep output) | 0 |
+| blocks in a message | 0 | **2** |
+| user messages | 1 | 1 |
+| agent runs | 1 | 1 |
+| **turns** | **2** | **6** |
+
+The pre-fix transcript is the defect in miniature: the model does both greps in one turn
+and answers — and *then* the two memory blocks arrive as separate messages, and the model
+answers each one in turn, re-running the search itself, reading `get-raw-text-search` and
+reporting "raw" grep output. Four extra turns and four extra tool calls that the person
+never asked for, all of it caused by the retrieval result being read as a request.
+
+The post-fix transcript: one turn issues both greps, each result carries its own block in
+front of the grep output, one final answer. Nothing extra, and both blocks are still in the
+transcript for every later call — which is exactly the property the tool-result channel
+buys.
+
+*(A first attempt at this check returned \`both_blocks_on_tool_results: false\` — a harness
+bug, not a finding: \`pick_pattern()\` handed out the same pattern twice, and the gate
+records a pattern as searched only when it fires, so the second grep found an
+already-searched pattern and legitimately carried no context. Fixed by excluding the
+already-picked pattern.)*
+
 ## Notes for the next run
 
 - The gate's "already searched" store lives in `~/.ai-badger/ai-badger.db` (the `hook_state`
