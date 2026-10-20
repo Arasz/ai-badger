@@ -2,6 +2,8 @@
 
 Date: 2026-10-19
 Status: Accepted
+Amended by: ADR-0042 (the parent-side path discovers the members; the explicit path below
+still does not)
 
 ## Context
 
