@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any, NamedTuple, Optional
 
 import pytest
+from conftest import _test_write
 
 from memory_context_support import FIXTURES, ROOT, load_module, memory_context_env  # noqa: F401
 
@@ -221,16 +222,16 @@ def registry(tmp_path: Path, medium_id=None) -> Path:
     doc = json.loads((ROOT / "features" / "common" / "data" / "model-groups.json")
                      .read_text(encoding="utf-8"))
     if medium_id is not None:
-        doc["groups"]["medium"][0]["id"] = medium_id
+        doc["groups"]["medium"]["models"][0]["id"] = medium_id
     path = tmp_path / f"registry-{medium_id is not None}.json"
-    path.write_text(json.dumps(doc), encoding="utf-8")
+    _test_write(path, json.dumps(doc), encoding="utf-8")
     return path
 
 
 def test_pl5_model_table(tmp_path):
     resolver = load_resolver(tmp_path)
     good = registry(tmp_path)
-    medium = json.loads(good.read_text(encoding="utf-8"))["groups"]["medium"][0]["id"]
+    medium = json.loads(good.read_text(encoding="utf-8"))["groups"]["medium"]["models"][0]["id"]
     assert medium.startswith("openrouter/")
     table = [
         ("vendor/m", None, None, "vendor/m"),

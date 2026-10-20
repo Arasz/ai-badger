@@ -273,6 +273,16 @@ def test_v8_enums_are_closed(load_script):
         assert loc in _error_locs(excinfo), label
 
 
+def test_level_accepts_every_model_group(load_script):
+    """A plan step's level is a model group, and the map has four of them
+    (ADR-0043, docs/adr/0043-model-group-and-thinking-level-split.md)."""
+    model = load_script(MODEL_RELPATH)
+    assert [level.value for level in model.Level] == ["low", "medium", "high", "top"]
+    for level in ("low", "medium", "high", "top"):
+        plan = model.TaskPlan.model_validate(_step_plan(level=level))
+        assert plan.workflow.steps["s1"].level.value == level
+
+
 def test_v9_schema_version_is_one_and_revision_non_negative(load_script):
     model = load_script(MODEL_RELPATH)
     _invalid(model, _plan(schema_version=2), "Input should be 1")

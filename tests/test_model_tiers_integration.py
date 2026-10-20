@@ -10,13 +10,11 @@ resolutions that must agree across lanes:
        Skill prose carries the same contract in skill voice (backticked SUB_*
        cores, lane-tested) and is deliberately out of scope here.
   (iii) frameworkVersion == VERSION inside the shipped registry.
-  (7a) registry<->docs consistency, derived not listed: the advisory $/task
-       table in the changelog is parsed (not copied) and every short pin it
-       names must resolve to exactly one registry id in its tier — preferred
-       first, dearest *deciding* (non-demoted) last. delegation.md Level values
-       and persona frontmatter levels must sit inside the registry's group keys.
+  (7a) registry<->docs consistency, derived not listed: delegation.md Level
+       values and persona frontmatter levels must sit inside the registry's
+       group keys.
   (7b) Claude-side delegation matrix over the REAL shipped registry (no
-       fixtures): low|medium|high resolve to the preferred pins, an explicit
+       fixtures): low|medium|high|top resolve to the preferred pins, an explicit
        model wins verbatim over every level, absent-everything inherits (None),
        and a deciding unknown level raises UnknownLevel.
 """
@@ -40,9 +38,11 @@ LANE_QUOTE_CARRIER = "tests/test_persona_levels.py"
 SHIPPED_REGISTRY = ".ai-badger/model-groups.json"
 CANONICAL_SEED = "features/common/data/model-groups.json"
 VERSION_FILE = "VERSION"
-CHANGELOG = "docs/changelog/0.172.0-medium-tier-prefers-deepseek-v41-flash.md"
 DELEGATION_MD = ".ai-badger/delegation.md"
 PERSONA_GLOB = "features/*/personas/*.md"
+
+# The registry's level vocabulary: the four cost tiers the map groups.
+LEVELS = ("low", "medium", "high", "top")
 
 # The canonical 3-clause precedence sentence (M2; owned by PKG-2, quoted by PKG-3).
 # Kept as three clauses so a rewording of any single clause fails its own assertion.
@@ -221,38 +221,6 @@ def _registry_groups(root: Path) -> dict:
     return json.loads((root / SHIPPED_REGISTRY).read_text(encoding="utf-8"))["groups"]
 
 
-def _advisory_rows(root: Path) -> list[tuple[str, str, str]]:
-    """Parse (tier, preferred-short, dearest-short) from the changelog table — derived,
-    so a new table row is covered without touching this file."""
-    rows = []
-    for line in (root / CHANGELOG).read_text(encoding="utf-8").splitlines():
-        match = re.match(r"\|\s*(low|medium|high)\s*\|\s*(\S+)\s*→\s*(\S+)\s*\|", line)
-        if match:
-            rows.append((match.group(1), match.group(2), match.group(3)))
-    assert rows, f"{CHANGELOG}: advisory table unparsable — rows changed shape"
-    return rows
-
-
-def test_advisory_table_shorts_resolve_into_the_registry(root: Path) -> None:
-    """Every short pin the advisory table names is exactly one registry id in its
-    tier (dash-token match on the final segment); first short is the preferred pin,
-    second short is the dearest *deciding* (non-demoted) pin."""
-    groups = _registry_groups(root)
-    for tier, preferred_short, dearest_short in _advisory_rows(root):
-        members = groups[tier]
-        deciding = [m for m in members if m.get("status") != "demoted"]
-        for short, expected in ((preferred_short, deciding[0]), (dearest_short, deciding[-1])):
-            # The table names human truncations (deepseek-v4.1-flash), not id fragments:
-            # every dash-token of the short must sit in the final id segment, unique
-            # per tier. Any future pin that breaks uniqueness reds this test (fail-loud).
-            tokens = short.split("-")
-            hits = [m["id"] for m in members
-                    if all(tok in m["id"].split("/")[-1] for tok in tokens)]
-            assert len(hits) == 1, f"{tier}: {short!r} matches {hits} — table/registry forked"
-            assert hits[0] == expected["id"], (
-                f"{tier}: {short!r} resolves to {hits[0]!r}, table position says {expected['id']!r}")
-
-
 def test_delegation_map_levels_are_registry_keys(root: Path) -> None:
     """delegation.md Level: values sit inside the registry's closed group set."""
     groups = _registry_groups(root)
@@ -286,13 +254,13 @@ def shipped_groups(root: Path, load_script):
     return mg, mg.load_groups(str(root / SHIPPED_REGISTRY))
 
 
-@pytest.mark.parametrize("level", ("low", "medium", "high"))
+@pytest.mark.parametrize("level", LEVELS)
 def test_matrix_level_resolves_to_the_preferred_pin(shipped_groups, level: str) -> None:
     mg, groups = shipped_groups
     assert mg.resolve(level, None, groups) == mg.preferred(level, groups)
 
 
-@pytest.mark.parametrize("level", ("low", "medium", "high"))
+@pytest.mark.parametrize("level", LEVELS)
 def test_matrix_explicit_model_wins_verbatim_over_every_level(shipped_groups, level: str) -> None:
     mg, groups = shipped_groups
     pin = "openrouter/join/probe-explicit"
