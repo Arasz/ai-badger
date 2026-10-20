@@ -44,13 +44,16 @@ def mod(load_script):
 #
 # Provenance: copied by hand from docs/work/research-lanes/r4-jev-decisions.md §3 (the tier
 # prompt) and §4 (the wave-pair prompt), read 2026-09-28. These literals are the oracle; the
-# module must never read the research record at runtime (plan R2-F19).
+# module must never read the research record at runtime (plan R2-F19). The `top` entry is
+# the one addition: ADR-0043 gave the model groups a fourth member, and this classifier
+# proposes a step's group.
 TIER_INSTRUCTION = ("Which model tier is sufficient to implement this step as specified? "
                     "Judge the derivation the step demands, not its size.")
 TIER_CRITERIA = {
     "low": "Mechanical, single-file or rename-level change",
     "medium": "Multi-file change needing judgement",
     "high": "Design, debugging, architecture",
+    "top": "Frontier judgement: novel architecture, or a high-stakes irreversible call",
 }
 WAVE_INSTRUCTION = ("Both steps are ready (their dependencies are done). May they run as "
                     "concurrent lanes in this wave, each in its own worktree?")
@@ -543,8 +546,26 @@ def test_tier_high_at_the_gate_proposes_an_upgrade(mod):
     assert mod.propose_tier(STEP, make_answer(mod, "high", 0.6)) == mod.TierProposal("high", 0.6)
 
 
+def test_tier_top_at_the_gate_proposes_the_top_group(mod):
+    """The fourth group is answerable, and answering it is an upgrade like `high`."""
+    assert mod.propose_tier(STEP, make_answer(mod, "top", 0.6)) == mod.TierProposal("top", 0.6)
+
+
+def test_tier_criteria_carry_the_frameworks_four_model_groups(mod, load_script):
+    """The classifier's answer set is the framework's group vocabulary, not a copy of it.
+
+    ADR-0043 added `top` to the model groups, and this classifier proposes a step's group.
+    A hand-kept copy of the vocabulary is how the two drift apart, so the guard reads the
+    vocabulary from the owner of it.
+    """
+    mg = load_script("features/common/skills/task/scripts/model_groups.py")
+    assert set(mod.TIER_CRITERIA) == set(mg.VALID_LEVELS)
+    assert set(mod.TIER_CRITERIA) == {"low", "medium", "high", "top"}
+
+
 @pytest.mark.parametrize("choice,confidence", [
     ("medium", 1.0), ("low", 1.0), ("high", 0.59), ("high", float("nan")),
+    ("top", 0.59), ("top", float("nan")),
 ])
 def test_tier_never_demotes_and_never_proposes_below_the_gate(mod, choice, confidence):
     assert mod.propose_tier(STEP, make_answer(mod, choice, confidence)) is None

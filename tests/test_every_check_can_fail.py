@@ -572,7 +572,63 @@ def _task_graph_server_check_missing_schema(work: Path, provoked: bool) -> Outco
     return _run_gate(TASK_GRAPH_SERVER, "--check", "--root", str(root))
 
 
-# ----------------------------------------------- tooling/validate.py --all (five sub-checks)
+def _generate_model_map_check(work: Path, provoked: bool) -> Outcome:
+    """The model map drifting from the sources its generator re-renders.
+
+    The fixture is a miniature source set: a four-row leaderboard (one row per cost tier,
+    each an Anthropic line so every group's primary anchor has a member), a model store
+    carrying the openrouter listing of each row, and a catalogue snapshot. The real generator
+    renders the map from them, and the provocation edits that rendered map. Nothing here
+    reads or writes the repository's own map.
+    """
+    data = work / "tree" / "data"
+    data.mkdir(parents=True, exist_ok=True)
+    rows = [
+        ("1", "Claude Haiku 5.5", "0.1", "0.5"),
+        ("2", "Claude Sonnet 5.5", "2", "10"),
+        ("3", "Claude Opus 5.5", "4", "20"),
+        ("4", "Claude Fable 5.1", "10", "50"),
+    ]
+    header = ("rank,model,creator,sourceType,overallScore,evidenceStatus,interval90Lower,"
+              "interval90Upper,coding,agentic,reasoning,knowledge,math,multimodalGrounded,"
+              "multilingual,instructionFollowing,inputPrice,outputPrice,intervalScope,"
+              "intervalCoverageValidated,orderingMeaning")
+    lines = [header]
+    for rank, model, price_in, price_out in rows:
+        lines.append(",".join([
+            f'"{rank}"', f'"{model}"', '"Anthropic"', '"Proprietary"', '"80"', '"supported"',
+            '"0"', '"0"', '"0"', '"0"', '"0"', '"0"', '"0"', '"0"', '"0"', '"0"',
+            f'"{price_in}"', f'"{price_out}"', '""', '""', '"Point-estimate order."']))
+    _write(data / "leaderboard.csv", "\n".join(lines) + "\n")
+
+    listings = [{"id": f"anthropic/{model.split()[1].lower()}-{model.split()[2]}",
+                 "name": f"Anthropic: {model}",
+                 "cost": {"input": float(price_in), "output": float(price_out)}}
+                for _, model, price_in, price_out in rows]
+    _write(data / "models-store.json",
+           json.dumps({"openrouter": {"models": listings}}, indent=2) + "\n")
+    _write(data / "openrouter-models.json",
+           json.dumps({"source": "https://openrouter.ai/api/v1/models",
+                       "checkedAt": "2026-10-20",
+                       "ids": sorted(item["id"] for item in listings)}, indent=2) + "\n")
+
+    out = data / "model-groups.json"
+    sources = ["--leaderboard", str(data / "leaderboard.csv"),
+               "--catalogue", str(data / "openrouter-models.json"),
+               "--store", str(data / "models-store.json"),
+               "--out", str(out)]
+    rendered = _run_gate("tooling/generate_model_map.py", *sources)
+    assert rendered.exit_code == 0, f"fixture setup failed:\n{rendered.output}"
+
+    if provoked:
+        document = json.loads(out.read_text(encoding="utf-8"))
+        document["groups"]["low"]["models"][0]["pricing"]["inputPerM"] = 99
+        _write(out, json.dumps(document, indent=2) + "\n")
+
+    return _run_gate("tooling/generate_model_map.py", "--check", *sources)
+
+
+# ----------------------------------------------- tooling/validate.py --all (six sub-checks)
 
 # Loaded for HOOK_CAPABLE_AGENTS: spelling the agent names here would let the tuple grow
 # without the fixture growing with it, and a manifest naming every agent would stop meaning it.
@@ -678,6 +734,27 @@ def _validate_all_instance_fails_its_schema(work: Path, provoked: bool) -> Outco
     root = _validate_tree(work)
     stack = {"nope": True} if provoked else {"name": "demo", "description": "a demo stack"}
     _write(root / "features" / "demo" / "stack.json", json.dumps(stack))
+    return _validate_all(root)
+
+
+def _validate_all_model_map_invariants(work: Path, provoked: bool) -> Outcome:
+    """A shipped model map whose member order breaks the leaf's invariants.
+
+    The provocation moves a zero-priced open-weight member ahead of a priced one, the
+    order the leaf refuses because a zero price has no position in the order. The clean
+    fixture is the shipped map itself, so the check has something real to pass.
+    """
+    root = _validate_tree(work)
+    _write(root / "features" / "demo" / "stack.json",
+           json.dumps({"name": "demo", "description": "a demo stack"}))
+    document = json.loads(
+        (ROOT / "features" / "common" / "data" / "model-groups.json")
+        .read_text(encoding="utf-8"))
+    if provoked:
+        members = document["groups"]["low"]["models"]
+        members[1], members[2] = members[2], members[1]
+    _write(root / "features" / "demo" / "data" / "model-groups.json",
+           json.dumps(document, indent=2) + "\n")
     return _validate_all(root)
 
 
@@ -991,6 +1068,9 @@ REGISTRY: Tuple[Provocation, ...] = (
                 "the checked-in task-plan schema is missing from the tree",
                 _task_graph_server_check_missing_schema,
                 Signal(exit_code=1, contains="missing")),
+    Provocation("tooling/generate_model_map.py --check",
+                "the model map drifting from the sources it is rendered from",
+                _generate_model_map_check, Signal(exit_code=1, contains="drifted")),
     Provocation("features/common/skills/review-tests/scripts/rules_index.py --check",
                 "walk-review.md left stale after generation",
                 _rules_index_check, Signal(exit_code=1, contains="stale")),
@@ -1003,6 +1083,10 @@ REGISTRY: Tuple[Provocation, ...] = (
     Provocation("tooling/validate.py --all", "a catalog file that fails its own schema",
                 _validate_all_instance_fails_its_schema,
                 Signal(exit_code=1, contains="INVALID  features/demo/stack.json")),
+    Provocation("tooling/validate.py --all", "a model map whose member order breaks the "
+                                             "leaf's invariants",
+                _validate_all_model_map_invariants,
+                Signal(exit_code=1, contains="model-groups registry invariants")),
     Provocation("tooling/validate.py --all", "a hook reaching one agent, nothing said about "
                                              "the rest",
                 _validate_all_hook_agent_gap,
@@ -1064,7 +1148,7 @@ def _declares_check_flag(text: str) -> bool:
 def _declares_all_flag(text: str) -> bool:
     """True when a script exposes an `--all` whole-tree verification mode on its CLI.
 
-    validate.py --all is the largest check this repo runs — five sub-checks, wired into CI —
+    validate.py --all is the largest check this repo runs — six sub-checks, wired into CI —
     and it spells its flag `--all`, so a discovery predicate that only knew `--check` never saw
     it (the 2026-08-07 review's A4).
     """

@@ -128,6 +128,11 @@ FEATURE_JSON_WITHOUT_SCHEMA: Dict[str, str] = {
         "the ai-badger provenance manifest for the vendored Archify packet (ADR-0030); "
         "tooling/vendor_archify.py --check and tests/test_archify_vendor.py are its "
         "validators, and a schema here would be a second copy of that shape",
+    "features/*/data/openrouter-models.json":
+        "a snapshot of OpenRouter's model catalogue (the ids it carries on the checked "
+        "date), read by tooling/generate_model_map.py to decide which ids the model map "
+        "may name; its shape is the upstream catalogue's, and the generator that reads it "
+        "is its validator",
 }
 
 # FEATURE_JSON_WITHOUT_SCHEMA globs that exempt the vendored Archify packet (ADR-0030) rather
@@ -408,15 +413,15 @@ def model_groups_leaf():
 
 
 def model_registry_gaps(root: Path) -> List[str]:
-    """Machine invariants over every model-groups registry instance under root.
+    """Machine invariants over every model map instance under root.
 
     The schema half is checked by the SCHEMA_INSTANCES loop; this is the half draft
-    2020-12 cannot express (preferred-first, lexicographic price order with the
-    demoted-tail exemption, per-group uniqueness, tail position, weights identity).
-    validate.py is the single enforcer: the rules live in the leaf's pure
-    validate_registry and are duplicated nowhere. Unconditional on present files — no
-    git touched/untouched gating, so stub trees and tmp checkouts get the same answer;
-    a tree with no instance reports no gap (absence is the L0 suite's and the
+    2020-12 cannot express (one anchor per declared family per group, the open-weight
+    price rule, one preferred member per group and its position, the price order,
+    per-group id uniqueness). validate.py is the single enforcer: the rules live in the
+    leaf's pure validate_map and are duplicated nowhere. Unconditional on present files
+    — no git touched/untouched gating, so stub trees and tmp checkouts get the same
+    answer; a tree with no instance reports no gap (absence is the L0 suite's and the
     scaffold's concern, not this gate's).
     """
     leaf = model_groups_leaf()
@@ -430,7 +435,7 @@ def model_registry_gaps(root: Path) -> List[str]:
             gaps.append(f"{path.relative_to(root).as_posix()}: unreadable ({exc})")
             continue
         gaps.extend(f"{path.relative_to(root).as_posix()}: {error}"
-                    for error in leaf.validate_registry(doc, source=path))
+                    for error in leaf.validate_map(doc, source=path))
     return gaps
 
 

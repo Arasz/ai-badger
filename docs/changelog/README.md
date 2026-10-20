@@ -19,6 +19,7 @@ When cutting a release:
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
+| 0.208.0 | [the model map, and a group that means what it says](0.208.0-the-model-map.md) |
 | 0.207.4 | [A collection can be initialized from the parent side](0.207.4-parent-side-collection-initialization.md) |
 | 0.207.3 | [the memory-first gate goes quiet: the memory result is the agent's, not the user's](0.207.3-quiet-memory-first-gate.md) |
 | 0.207.2 | [the shared parent scope, reviewed](0.207.2-shared-parent-scope-review-fixes.md) |

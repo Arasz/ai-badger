@@ -188,3 +188,55 @@ The first commit is a failing test, one behaviour at a time.
   changed CSV changes only what it should.
 - The registry validator accepts a zero-priced open-weight member and still refuses a
   group with no preferred member.
+
+## Appendix: the old registry against the map
+
+Recorded while the map was built, so the rewrite of the consumers that assert on the old
+seed does not have to rediscover it. The old seed pinned ten ids the leaderboard has no
+row for, and those ids are gone from the map: `glm-5.3-flash`, `deepseek-v4-flash-0731`,
+`xiaomi/mimo-v2.5`, `anthropic/claude-haiku-4.5`, `deepseek-v4.1-flash`,
+`xiaomi/mimo-v2.5-pro`, `deepseek-v4-pro`, `anthropic/claude-sonnet-5`,
+`meta/muse-spark-1.3` and `meta/muse-spark-1.3-contributor`, the last being the demoted
+tail together with its weights-identity twin. Seven of the old pins survive under the
+same spelling: `openai/gpt-5.6-luna`, `deepseek/deepseek-v4-pro-0813`, `z-ai/glm-5.3`,
+`openai/gpt-5.6-sol`, `openai/gpt-5.6-terra`, `anthropic/claude-opus-5` and
+`anthropic/claude-fable-5.1`.
+
+Thirteen of the leaderboard's fifty rows are not in the map, and the reasons differ.
+Seven have no id pi's openrouter catalogue can resolve: Muse Wonder Full, Kimi K3,
+Grok 4.5, Grok 4.6, Gemini 3.1 Pro, Qwen3.8-Flash-Next and Ornith-1.5-397B, the first
+four of which the store lists only under github-copilot and radius. Five resolve but
+carry no price in the leaderboard, so they have no tier: Qwen3.8 Max, Ling 3.1 Flash,
+Muse Spark 1.1, Muse Spark Open and Qwen3.7 Max. One resolves only to a free listing
+while the leaderboard prices it above zero, which would bind a paid price to a free id:
+MiniMax M3.1 Flash.
+
+Those five unpriced rows are a gap in the leaderboard, not in the map. The CSV is the
+pricing source by the owner's ruling, so the prices belong there, and the refresh step
+has to name the unpriced rows rather than drop them quietly. Two of the five carry a
+price in the MODEL/LICENSE table that the CSV lacks, which is a measure of how far the
+two snapshots have drifted, not a reason to merge them.
+
+The tier a group resolves to was the open question, and it is decided: a group resolves
+to its anchor, not to its cheapest member. The band shape stays (all 25 members, the
+free open-weight tail included), and three fields make the anchor load-bearing: every
+member carries the family it belongs to, every group names the `primary` anchor whose
+model leads it, and the group's preferred member is the member whose family is that
+anchor's name. The order rule changes with it: the preferred member first, then the rest
+in ascending price, the zero-priced open-weight members last because they have no price
+position. `high` therefore resolves to `openrouter/anthropic/claude-opus-5.5` rather than
+to the cheapest model the tier happened to hold.
+
+The anchor wins because the owner's ladder is a statement about models: high is opus,
+medium is sonnet, low is haiku, top is fable or astra. A tier that resolved to whatever
+it held cheapest would say the opposite, and the anchors would be decoration on the open
+harness. The ladder shape (one member per anchored family per group) was measured as an
+alternative and rejected: it collapses each tier to two members, drops the free
+open-weight members, and leaves the price rule's zero-price branch exercised only by
+fixtures. The ruling is cheap to reverse: the map is data plus one invariant, and the
+render is one pass.
+
+Neither shape makes a free member the resolved one, because a zero price has no position
+in the order. The 402 that started this stays open on pi until the billing-error retry
+lands in the extension, or a tier grows an explicit free-first preference. That is a
+separate decision and is not folded in here.
