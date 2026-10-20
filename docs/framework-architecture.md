@@ -198,7 +198,7 @@ into every agent file, its prerequisite and its install command. `welcome-ai-bad
 | Server | What it does |
 |---|---|
 | [**code-review-graph**](https://github.com/tirth8205/code-review-graph) | Local-first code intelligence graph for MCP. Builds a persistent map of your codebase so AI coding tools read only what matters, used for code review, impact analysis, and architecture exploration. |
-| [**ai-raccoon**](https://github.com/Arasz/ai-raccoon) | Project memory server: semantic search, durable-fact writes, workspaces, docs watching. Declared only when `ai-raccoon` is on PATH. |
+| [**ai-raccoon**](https://github.com/Arasz/ai-raccoon) | Memory server: semantic search, durable-fact writes, workspaces, docs watching. Declared only when `ai-raccoon` is on PATH, and user-scoped: the operator registers it once, in a user-global config, so no project file carries it ([ADR-0044](adr/0044-project-scope-decision-for-an-mcp-server.md)). |
 | [**semantica**](https://github.com/semantica-agi/semantica) | Graph-native knowledge infrastructure: entity extraction, decisions with W3C PROV-O provenance, causal chains. Declared only when `semantica-mcp` is on PATH. |
 | [**playwright**](https://playwright.dev/docs/getting-started-mcp) | Browser automation over MCP: accessibility snapshots, element refs, network inspection. Declared only when `npx` is available, since it launches through `npx -y`. |
 | [**hermes**](https://hermes-agent.nousresearch.com/docs/user-guide/features/mcp#running-hermes-as-an-mcp-server) | Hermes Agent's stdio MCP bridge: list conversations, read history, poll live events, send messages, manage approvals. Declared only when `hermes` is on PATH. |
@@ -211,7 +211,11 @@ task-graph. `aspire` is catalogued in `features/aspire/mcp/` and is the Aspire C
 written into `.mcp.json` during scaffold
 ([ADR-0014](adr/0014-mcp-support-is-configuration-not-retrieval.md)). Availability is per server:
 `hermes`, `ai-raccoon`, `semantica` and `playwright` each depend on their own launcher being
-present, while `code-review-graph` and `task-graph` carry no availability condition.
+present, while `code-review-graph` and `task-graph` carry no availability condition. A server
+can also carry a `scope`: `project` (the default) means ai-badger writes its launch config into
+the project files it owns, `user` means the operator registers it in a user-global config and
+ai-badger writes it nowhere. A project overrides that decision for a named server with
+`config.mcp.scope` ([ADR-0044](adr/0044-project-scope-decision-for-an-mcp-server.md)).
 
 > **Hermes users:** Hermes reads MCP servers only from `~/.hermes/config.yaml`
 > (`mcp_servers:`). It has no project route, so a server written to `.mcp.json` is

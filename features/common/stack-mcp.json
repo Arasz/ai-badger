@@ -18,6 +18,7 @@
       "name": "ai-raccoon",
       "command": "ai-raccoon",
       "declare": true,
+      "scope": "user",
       "availability": {
         "command": "ai-raccoon"
       }

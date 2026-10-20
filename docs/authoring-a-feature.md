@@ -216,6 +216,21 @@ decision 6):
 A server named in `config.mcp.decline` is not declared at all, and is removed from `.mcp.json`
 and `.github/mcp.json` if an earlier run wrote it.
 
+**Where a project disagrees with the catalog about the scope.** A server's scope is `project`
+(the default) or `user`, and the catalog in `stack-mcp.json` carries the framework's opinion
+about it. `config.mcp.scope` is the project's own decision about a named server, and it
+overrides the catalog in either direction
+([ADR-0044](adr/0044-project-scope-decision-for-an-mcp-server.md)):
+
+```json
+{ "mcp": { "scope": { "ai-raccoon": "user" } } }
+```
+
+`user` means the server is in no project file: ai-badger writes it into none of them, removes
+an entry an earlier run wrote, and proposes the registration for the operator's user-global
+config. `project` means the launch config is written into the project's files as usual.
+`config.mcp.decline` wins over both — a declined server is refused outright.
+
 ## Adding a new skill (or a `task` extension)
 
 **A standalone, installable skill:**

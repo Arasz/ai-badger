@@ -29,12 +29,6 @@
         "*"
       ]
     },
-    "ai-raccoon": {
-      "command": "ai-raccoon",
-      "tools": [
-        "*"
-      ]
-    },
     "semantica": {
       "command": "semantica-mcp",
       "env": {

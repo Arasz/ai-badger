@@ -19,6 +19,7 @@ When cutting a release:
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
+| 0.209.0 | [A project's own scope decision for an MCP server](0.209.0-project-scope-decision-for-an-mcp-server.md) |
 | 0.208.1 | [The raw text-search capture stops losing its result](0.208.1-raw-text-search-capture-defects.md) |
 | 0.208.0 | [the model map, and a group that means what it says](0.208.0-the-model-map.md) |
 | 0.207.4 | [A collection can be initialized from the parent side](0.207.4-parent-side-collection-initialization.md) |
