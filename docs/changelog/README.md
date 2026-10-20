@@ -19,6 +19,7 @@ When cutting a release:
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
+| 0.210.2 | [The memory gate's footer status](0.210.2-memory-gate-footer-status.md) |
 | 0.210.1 | [A nested call's memory result reaches the model again](0.210.1-nested-call-memory-result.md) |
 | 0.210.0 | [The memory context never feeds itself](0.210.0-memory-context-never-feeds-itself.md) |
 | 0.209.0 | [A project's own scope decision for an MCP server](0.209.0-project-scope-decision-for-an-mcp-server.md) |
