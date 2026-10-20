@@ -47,7 +47,7 @@ import {
   type PostOutcome,
   splitMailCard,
 } from "./hook-bridge.ts";
-import { countCaptured, formatMemStatus, isRawSearchFetch } from "./mem-status.ts";
+import { capturedHashes, formatMemStatus, isRawSearchFetch, readRawFetchOutcome } from "./mem-status.ts";
 import {
   advanceAllowed,
   compactingActive,
@@ -360,16 +360,17 @@ export default async function (pi: ExtensionAPI, busDeps: BusDeps = realBusDeps(
   /** The gate's model-side context, stashed per tool call until that call's result carries
    * it. A blocked call never gets a result, so nothing is stashed for it. */
   const gateContext = new Map<string, string[]>();
-  /** The memory-first gate's counters for this session: what it captured, and what the
-   * agent fetched back. The footer shows both — a capture nobody fetches is cost
+  /** The memory-first gate's counters for this session: the handles it captured, and the
+   * ones the agent fetched back. The footer shows both — a capture nobody fetches is cost
    * without use. */
-  const memStatus = { captured: 0, fetched: 0 };
+  const memStatus = { captured: new Set<string>(), fetched: new Set<string>() };
   /** Writes the gate's footer segment; a session with no capture shows no status at all. */
   const publishMemStatus = (ctx: ExtensionContext): void => {
     try {
+      const captured = memStatus.captured.size;
       ctx.ui?.setStatus?.(
         "mem",
-        memStatus.captured > 0 ? formatMemStatus(memStatus) : undefined,
+        captured > 0 ? formatMemStatus({ captured, fetched: memStatus.fetched.size }) : undefined,
       );
     } catch {
       // The footer is cosmetic: never let it break the gate.
@@ -652,7 +653,7 @@ export default async function (pi: ExtensionAPI, busDeps: BusDeps = realBusDeps(
     const resolution = resolve(outcomes, { armed: away.armed(), hasUI: ctx.hasUI });
     // The memory-first gate's counters: what it captured on this call. The fetch counter
     // waits for the call to run — a denied or declined retrieval fetched nothing.
-    memStatus.captured += countCaptured(resolution.context);
+    for (const hash of capturedHashes(resolution.context)) memStatus.captured.add(hash);
     publishMemStatus(ctx);
     for (const notice of resolution.notices) ctx.ui.notify(notice, "warning");
     if (resolution.action === "block") {
@@ -686,11 +687,16 @@ export default async function (pi: ExtensionAPI, busDeps: BusDeps = realBusDeps(
   });
 
   pi.on("tool_result", async (event, ctx) => {
-    // The fetch counter: the call ran, so the raw result was fetched.
+    // The fetch counter: the call ran, so the raw result was fetched. Only a ready answer
+    // counts, and only once per handle — a `pending` answer is the skill's cue to retry, and
+    // reading one handle twice fetched one result.
     if (event.toolName === "bash") {
       const command = (event.input as { command?: unknown } | undefined)?.command;
       if (typeof command === "string" && isRawSearchFetch(command)) {
-        memStatus.fetched += 1;
+        const outcome = readRawFetchOutcome(event.content);
+        if (outcome?.ready && outcome.hash && memStatus.captured.has(outcome.hash)) {
+          memStatus.fetched.add(outcome.hash);
+        }
         publishMemStatus(ctx);
       }
     }
@@ -742,8 +748,8 @@ export default async function (pi: ExtensionAPI, busDeps: BusDeps = realBusDeps(
   pi.on("session_start", (_event, ctx) => {
     // The gate's counters are per session: a rebind (/new, /resume, /fork, /clone)
     // re-fires this handler, and the new session must not inherit the old one's numbers.
-    memStatus.captured = 0;
-    memStatus.fetched = 0;
+    memStatus.captured.clear();
+    memStatus.fetched.clear();
     publishMemStatus(ctx);
     if (busTimer !== null) {
       try {

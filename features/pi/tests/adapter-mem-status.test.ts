@@ -50,8 +50,15 @@ function fakeCtx(cwd: string): {
 	};
 }
 
+/** The handle the fake gate captured, and the command that fetches it back. */
+const CAPTURED_HASH = "a".repeat(64);
 const FETCH_COMMAND =
-	"python3 .ai-badger/skills/get-raw-text-search/scripts/get_raw_text_search.py --pattern-hash abc";
+	`python3 .ai-badger/skills/get-raw-text-search/scripts/get_raw_text_search.py --pattern-hash ${CAPTURED_HASH}`;
+
+/** A retrieval answer, as the script prints it. */
+function retrieval(status: string, hash = CAPTURED_HASH): Array<{ type: string; text: string }> {
+	return [{ type: "text", text: JSON.stringify({ status, hash }) }];
+}
 
 describe("the memory gate's footer status in pi", () => {
 	let dir: string;
@@ -162,7 +169,7 @@ describe("the memory gate's footer status in pi", () => {
 				toolName: "bash",
 				toolCallId: "call-2",
 				input: { command: FETCH_COMMAND },
-				content: [{ type: "text", text: '{"status":"ready"}' }],
+				content: retrieval("ready"),
 			},
 			ctx,
 		);
@@ -185,6 +192,77 @@ describe("the memory gate's footer status in pi", () => {
 		expect(ctx.statuses.at(-1)).toEqual(["mem", "[mem 1 0%]"]);
 	});
 
+	test("a pending retrieval is not a fetch yet — the skill retries it", async () => {
+		writeGate();
+		const { toolCall, toolResult } = await loadAdapter();
+		const ctx = fakeCtx(dir);
+
+		await capture(toolCall, toolResult, ctx);
+		await toolCall(
+			{ toolName: "bash", toolCallId: "call-2", input: { command: FETCH_COMMAND } },
+			ctx,
+		);
+		await toolResult(
+			{
+				toolName: "bash",
+				toolCallId: "call-2",
+				input: { command: FETCH_COMMAND },
+				content: retrieval("pending"),
+			},
+			ctx,
+		);
+
+		expect(ctx.statuses.at(-1)).toEqual(["mem", "[mem 1 0%]"]);
+	});
+
+	test("reading one handle twice fetched one result", async () => {
+		writeGate();
+		const { toolCall, toolResult } = await loadAdapter();
+		const ctx = fakeCtx(dir);
+
+		await capture(toolCall, toolResult, ctx);
+		for (const id of ["call-2", "call-3"]) {
+			await toolCall(
+				{ toolName: "bash", toolCallId: id, input: { command: FETCH_COMMAND } },
+				ctx,
+			);
+			await toolResult(
+				{
+					toolName: "bash",
+					toolCallId: id,
+					input: { command: FETCH_COMMAND },
+					content: retrieval("ready"),
+				},
+				ctx,
+			);
+		}
+
+		expect(ctx.statuses.at(-1)).toEqual(["mem", "[mem 1 100%]"]);
+	});
+
+	test("a retrieval the gate did not capture is not part of the ratio", async () => {
+		writeGate();
+		const { toolCall, toolResult } = await loadAdapter();
+		const ctx = fakeCtx(dir);
+
+		await capture(toolCall, toolResult, ctx);
+		await toolCall(
+			{ toolName: "bash", toolCallId: "call-2", input: { command: FETCH_COMMAND } },
+			ctx,
+		);
+		await toolResult(
+			{
+				toolName: "bash",
+				toolCallId: "call-2",
+				input: { command: FETCH_COMMAND },
+				content: retrieval("ready", "b".repeat(64)),
+			},
+			ctx,
+		);
+
+		expect(ctx.statuses.at(-1)).toEqual(["mem", "[mem 1 0%]"]);
+	});
+
 	test("a new session starts the counters over", async () => {
 		writeGate();
 		const { toolCall, toolResult, sessionStart } = await loadAdapter();
@@ -200,7 +278,7 @@ describe("the memory gate's footer status in pi", () => {
 				toolName: "bash",
 				toolCallId: "call-2",
 				input: { command: FETCH_COMMAND },
-				content: [{ type: "text", text: '{"status":"ready"}' }],
+				content: retrieval("ready"),
 			},
 			ctx,
 		);
