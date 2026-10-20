@@ -16,6 +16,9 @@ import {
   resolveSessionId,
   toClaudePayload,
   toClaudePostPayload,
+  takeGateContext,
+  withPreContext,
+  type GateContextStore,
   type GateOutcome,
   type PostOutcome,
 } from "../adjustments/adapter/hook-bridge.ts";
@@ -853,5 +856,45 @@ describe("an aborted-before-spawn hook is a silent cancellation", () => {
     ]);
     expect(post.notices).toHaveLength(1);
     expect(post.notices[0]).toContain("suite_economy_hook.py exited 1");
+  });
+});
+
+describe("the gate's context waits for its call's result, and only that call's", () => {
+  test("a stashed context is taken once, by its own call", () => {
+    const store: GateContextStore = new Map([["call-1", ["memory for call 1"]]]);
+    expect(takeGateContext(store, "call-1")).toEqual(["memory for call 1"]);
+    expect(store.size).toBe(0);
+    expect(takeGateContext(store, "call-1")).toEqual([]);
+  });
+
+  test("a call's nested calls travel with it", () => {
+    const store: GateContextStore = new Map([
+      ["call-1", ["memory for call 1"]],
+      ["call-1/0", ["memory for a nested call"]],
+      ["call-2", ["memory for call 2"]],
+    ]);
+    expect(takeGateContext(store, "call-1")).toEqual([
+      "memory for call 1",
+      "memory for a nested call",
+    ]);
+    expect(store.get("call-2")).toEqual(["memory for call 2"]);
+  });
+
+  test("another call's context is not taken", () => {
+    const store: GateContextStore = new Map([["call-1", ["memory for call 1"]]]);
+    expect(takeGateContext(store, "call-2")).toEqual([]);
+    expect(store.size).toBe(1);
+  });
+
+  test("no context leaves the tool's own result untouched", () => {
+    expect(withPreContext([{ type: "text", text: "out" }], [])).toBeUndefined();
+  });
+
+  test("the context is in front of the output it belongs to", () => {
+    const content = withPreContext([{ type: "text", text: "out" }], ["memory"]);
+    expect(content).toEqual([
+      { type: "text", text: "memory" },
+      { type: "text", text: "out" },
+    ]);
   });
 });

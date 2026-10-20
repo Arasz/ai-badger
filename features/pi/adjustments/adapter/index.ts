@@ -23,8 +23,8 @@ import {
   commandsForTool,
   createAwayState,
   createDeliveryRouter,
+  GATE_CONTEXT_MAX,
   hookLabel,
-  MEMORY_CONTEXT_CUSTOM_TYPE,
   parseDeliveryStdout,
   parseHookStdout,
   parsePostStdout,
@@ -37,7 +37,9 @@ import {
   toClaudeDeliveryPayload,
   toClaudePayload,
   toClaudePostPayload,
+  takeGateContext,
   withPostContext,
+  withPreContext,
   type ClaudeDeliveryPayload,
   type DeliveryOutcome,
   type GateOutcome,
@@ -354,6 +356,9 @@ async function runDelivery(
 }
 
 export default async function (pi: ExtensionAPI, busDeps: BusDeps = realBusDeps()) {
+  /** The gate's model-side context, stashed per tool call until that call's result carries
+   * it. A blocked call never gets a result, so nothing is stashed for it. */
+  const gateContext = new Map<string, string[]>();
   // Away mode lives here because pi has no API letting one extension answer another's dialog:
   // the confirm this adapter raises can only be pre-empted by this adapter.
   const away = createAwayState(process.env);
@@ -630,19 +635,6 @@ export default async function (pi: ExtensionAPI, busDeps: BusDeps = realBusDeps(
     );
     const resolution = resolve(outcomes, { armed: away.armed(), hasUI: ctx.hasUI });
     for (const notice of resolution.notices) ctx.ui.notify(notice, "warning");
-    for (const context of resolution.context) {
-      // The gate's memory result: the agent receives it, the terminal shows nothing.
-      // A failed delivery never blocks the tool call the gate only meant to inform.
-      try {
-        await pi.sendMessage(
-          { customType: MEMORY_CONTEXT_CUSTOM_TYPE, content: context, display: false },
-          { deliverAs: "followUp" },
-        );
-      } catch {
-        // swallowed: the call proceeds, the context is lost for this turn
-      }
-    }
-
     if (resolution.action === "block") {
       return { block: true, reason: resolution.reason ?? "blocked by an ai-badger hook gate" };
     }
@@ -652,6 +644,23 @@ export default async function (pi: ExtensionAPI, busDeps: BusDeps = realBusDeps(
         resolution.reason ?? "Allow this tool call?",
       );
       if (!approved) return { block: true, reason: resolution.reason ?? "declined" };
+    }
+
+    // The gate's memory result rides the tool result (ADR-0045): the model reads it in the
+    // same turn, and the user channel stays the user's. A user-role message would make the
+    // model read the memory result as something the user said, and would cost an LLM call.
+    const callId = (event as { toolCallId?: string }).toolCallId;
+    if (callId) {
+      for (const context of resolution.context) {
+        const stashed = gateContext.get(callId) ?? [];
+        stashed.push(context);
+        gateContext.set(callId, stashed);
+      }
+      while (gateContext.size > GATE_CONTEXT_MAX) {
+        const oldest = gateContext.keys().next();
+        if (oldest.done) break;
+        gateContext.delete(oldest.value);
+      }
     }
     return undefined;
   });
@@ -667,9 +676,12 @@ export default async function (pi: ExtensionAPI, busDeps: BusDeps = realBusDeps(
     );
     const { notices, context } = resolvePost(outcomes);
     for (const notice of notices) ctx.ui.notify(notice, "warning");
-    // Post-hook context rides the tool result itself: pi persists that message and sends it
-    // on every later call. A `context`-event rewrite would reach one request and vanish.
-    const content = withPostContext(event.content, context);
+    // The gate's context for this call (and for the calls nested under it) rides the tool
+    // result: pi persists that message and sends it on every later call. A `context`-event
+    // rewrite would reach one request and vanish.
+    const pre = takeGateContext(gateContext, (event as { toolCallId?: string }).toolCallId);
+    const withPre = withPreContext(event.content, pre);
+    const content = withPostContext(withPre ?? event.content, context) ?? withPre;
     return content === undefined ? undefined : { content };
   });
 

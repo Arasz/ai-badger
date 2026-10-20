@@ -596,6 +596,45 @@ export function withPostContext<Block>(
   return [...(content ?? []), { type: "text", text: context.join("\n\n") }];
 }
 
+/** The gate's model-side context, stashed per tool call until that call's result carries it. */
+export type GateContextStore = Map<string, string[]>;
+
+/** The most stashed calls the store keeps: a call whose result never arrives must not grow
+ * the store without end. */
+export const GATE_CONTEXT_MAX = 64;
+
+/** The context stashed for *id* and for the calls nested under it (`<id>/<n>`), removed from
+ * the store. A nested call's result never arrives as its own event, so its context would
+ * otherwise be lost with the call it belongs to. */
+export function takeGateContext(
+  store: GateContextStore,
+  id: string | undefined,
+): string[] {
+  if (store.size === 0 || id === undefined) return [];
+  const taken: string[] = [];
+  for (const key of [...store.keys()]) {
+    if (key === id || key.startsWith(`${id}/`)) {
+      taken.push(...(store.get(key) ?? []));
+      store.delete(key);
+    }
+  }
+  return taken;
+}
+
+/** The tool's own blocks with the gate's context in front of them: the model reads the
+ * memory result before the output of the call it belongs to. `undefined` when there is no
+ * context to add, so the caller can leave the tool's own result untouched. */
+export function withPreContext<Block>(
+  content: readonly Block[] | undefined,
+  context: string[],
+): Array<Block | { type: "text"; text: string }> | undefined {
+  if (context.length === 0) return undefined;
+  return [
+    ...context.map((text) => ({ type: "text" as const, text })),
+    ...(content ?? []),
+  ];
+}
+
 function systemMessageFrom(parsed: Record<string, unknown>): { systemMessage?: string } {
   const message = parsed.systemMessage;
   return typeof message === "string" && message ? { systemMessage: message } : {};
