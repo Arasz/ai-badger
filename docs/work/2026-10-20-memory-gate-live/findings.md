@@ -68,13 +68,26 @@ copy** — it is this session's own artifact, and the session transcript proves 
   **user-role** message for the model (`convertToLlm`, `dist/core/messages.js`), so the
   gate's result was read as something the person had said.
 
-Why it fired here: the session started at 14:18:46 with the **pre-fix** adapter installed
-at user scope (the `0.209.0` files). The fixed adapter only reached that directory at
-15:41, when the live harness installed it — pi loads an extension's code at session start,
-so a session that began before the swap keeps running the old code until it is restarted
-(`/reload` re-reads extensions). This session therefore still runs the pre-fix adapter, and
-its first grep of the session produced the very artifact ADR-0045 describes: the gate's
-result in the user channel, waking the model with no human input.
+Why it fired here — and the deeper reason it fired at all: the session started at 14:18:46
+with the **pre-fix** adapter installed at user scope (the `0.209.0` files). The fixed
+adapter only reached that directory at 15:41, when the live harness installed it — pi
+loads an extension's code at session start, so a session that began before the swap keeps
+running the old code until it is restarted (`/reload` re-reads extensions). This session
+therefore still runs the pre-fix adapter, and its first grep of the session produced the
+very artifact ADR-0045 describes: the gate's result in the user channel, waking the model
+with no human input.
+
+**But the session's start time is not the root cause, and this record was wrong to stop
+there.** The pre-fix adapter was installed at user scope because it is the adapter that
+*ships*: pi-badger-integration's `features/pi/adjustments/adapter/` is what
+`bun publish.ts --install` puts at `~/.pi/agent/extensions/ai-badger`, and that copy was
+still the pre-0.210.0 one. PR #638's fix lived in ai-badger's **vendored** copy of the same
+adapter and never reached the copy that installs — the two repos have exchanged adapter
+changes in both directions, and the shipping side was behind. So every live pi session on
+this machine was pre-fix, including sessions started *after* 0.210.0 shipped. The
+"session started before the swap" explanation covers this session only; the shipping gap
+is the finding, and it is fixed in pi-badger-integration PR #80 (the canonical copy healed
+from ai-badger's evolved one, plus the nested-call fix from ai-badger PR #641).
 
 Two things this adds to the report above:
 
