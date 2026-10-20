@@ -4,6 +4,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import shutil
 
 import pytest
 
@@ -169,6 +170,79 @@ def test_same_pattern_result_is_isolated_between_working_directories(
     result = _invoke(result_script, capsys, "--pattern-hash", digest)
 
     assert result["status"] == "pending"
+
+
+@pytest.mark.skipif(shutil.which("rg") is None, reason="ripgrep is not installed")
+def test_capture_searches_the_tree_even_when_stdin_carries_a_pipe(
+        result_script, tmp_path, monkeypatch, capsys):
+    """A search tool that reads stdin reports the pipe instead of the working tree."""
+    pattern = "needle"
+    digest = _pattern_hash(pattern)
+    (tmp_path / "tree.txt").write_text("needle in the tree\n", encoding="utf-8")
+    pipe = tmp_path / "piped.txt"
+    pipe.write_text("needle\n", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+
+    saved = os.dup(0)
+    handle = os.open(str(pipe), os.O_RDONLY)
+    os.dup2(handle, 0)
+    try:
+        assert _capture(result_script, digest, ["rg", "-n", pattern]) == 0
+    finally:
+        os.dup2(saved, 0)
+        os.close(saved)
+        os.close(handle)
+    capsys.readouterr()
+
+    result = _invoke(result_script, capsys, "--pattern", pattern)
+
+    assert result["status"] == "ready"
+    assert "tree.txt" in result["stdout"]
+
+
+def test_a_second_capture_refreshes_the_stored_result(result_script, tmp_path, monkeypatch, capsys):
+    """A later capture of the same pattern replaces the earlier result."""
+    pattern = "sticky-pattern"
+    digest = _pattern_hash(pattern)
+    source = tmp_path / "sticky.txt"
+    source.write_text("sticky-pattern first version\n", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+
+    assert _capture(result_script, digest, ["grep", pattern, "sticky.txt"]) == 0
+    capsys.readouterr()
+    assert _invoke(result_script, capsys, "--pattern", pattern)["stdout"] == \
+        "sticky-pattern first version\n"
+
+    source.write_text("sticky-pattern second version\n", encoding="utf-8")
+    assert _capture(result_script, digest, ["grep", pattern, "sticky.txt"]) == 0
+    capsys.readouterr()
+
+    result = _invoke(result_script, capsys, "--pattern", pattern)
+
+    assert result["status"] == "ready"
+    assert result["stdout"] == "sticky-pattern second version\n"
+
+
+def test_capture_in_a_subdirectory_is_retrievable_from_the_repository_root(
+        result_script, tmp_path, monkeypatch, capsys):
+    """The capture and the retrieval share a scope when they belong to one repository."""
+    pattern = "repo-scoped-pattern"
+    digest = _pattern_hash(pattern)
+    repo = tmp_path / "repo"
+    sub = repo / "sub"
+    sub.mkdir(parents=True)
+    (repo / ".git").mkdir()
+    (sub / "scoped.txt").write_text("repo-scoped-pattern\n", encoding="utf-8")
+
+    monkeypatch.chdir(sub)
+    assert _capture(result_script, digest, ["grep", pattern, "scoped.txt"]) == 0
+    capsys.readouterr()
+
+    monkeypatch.chdir(repo)
+    result = _invoke(result_script, capsys, "--pattern", pattern)
+
+    assert result["status"] == "ready"
+    assert "repo-scoped-pattern" in result["stdout"]
 
 
 def test_worker_refuses_non_search_executables(result_script, capsys):
