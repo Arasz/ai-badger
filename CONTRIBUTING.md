@@ -523,6 +523,11 @@ Decisions that would otherwise get re-litigated are recorded as ADRs in
 [`docs/adr/`](docs/adr/README.md), numbered, MADR-shaped, and **never edited after acceptance** —
 a decision that changes gets a *new* ADR that supersedes the old one.
 
+An amendment, a supersession or a restatement of an accepted ADR is published in the index's
+`Amended` column, never as a rewrite of the file: the column names the date and the ADR that
+changed it, the record's own file carries the reasoning, and `tests/test_adr_index.py` fails
+the build when the two drift apart.
+
 If your change reverses or constrains a recorded decision, add the ADR in the same PR.
 
 ## What is in scope
