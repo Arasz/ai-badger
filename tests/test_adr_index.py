@@ -68,16 +68,65 @@ def _header() -> list[str]:
     raise AssertionError("the ADR index has no header row")
 
 
+AMENDMENT_SECTION = re.compile(r"^##\s+Amendments?\b")
+SUB_HEADING = re.compile(r"^#{3,6}\s+")
+
+
 def _history(path: Path) -> tuple[set[str], set[str]]:
-    """The dates and ADR numbers this record's own file records as its history."""
+    return _history_text(path.read_text(encoding="utf-8"))
+
+
+def _history_text(text: str) -> tuple[set[str], set[str]]:
+    """The dates and ADR numbers this record's own file records as its history.
+
+    Two shapes are read. A line that names an amendment, a supersession or a restatement
+    contributes its own dates and ADR pointers. An `## Amendment …` / `## Amendments …`
+    section contributes the dates on its heading and on the sub-headings inside it — one
+    entry per amendment. The section's prose is not read: a date mentioned in passing is
+    not an amendment.
+    """
     dates: set[str] = set()
     adrs: set[str] = set()
-    for line in path.read_text(encoding="utf-8").splitlines():
+    in_amendment_section = False
+
+    for line in text.splitlines():
+        if line.startswith("## "):
+            in_amendment_section = bool(AMENDMENT_SECTION.match(line))
+            if in_amendment_section:
+                dates.update(DATE.findall(line))
+            continue
+        if in_amendment_section:
+            if SUB_HEADING.match(line):
+                dates.update(DATE.findall(line))
+            continue
         if not any(pattern.search(line) for pattern in SELF_HISTORY):
             continue
         dates.update(DATE.findall(line))
         adrs.update(ADR_REF.findall(line))
     return dates, adrs
+
+
+def test_the_history_rule_reads_an_amendments_section_with_subheadings():
+    """A record may file its amendments under a plural heading, one entry per sub-heading.
+
+    The dates on the sub-headings are the amendment dates; a date mentioned in the section's
+    prose is not, and a date on the record's own acceptance line is not either.
+    """
+    text = (
+        "# 0001 — Example\n"
+        "Date: 2026-01-01\n"
+        "Status: Accepted\n"
+        "## Amendments\n"
+        "\n"
+        "### 2026-02-03 — the first change\n"
+        "\n"
+        "prose that mentions 2026-04-05 in passing\n"
+        "\n"
+        "### 2026-06-07 — the second change\n"
+    )
+    dates, adrs = _history_text(text)
+    assert dates == {"2026-02-03", "2026-06-07"}, dates
+    assert not adrs, adrs
 
 
 def test_the_index_has_an_amended_column():
