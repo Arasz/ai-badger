@@ -7,10 +7,6 @@
       ],
       "exposure": "direct"
     },
-    "ai-raccoon": {
-      "command": "ai-raccoon",
-      "exposure": "direct"
-    },
     "semantica": {
       "command": "semantica-mcp",
       "env": {

@@ -61,8 +61,17 @@ def _config() -> dict:
     }
 
 
-def _scaffold(make_scaffolder):
-    return make_scaffolder(config=_config())
+def _scaffold(make_scaffolder, project_scoped=False):
+    """A scaffolder over the real catalog.
+
+    `project_scoped` asks for the one project-level override there is: ai-raccoon ships
+    user-scoped (the operator registers it once, in a user-global config), so a project
+    that wants the launch config in its own files says so in `config.mcp.scope`.
+    """
+    config = _config()
+    if project_scoped:
+        config["mcp"] = {"scope": {AI_RACCOON: "project"}}
+    return make_scaffolder(config=config)
 
 
 def _patch_ai_raccoon_lookup(monkeypatch, load_script, ai_raccoon_path):
@@ -127,13 +136,36 @@ def test_ai_raccoon_meta_json_pins_the_migrated_package_id(root, load_script):
     assert meta["prerequisite"]["install"] == "dotnet tool install -g ai-raccoon"
 
 
-def test_installed_ai_raccoon_is_declared_and_split_into_mcp_json(
+def test_installed_ai_raccoon_is_declared_at_user_scope_not_in_mcp_json(
         monkeypatch, load_script, make_scaffolder):
+    """The catalog declares ai-raccoon user-scoped: declared, but never in a project file.
+
+    The operator registers it once in a user-global config, so a project-scoped copy
+    would only collide with that one.
+    """
     _patch_ai_raccoon_lookup(monkeypatch, load_script, "/fake/ai-raccoon")
     scaf = _scaffold(make_scaffolder)
 
     declared = scaf.mcp.declared_servers()
     assert declared[AI_RACCOON]["command"] == AI_RACCOON_COMMAND
+
+    project, user = scaf.mcp.split_servers_by_scope(declared)
+    assert AI_RACCOON in user
+    assert AI_RACCOON not in project
+
+    scaf.mcp.generate_mcp_json()
+    generated = json.loads((make_scaffolder.target / ".mcp.json").read_text(encoding="utf-8"))
+
+    assert AI_RACCOON not in generated["mcpServers"]
+    assert HERMES in generated["mcpServers"]
+    assert CODE_REVIEW_GRAPH in generated["mcpServers"]
+
+
+def test_a_project_can_declare_ai_raccoon_project_scoped(
+        monkeypatch, load_script, make_scaffolder):
+    """The project's own decision overrides the framework's default, in this direction too."""
+    _patch_ai_raccoon_lookup(monkeypatch, load_script, "/fake/ai-raccoon")
+    scaf = _scaffold(make_scaffolder, project_scoped=True)
 
     scaf.mcp.generate_mcp_json()
     generated = json.loads((make_scaffolder.target / ".mcp.json").read_text(encoding="utf-8"))
@@ -144,8 +176,6 @@ def test_installed_ai_raccoon_is_declared_and_split_into_mcp_json(
         "command": "ai-raccoon",
         "tools": ["*"],
     }
-    assert HERMES in generated["mcpServers"]
-    assert CODE_REVIEW_GRAPH in generated["mcpServers"]
 
 
 def test_unavailable_ai_raccoon_is_omitted_while_others_remain(
@@ -170,12 +200,15 @@ def test_unavailable_ai_raccoon_is_omitted_while_others_remain(
 
 def test_unavailable_ai_raccoon_is_removed_from_an_existing_generated_config(
         monkeypatch, load_script, make_scaffolder):
+    """The removal path, for a project that declares the server project-scoped."""
     _patch_ai_raccoon_lookup(monkeypatch, load_script, "/fake/ai-raccoon")
-    scaf = _scaffold(make_scaffolder)
+    scaf = _scaffold(make_scaffolder, project_scoped=True)
     scaf.mcp.generate_mcp_json()
+    assert AI_RACCOON in json.loads(
+        (make_scaffolder.target / ".mcp.json").read_text(encoding="utf-8"))["mcpServers"]
 
     _patch_ai_raccoon_lookup(monkeypatch, load_script, None)
-    scaf = _scaffold(make_scaffolder)
+    scaf = _scaffold(make_scaffolder, project_scoped=True)
     scaf.mcp.generate_mcp_json()
     generated = json.loads((make_scaffolder.target / ".mcp.json").read_text(encoding="utf-8"))
 
@@ -202,8 +235,9 @@ def test_unavailable_ai_raccoon_does_not_remove_a_user_authored_entry(
 
 def test_unavailable_ai_raccoon_removes_a_home_relative_generated_entry(
         monkeypatch, load_script, make_scaffolder):
+    """The home-relative removal, for a project that declares the server project-scoped."""
     _patch_ai_raccoon_lookup(monkeypatch, load_script, "/fake/ai-raccoon")
-    scaf = _scaffold(make_scaffolder)
+    scaf = _scaffold(make_scaffolder, project_scoped=True)
     scaf.mcp.generate_mcp_json()
     target = make_scaffolder.target
     generated = json.loads((target / ".mcp.json").read_text(encoding="utf-8"))
@@ -211,7 +245,7 @@ def test_unavailable_ai_raccoon_removes_a_home_relative_generated_entry(
     _test_write(target / ".mcp.json", json.dumps(generated), encoding="utf-8")
 
     _patch_ai_raccoon_lookup(monkeypatch, load_script, None)
-    scaf = _scaffold(make_scaffolder)
+    scaf = _scaffold(make_scaffolder, project_scoped=True)
     scaf.mcp.generate_mcp_json()
     generated = json.loads((target / ".mcp.json").read_text(encoding="utf-8"))
 

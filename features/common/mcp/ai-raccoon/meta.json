@@ -2,7 +2,7 @@
   "$schema": "../../../../schemas/mcp-server.schema.json",
   "name": "ai-raccoon",
   "package": "ai-raccoon",
-  "description": "Project-scoped agent memory server: semantic search, durable-fact writes, workspaces, promotion to a shared tier, and directory watching, served over MCP stdio by default; `ai-raccoon serve` launches the HTTP mode on 127.0.0.1:7721/mcp with a 4h idle watchdog.",
+  "description": "Agent memory server: semantic search, durable-fact writes, workspaces, promotion to a shared tier, and directory watching, served over MCP stdio by default; `ai-raccoon serve` launches the HTTP mode on 127.0.0.1:7721/mcp with a 4h idle watchdog. The catalog declares it scope:user, so the operator registers it once in a user-global config instead of every project declaring it.",
   "homepage": "https://github.com/Arasz/ai-raccoon",
   "prerequisite": {
     "summary": "the ai-raccoon global .NET tool",

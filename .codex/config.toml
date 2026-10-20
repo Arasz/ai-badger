@@ -1,8 +1,4 @@
 # ai-badger:mcp-start
-[mcp_servers."ai-raccoon"]
-command = "ai-raccoon"
-args = []
-
 [mcp_servers."code-review-graph"]
 command = "code-review-graph"
 args = ["serve"]

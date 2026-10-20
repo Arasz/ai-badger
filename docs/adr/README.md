@@ -69,6 +69,7 @@ amended, superseded or restated.
 
 | [0042](0042-parent-side-collection-initialization.md) | Parent-side collection initialization | Accepted (2026-10-19) | — | `discover` and `init` initialize a collection from the directory that holds its repositories: depth-1 discovery of every `.git` child, the union of the children's stacks in the parent, every child enrolled (a fresh one scaffolded, a scaffolded one converted) with its own identity; amends ADR-0041's "never discovers" rule |
 | [0043](0043-model-group-and-thinking-level-split.md) | Model group and thinking level split in the persona frontmatter | Accepted (2026-10-20) | — | The persona's `level:` key is retired: `model:` carries a model group (low, medium, high, top) or a concrete model id, `thinking:` carries pi's thinking level, and a new model map owns the group-to-family anchors, priced from the leaderboard CSV. Supersedes ADR-0027 in part; narrows ADR-0033's knob to the new values |
+| [0044](0044-project-scope-decision-for-an-mcp-server.md) | A project's own scope decision for an MCP server | Accepted (2026-10-20) | — | `config.mcp.scope` maps a server name to `project` or `user` and overrides the catalog's scope in either direction; a user-scoped server is written into no project file and an entry an earlier run wrote comes back out; `config.mcp.decline` wins over both; `ai-raccoon` ships user-scoped by default |
 
 ## Writing a new one
 
