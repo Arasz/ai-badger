@@ -167,6 +167,21 @@ def test_a_user_scoped_server_is_still_proposed_for_the_user_global_config(make_
     assert any("mem" in note for note in scaf.ctx.notes)
 
 
+def test_the_proposal_carries_the_launch_config_not_just_the_name(make_scaffolder, tmp_path):
+    """The operator merges what the note carries, so it has to be the launch config."""
+    _declare(tmp_path, "python", {"name": "mem", "command": "echo mem", "declare": True})
+    scaf = _scaf(make_scaffolder, tmp_path, _config(scope={"mem": "user"}))
+
+    _, user_servers = scaf.mcp.split_servers_by_scope(scaf.mcp.declared_servers())
+    scaf.mcp.propose_claude_mcp_user(user_servers)
+
+    proposals = [note for note in scaf.ctx.notes if "~/.claude/settings.json" in note]
+    assert len(proposals) == 1
+    payload = json.loads(proposals[0][proposals[0].index("{"):])
+    assert payload["mcpServers"]["mem"]["command"] == "echo"
+    assert payload["mcpServers"]["mem"]["args"] == ["mem"]
+
+
 def test_a_hand_written_project_entry_for_a_user_scoped_server_is_removed(make_scaffolder,
                                                                           tmp_path):
     """The scope decision outranks the entry's author: two registrations of one server.
@@ -203,7 +218,8 @@ def test_decline_wins_over_a_user_scope_override(make_scaffolder, tmp_path):
     assert "mem" not in project_servers
     assert "mem" not in user_servers
     assert "mem" not in _servers(make_scaffolder.target / ".mcp.json")
-    assert not any("mem" in note for note in scaf.ctx.notes)
+    # The proposal carries the server's launch config as JSON; no note may carry this one.
+    assert not any('"mem"' in note for note in scaf.ctx.notes)
 
 
 def test_a_scope_override_can_force_a_user_scoped_catalog_server_back_to_project(make_scaffolder,
