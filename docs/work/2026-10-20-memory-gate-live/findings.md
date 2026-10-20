@@ -173,6 +173,35 @@ survives a reload, and the *new* adapter simply stops adding to it. `clearQueue(
 remedy for a session caught in the pre-fix backlog is to **abort the run** (which clears the
 queue) and start a new session, so the session starts on the fixed adapter.
 
+### F1d — The residual, measured: pi's own prompt hook DOES re-enrich a block
+
+PR #638's first fix (the hook-side guard) landed in the framework's port of pi's per-prompt
+memory hook — `memory_context.py`'s `INJECTED_PREFIXES` now contains `BLOCK_HEADER`, so a
+turn that *is* a block is never searched (verified live, check C). pi's own copy of that
+hook is `mem-based-rag` (pi-badger-integration), and it has **no such guard**.
+
+Measured, not inferred — `shouldEnrich` and `toMemoryContext` from the installed
+`~/.pi/agent/extensions/mem-based-rag/rag-core.ts`, fed a block in the gate's own shape:
+
+```
+shouldEnrich(block) -> {"enrich":true, "reason":"ok", "uniqueWords":54, ...}
+the block it would produce, first line:
+  Memory context (ai-raccoon memory_search, snippets — query: "Memory context
+  (ai-raccoon memory_search, snippets — query: "memory.gate"): Trea…"):
+query is the PREVIOUS block's header: true
+```
+
+That is the loop ADR-0045 describes, reproduced in pi's own code: a block delivered as a
+message is enriched, and the new block's query is the previous block's header — one
+generation deeper, exactly as the ADR's live recording showed. pi's copy has the same
+shape pi's extension has always had; the framework's port now has the guard, pi's does not.
+
+So the loop's *fuel* in pi is gone (PR #638: the gate's result no longer enters the message
+channel), but the *rule* still has to be made in pi-badger-integration: `rag-core.ts`'s
+`shouldEnrich` must refuse a turn that starts with the block header, the way
+`memory_context.py`'s `injected_turn()` now does. Until then, any pi extension that
+delivers a memory block as a message can still drive a session by its own context.
+
 ## Notes for the next run
 
 - The gate's "already searched" store lives in `~/.ai-badger/ai-badger.db` (the `hook_state`
