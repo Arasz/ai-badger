@@ -253,6 +253,16 @@ def test_a_scope_override_for_a_server_nobody_declares_is_reported(make_scaffold
     assert any("mrm" in note for note in scaf.ctx.notes)
 
 
+def test_a_scope_value_that_is_neither_scope_is_ignored(load_script):
+    """The schema refuses it; the code path is safe without the schema too."""
+    rules = load_script("features/common/skills/welcome-ai-badger/scripts/mcp_scope.py")
+
+    assert rules.scope_overrides({"mcp": {"scope": {"mem": "sideways"}}}) == {}
+    assert rules.scope_overrides({"mcp": {"scope": {"mem": "user"}}}) == {"mem": "user"}
+    assert rules.scope_overrides({"mcp": {}}) == {}
+    assert rules.scope_overrides({}) == {}
+
+
 def test_the_unmatched_name_is_reported_once_per_run(make_scaffolder, tmp_path):
     """The declaration set is read more than once per run; the report is not a per-call echo."""
     _declare(tmp_path, "python", {"name": "mem", "command": "echo mem", "declare": True})

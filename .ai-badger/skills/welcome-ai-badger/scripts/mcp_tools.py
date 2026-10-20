@@ -30,6 +30,7 @@ from pathlib import Path
 from typing import Any, Dict, List, NamedTuple, Optional, Sequence, Tuple
 
 import config_guard as cg
+import mcp_scope
 from scaffold_context import ScaffoldContext
 
 # Directories user-level package managers install executables into that a non-login
@@ -355,22 +356,15 @@ class McpTools:
         """The project's own scope decision per server name (``config.mcp.scope``).
 
         The catalog's per-server ``scope`` is the framework's default; this block is the
-        project's decision about its own repository, and it wins in either direction: a
-        project may put a catalog-declared server at user scope (it registers that server
-        itself, once, in its user-global config) or pull a catalog user-scoped server back
-        to project scope. An absent block means the catalog decides (ADR-0044).
+        project's decision about its own repository, and it wins in either direction
+        (ADR-0044). An absent block means the catalog decides.
         """
-        scope = (self.ctx.config.get("mcp") or {}).get("scope") or {}
-        if not isinstance(scope, dict):
-            return {}
-        return {name: value for name, value in scope.items()
-                if isinstance(name, str) and name and value in ("user", "project")}
+        return mcp_scope.scope_overrides(self.ctx.config)
 
     def _note_unknown_scope_overrides(self, declared: Sequence[str]) -> None:
         """Report a ``config.mcp.scope`` name that matches no declared server, once a run.
 
-        A typo must not read as a server that is simply not there: the name changed
-        nothing, and only the operator can say whether that was meant.
+        A typo must not read as a server that is simply not there.
         """
         if self._scope_overrides_noted:
             return
@@ -406,8 +400,7 @@ class McpTools:
         # reads one scope: the three project files and the per-agent adjustments alike.
         overrides = self.scope_overrides()
         for name, srv in declared.items():
-            if name in overrides:
-                srv["scope"] = overrides[name]
+            srv["scope"] = mcp_scope.effective_scope(name, srv, overrides)
         self.note_declared_prerequisites(declared)
         return declared
 
@@ -437,14 +430,7 @@ class McpTools:
         the catalog's default, overridden by ``config.mcp.scope`` where the project says so
         (ADR-0044).
         """
-        project = {}  # type: Dict[str, Dict[str, Any]]
-        user = {}  # type: Dict[str, Dict[str, Any]]
-        for name, srv in servers.items():
-            if srv.get("scope", "project") == "user":
-                user[name] = srv
-            else:
-                project[name] = srv
-        return project, user
+        return mcp_scope.split_by_scope(servers, self.scope_overrides())
 
     def _destination_applies(
         self, dest: McpDestination, servers: Dict[str, Dict[str, Any]],
@@ -734,10 +720,8 @@ class McpTools:
     ) -> None:
         """Remove every user-scoped server from *section*, reporting what left (ADR-0044).
 
-        A user-scoped server is registered by the operator, in a user-global config, once —
-        ai-badger never writes one (ADR-0014 decision 6). An entry an earlier run wrote into
-        a project file is a project-scoped registration of the same server, and it collides
-        with the user-scoped one: it comes back out.
+        The operator registers such a server in a user-global config, once; a project-scoped
+        entry of the same server is the collision this scope ends.
         """
         removed = self._drop_servers(section, names)
         if removed:
