@@ -740,9 +740,9 @@ def _validate_all_instance_fails_its_schema(work: Path, provoked: bool) -> Outco
 def _validate_all_model_map_invariants(work: Path, provoked: bool) -> Outcome:
     """A shipped model map whose member order breaks the leaf's invariants.
 
-    The provocation moves a zero-priced open-weight member ahead of a priced one, the
-    order the leaf refuses because a zero price has no position in the order. The clean
-    fixture is the shipped map itself, so the check has something real to pass.
+    The provocation moves the group's preferred member out of the first position, the
+    position the leaf refuses. The clean fixture is the shipped map itself, so the check
+    has something real to pass.
     """
     root = _validate_tree(work)
     _write(root / "features" / "demo" / "stack.json",
@@ -752,7 +752,7 @@ def _validate_all_model_map_invariants(work: Path, provoked: bool) -> Outcome:
         .read_text(encoding="utf-8"))
     if provoked:
         members = document["groups"]["low"]["models"]
-        members[1], members[2] = members[2], members[1]
+        members[0], members[1] = members[1], members[0]
     _write(root / "features" / "demo" / "data" / "model-groups.json",
            json.dumps(document, indent=2) + "\n")
     return _validate_all(root)

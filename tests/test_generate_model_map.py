@@ -64,7 +64,8 @@ ANCHOR_LISTINGS = [
 ]
 
 
-def _sources(tmp_path: Path, rows: list, listings: list, catalogue_ids: list) -> Path:
+def _sources(tmp_path: Path, rows: list, listings: list, catalogue_ids: list,
+             native: list | None = None) -> Path:
     """A miniature source set: the leaderboard, pi's model store, the catalogue snapshot."""
     data = tmp_path / "data"
     data.mkdir(parents=True, exist_ok=True)
@@ -73,8 +74,11 @@ def _sources(tmp_path: Path, rows: list, listings: list, catalogue_ids: list) ->
         writer.writeheader()
         for row in rows:
             writer.writerow(row)
+    store = {"openrouter": {"models": listings}}
+    if native:
+        store["anthropic"] = {"models": native}
     (data / "models-store.json").write_text(
-        json.dumps({"openrouter": {"models": listings}}, indent=2), encoding="utf-8")
+        json.dumps(store, indent=2), encoding="utf-8")
     (data / "openrouter-models.json").write_text(
         json.dumps({"source": "https://openrouter.ai/api/v1/models",
                     "checkedAt": "2026-10-20", "ids": catalogue_ids}, indent=2),
@@ -85,6 +89,12 @@ def _sources(tmp_path: Path, rows: list, listings: list, catalogue_ids: list) ->
 def _listing(ident: str, name: str, price_in: float = 1.0, price_out: float = 2.0) -> dict:
     """One openrouter listing in pi's model store."""
     return {"id": ident, "name": f"OpenRouter: {name}",
+            "cost": {"input": price_in, "output": price_out}}
+
+
+def _native_listing(ident: str, name: str, price_in: float = 1.0, price_out: float = 2.0) -> dict:
+    """One listing in pi's store under the native vendor, not under openrouter."""
+    return {"id": ident, "name": f"Anthropic: {name}",
             "cost": {"input": price_in, "output": price_out}}
 
 
@@ -99,10 +109,11 @@ def _generator():
     return module
 
 
-def _render(tmp_path: Path, rows: list, listings: list, catalogue_ids: list | None = None):
+def _render(tmp_path: Path, rows: list, listings: list, catalogue_ids: list | None = None,
+            native: list | None = None):
     """The map the generator renders from a source set, and what it reports about the rows."""
     generator = _generator()
-    data = _sources(tmp_path, rows, listings, catalogue_ids or [])
+    data = _sources(tmp_path, rows, listings, catalogue_ids or [], native)
     return generator.build_map(
         generator.load_leaderboard(data / "leaderboard.csv"),
         generator.load_store(data / "models-store.json"),
@@ -113,9 +124,10 @@ def _render(tmp_path: Path, rows: list, listings: list, catalogue_ids: list | No
         "2026-10-20", "0.207.4")
 
 
-def _render_with(tmp_path: Path, rows: list, listings: list, catalogue_ids: list | None = None):
+def _render_with(tmp_path: Path, rows: list, listings: list, catalogue_ids: list | None = None,
+                 native: list | None = None):
     """The same, on top of the anchor rows every group needs."""
-    return _render(tmp_path, ANCHOR_ROWS + rows, ANCHOR_LISTINGS + listings, catalogue_ids)
+    return _render(tmp_path, ANCHOR_ROWS + rows, ANCHOR_LISTINGS + listings, catalogue_ids, native)
 
 
 def _members(document: dict, group: str) -> list:
@@ -192,6 +204,66 @@ def test_a_group_leads_with_its_primary_anchor_then_ascends_by_price(tmp_path):
 
 
 # ------------------------------------------------------------------ 5 the rows left out
+def test_a_row_the_key_cannot_route_is_excluded_with_its_reason(tmp_path):
+    """A model pi's store lists only under a native vendor has no id this key can route:
+    the OpenRouter catalogue may carry it, but the key's model list does not, so the row
+    stays out and the reason names the list that refused it."""
+    rows = [_row(9, "Claude Opus 4.8", "Anthropic", "5", "25")]
+    native = [_native_listing("claude-opus-4-8", "Claude Opus 4.8", 5.0, 25.0)]
+    document, report = _render_with(tmp_path, rows, [], catalogue_ids=["anthropic/claude-opus-4.8"],
+                                    native=native)
+    assert "Claude Opus 4.8" in [entry["model"] for entry in report["excluded"]]
+    reason = next(entry["reason"] for entry in report["excluded"]
+                  if entry["model"] == "Claude Opus 4.8")
+    assert "key's model list" in reason
+    assert not any("opus-4-8" in member["id"]
+                   for group in document["groups"].values() for member in group["models"])
+
+
+def test_a_group_leads_with_the_anchor_family_the_key_can_route(tmp_path):
+    """When the ladder's first family has no member this key can route, the group leads
+    with another declared family's member and names that family as its primary."""
+    rows = [
+        _row(9, "GPT-6 Luna", "OpenAI", "0.1", "0.5"),
+        _row(10, "GPT-6.1 Sol", "OpenAI", "2", "10"),
+        _row(11, "GPT-5.4", "OpenAI", "2.5", "15"),
+        _row(12, "GPT-5.5", "OpenAI", "5", "30"),
+    ]
+    listings = [
+        _listing("openai/gpt-6-luna", "GPT-6 Luna", 0.1, 0.5),
+        _listing("openai/gpt-6.1-sol", "GPT-6.1 Sol", 2, 10),
+        _listing("openai/gpt-5.4", "GPT-5.4", 2.5, 15),
+        _listing("openai/gpt-5.5", "GPT-5.5", 5, 30),
+    ]
+    document, _ = _render(tmp_path, rows, listings)
+    assert _members(document, "low") == ["openrouter/openai/gpt-6-luna"]
+    assert _members(document, "high") == ["openrouter/openai/gpt-5.4"]
+    assert document["groups"]["high"]["primary"] == "openai"
+    assert document["families"] == ["anthropic", "openai"]
+
+
+def test_a_group_leads_with_a_declared_family_when_the_ladder_is_out_of_reach(tmp_path):
+    """A tier whose ladder families this key cannot route leads with the best member of
+    a declared family, and the primary anchor names the family that model carries."""
+    rows = [
+        _row(9, "GPT-6 Luna", "OpenAI", "0.1", "0.5"),
+        _row(10, "GPT-6.1 Sol", "OpenAI", "2", "10"),
+        _row(11, "GPT-5.4", "OpenAI", "2.5", "15"),
+        _row(12, "GPT-5.5", "OpenAI", "5", "30"),
+    ]
+    listings = [
+        _listing("openai/gpt-6-luna", "GPT-6 Luna", 0.1, 0.5),
+        _listing("openai/gpt-6.1-sol", "GPT-6.1 Sol", 2, 10),
+        _listing("openai/gpt-5.4", "GPT-5.4", 2.5, 15),
+        _listing("openai/gpt-5.5", "GPT-5.5", 5, 30),
+    ]
+    document, _ = _render(tmp_path, rows, listings)
+    high = document["groups"]["high"]
+    assert high["primary"] == "openai"
+    assert high["anchors"]["openai"] == "gpt"
+    assert high["models"][0]["id"] == "openrouter/openai/gpt-5.4"
+
+
 def test_a_row_the_leaderboard_leaves_unpriced_is_reported_by_name(tmp_path):
     """The leaderboard prices the map; a row it leaves unpriced is named, not dropped quietly."""
     rows = [_row(9, "Model Unpriced", "Vendor", "", "")]

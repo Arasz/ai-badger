@@ -686,10 +686,10 @@ def test_shipped_map_tail_ascends_in_price_and_ends_with_the_zero_priced_members
 
 
 @pytest.mark.parametrize("level,expected", [
-    ("low", "openrouter/anthropic/claude-haiku-5.5"),
-    ("medium", "openrouter/anthropic/claude-sonnet-5.5"),
-    ("high", "openrouter/anthropic/claude-opus-5.5"),
-    ("top", "openrouter/anthropic/claude-fable-5.1"),
+    ("low", "openrouter/openai/gpt-6-luna"),
+    ("medium", "openrouter/openai/gpt-6.1-sol"),
+    ("high", "openrouter/openai/gpt-5.4"),
+    ("top", "openrouter/openai/gpt-5.5"),
 ])
 def test_shipped_map_group_resolves_to_its_anchored_model(mg, root, level, expected):
     groups = mg.load_groups(root / SEED)
@@ -733,7 +733,7 @@ def test_default_path_resolves_to_the_shipped_seed(mg, root):
 
 
 def test_resolve_without_a_path_reads_the_shipped_map(mg):
-    assert mg.resolve("low") == "openrouter/anthropic/claude-haiku-5.5"
+    assert mg.resolve("low") == "openrouter/openai/gpt-6-luna"
 
 
 # ------------------------------------------------------------------ validate wiring
