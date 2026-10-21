@@ -51,7 +51,7 @@ def fresh():
 
 def _real_post_tool_payload(**overrides):
     payload = {
-        "function_name": "mcp__ai_raccoon__memory_search",
+        "function_name": "mcp__ai_raccoon__query",
         "function_args": {"projectId": "probe", "query": "q", "scope": "all"},
         "result": '{"results": [{"sourceFile": "a.md", "score": 0}]}',
         "session_id": "sess-1",
@@ -82,7 +82,7 @@ def test_post_tool_observer_legacy_spelling_unlocks_the_gate(
     """Backward compat: the script-hook spelling (tool_name/args/cwd) still works."""
     monkeypatch.chdir(tmp_path)
     hooks.post_tool_observer(
-        tool_name="mcp__ai_raccoon__memory_search",
+        tool_name="mcp__ai_raccoon__query",
         args={"projectId": "probe", "query": "q"},
         result='{"results": []}',
         duration_ms=3,

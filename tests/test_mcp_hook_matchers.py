@@ -59,7 +59,7 @@ def test_claude_rule_reproduces_the_documented_examples():
     assert claude_matches("Edit.*", "NotebookEdit")
     assert claude_matches("mcp__memory__.*", "mcp__memory__create_entities")
     assert not claude_matches("mcp__memory", "mcp__memory__create_entities")
-    assert not claude_matches("query", "mcp__ai-raccoon__memory_search")
+    assert not claude_matches("query", "mcp__ai-raccoon__query")
 
 
 def test_copilot_rule_is_a_whole_name_regex():

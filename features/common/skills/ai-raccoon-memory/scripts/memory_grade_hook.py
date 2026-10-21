@@ -48,7 +48,7 @@ def open_store() -> "badger_store.Store":
     return badger_store.open_user(families=families)
 
 
-def _is_memory_search(tool_name: str) -> bool:
+def _is_query(tool_name: str) -> bool:
     """True for any naming spelling of the query tool."""
     name = tool_name
     if name.startswith("mcp__"):
@@ -59,7 +59,7 @@ def _is_memory_search(tool_name: str) -> bool:
         return True
     # pi spells MCP tool names `mcp_<server>_<tool>` (single underscores) and a server name
     # may itself contain underscores, so the tool part is matched as any trailing `_`-joined
-    # tail of the spelling (verified live: pi carries `mcp_ai-raccoon_memory_search`).
+    # tail of the spelling (verified live: pi carries `mcp_ai-raccoon_query`).
     if not tool_name.startswith("mcp_") or tool_name.startswith("mcp__"):
         return False
     parts = tool_name[len("mcp_"):].split("_")
@@ -301,7 +301,7 @@ def main(argv: Optional[list] = None) -> int:
 
     tool_name = payload.get("tool_name") or payload.get("toolName") or ""
 
-    if _is_memory_search(tool_name):
+    if _is_query(tool_name):
         try:
             _stash_search_sources(_hook_result(payload))
         except Exception:  # pylint: disable=broad-exception-caught

@@ -146,8 +146,8 @@ def test_listing_names_map_to_init_prefixes_by_claude_codes_rule(load_script):
     event = init_event({
         "plugin:context7:context7": ("connected", ["mcp__plugin_context7_context7__query-docs"]),
         "claude.ai Nocat": ("connected", ["mcp__claude_ai_Nocat__web_search_exa"]),
-        "ai-raccoon": ("connected", ["mcp__ai-raccoon__memory_get",
-                                     "mcp__ai-raccoon__memory_write"]),
+        "ai-raccoon": ("connected", ["mcp__ai-raccoon__get_entry",
+                                     "mcp__ai-raccoon__add_memory"]),
         "plugin:canva:canva": ("needs-auth", []),
     })
 

@@ -339,7 +339,7 @@ def _gate_project() -> str:
     return _project_cwd("")
 
 
-def _is_memory_search(tool_name: Any) -> bool:
+def _is_query(tool_name: Any) -> bool:
     """True for any naming spelling of the query tool; never matches other tools."""
     if not isinstance(tool_name, str):
         return False
@@ -358,7 +358,7 @@ _OK_STATUSES = ("ok", "success", "")
 def _maybe_record_memory_consult(tool_name: str, args: Dict[str, Any], cwd: str,
                                  session_id: Optional[str] = None, status: str = "ok") -> None:
     """After a query call, record its query as searched for the project."""
-    if not _is_memory_search(tool_name):
+    if not _is_query(tool_name):
         return
     gate = _load_memory_first_gate()
     if gate is not None:

@@ -378,7 +378,7 @@ def test_memory_first_gate_post_hook_credits_codex_mcp_search(load_script, monke
                         lambda project, args, failed: seen.update(
                             project=project, args=args, failed=failed))
     monkeypatch.setattr('sys.stdin', __import__('io').StringIO(json.dumps({
-        'hook_event_name': 'PostToolUse', 'tool_name': 'mcp__ai_raccoon__memory_search',
+        'hook_event_name': 'PostToolUse', 'tool_name': 'mcp__ai_raccoon__query',
         'tool_input': {'query': 'memory first gate'}, 'session_id': 'turn-1',
         'cwd': '/repo'})))
 
@@ -425,7 +425,7 @@ def test_codex_memory_credit_adapter_filters_failed_tool_response(
         'import json, os, sys\n'
         'from pathlib import Path\n'
         'Path(os.environ["OBSERVED"]).write_text(sys.stdin.read())\n')
-    payload = {'hook_event_name': 'PostToolUse', 'tool_name': 'mcp__ai_raccoon__memory_search',
+    payload = {'hook_event_name': 'PostToolUse', 'tool_name': 'mcp__ai_raccoon__query',
                'tool_input': {'query': 'needle'}, 'tool_response': response}
     monkeypatch.setenv('OBSERVED', str(observed))
     monkeypatch.setattr('sys.stdin', io.StringIO(json.dumps(payload)))

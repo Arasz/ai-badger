@@ -148,7 +148,7 @@ def _pi_mcp_spelling_matches(tool_name: str, target: str) -> bool:
     return any("_".join(parts[i:]) == target for i in range(1, len(parts)))
 
 
-def is_memory_search(tool_name: Any) -> bool:
+def is_query(tool_name: Any) -> bool:
     """True for any naming spelling of the query tool; never matches other tools."""
     if not isinstance(tool_name, str):
         return False

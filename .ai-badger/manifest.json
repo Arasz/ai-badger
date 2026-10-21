@@ -1,7 +1,7 @@
 {
   "$schema": "./schemas/manifest.schema.json",
   "frameworkVersion": "0.213.0",
-  "frameworkCommit": "2c866181e5e4318d5c8dda74aa4533190e078c57",
+  "frameworkCommit": "2ff75768daa2232c2e2ceaa2a9fb1b23be17236f",
   "frameworkDirty": true,
   "frameworkRoot": ".",
   "generatedAt": null,
@@ -560,12 +560,12 @@
       "source": "features/common/skills/ai-raccoon-memory",
       "target": ".ai-badger/skills/ai-raccoon-memory",
       "frameworkVersion": "0.213.0",
-      "hash": "660add8c4f0188d8d73d0d1f10ef8fe927aa3a30840708dbafb05043b7a601bb",
+      "hash": "2a38ab76c760d936ddf4d4b44a8d825394cb8648dd75f9082bf68477abb4d577",
       "dirMeta": {
         "file_count": 13,
         "dir_count": 1
       },
-      "sourceHash": "660add8c4f0188d8d73d0d1f10ef8fe927aa3a30840708dbafb05043b7a601bb",
+      "sourceHash": "2a38ab76c760d936ddf4d4b44a8d825394cb8648dd75f9082bf68477abb4d577",
       "sourceMeta": {
         "file_count": 13,
         "dir_count": 1
@@ -686,12 +686,12 @@
       "source": "features/common/skills/code-review-evidence",
       "target": ".ai-badger/skills/code-review-evidence",
       "frameworkVersion": "0.213.0",
-      "hash": "c27e954c37c9d0ac72eb48f694d6747778e068d73466b11f60128562e03d6f89",
+      "hash": "b79eaac5628c968b0b992ff8f5430bcbf3f55d27131aedf2d963367616e75e4f",
       "dirMeta": {
         "file_count": 11,
         "dir_count": 1
       },
-      "sourceHash": "c27e954c37c9d0ac72eb48f694d6747778e068d73466b11f60128562e03d6f89",
+      "sourceHash": "b79eaac5628c968b0b992ff8f5430bcbf3f55d27131aedf2d963367616e75e4f",
       "sourceMeta": {
         "file_count": 11,
         "dir_count": 1
@@ -2865,7 +2865,7 @@
       "target": ".ai-badger/hooks/ai_badger_hooks.py",
       "frameworkVersion": "0.213.0",
       "hash": "4211f49a7e44130de7668a2b2cd053761e06275e226b466ef5670441d621af2e",
-      "outputHash": "9d5fc0cbaf201264333c3241ef2fb62aa9612f0761844fe2a81d8f2acbeaba35"
+      "outputHash": "9fd3ecab1fa9dc5fa35428458f9bdb8c85275440a607fb10bfb5108bba85f52b"
     },
     {
       "feature": "adjustments",
@@ -2955,7 +2955,7 @@
       "target": ".ai-badger/hooks/memory_first_gate.py",
       "frameworkVersion": "0.213.0",
       "hash": "4211f49a7e44130de7668a2b2cd053761e06275e226b466ef5670441d621af2e",
-      "outputHash": "ece7bcf8adc69217ee0575b97c6d618034881edcb2c0921072faf62096faab14"
+      "outputHash": "faf6be0d085d4bc82b69b5edaf7b3221cfeaedf75fe32c1cbe86d0e4d23d46cf"
     },
     {
       "feature": "adjustments",
@@ -3075,7 +3075,7 @@
       "target": ".ai-badger/hooks/ai_badger_hooks.py",
       "frameworkVersion": "0.213.0",
       "hash": "2d7ebf743642c73e4eb3b63c188ed4a8e4bf19464e1dea85588a27b635cfa54f",
-      "outputHash": "9d5fc0cbaf201264333c3241ef2fb62aa9612f0761844fe2a81d8f2acbeaba35"
+      "outputHash": "9fd3ecab1fa9dc5fa35428458f9bdb8c85275440a607fb10bfb5108bba85f52b"
     },
     {
       "feature": "adjustments",

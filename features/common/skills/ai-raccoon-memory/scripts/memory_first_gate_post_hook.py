@@ -48,7 +48,7 @@ def main(argv: Optional[list] = None) -> int:
     if not isinstance(payload, dict):
         return 0
     tool_name = payload.get("tool_name") or payload.get("toolName") or ""
-    if not gate.is_memory_search(tool_name):
+    if not gate.is_query(tool_name):
         return 0
     gate.record_search(payload.get("session_id") or payload.get("sessionId"))
     gate.credit_search(gate.project_id(str(payload.get("cwd") or "")), _args(payload),

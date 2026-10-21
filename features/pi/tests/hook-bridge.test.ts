@@ -113,7 +113,7 @@ describe("PostToolUse commands come from hooks.json the same way", () => {
 
   test("a matcher-less post entry always runs, like on the pre side", () => {
     const commands = postToolUseCommands(hooksJson);
-    expect(postCommandsForTool(commands, "mcp__x__memory_search")).toContain(
+    expect(postCommandsForTool(commands, "mcp__x__query")).toContain(
       "python3 always-post.py",
     );
     expect(postCommandsForTool(commands, "Read")).toContain("python3 always-post.py");
@@ -123,25 +123,25 @@ describe("PostToolUse commands come from hooks.json the same way", () => {
 describe("post matchers also recognize mcp__-prefixed tool names by their bare suffix", () => {
   const commands = [{ matcher: "query", command: "python3 marker.py" }];
 
-  test("the shipped `query` matcher fires for mcp__ai-raccoon__memory_search", () => {
-    expect(postCommandsForTool(commands, "mcp__ai-raccoon__memory_search")).toEqual([
+  test("the shipped `query` matcher fires for mcp__ai-raccoon__query", () => {
+    expect(postCommandsForTool(commands, "mcp__ai-raccoon__query")).toEqual([
       "python3 marker.py",
     ]);
   });
 
   test("pi's single-underscore MCP spelling fires too — that is what pi actually delivers", () => {
-    expect(postCommandsForTool(commands, "mcp_ai-raccoon_memory_search")).toEqual([
+    expect(postCommandsForTool(commands, "mcp_ai-raccoon_query")).toEqual([
       "python3 marker.py",
     ]);
-    expect(postCommandsForTool(commands, "mcp_ai_raccoon_memory_search")).toEqual([
+    expect(postCommandsForTool(commands, "mcp_ai_raccoon_query")).toEqual([
       "python3 marker.py",
     ]);
   });
 
   test("anchored semantics survive: a suffix match is not a substring match", () => {
-    expect(postCommandsForTool(commands, "memory_search_extra")).toEqual([]);
-    expect(postCommandsForTool(commands, "not_memory_search")).toEqual([]);
-    expect(postCommandsForTool(commands, "mcp_ai-raccoon_memory_search_extra")).toEqual([]);
+    expect(postCommandsForTool(commands, "query_extra")).toEqual([]);
+    expect(postCommandsForTool(commands, "not_query")).toEqual([]);
+    expect(postCommandsForTool(commands, "mcp_ai-raccoon_query_extra")).toEqual([]);
   });
 
   test("a non-MCP tool name is matched exactly as on the pre side", () => {
@@ -182,7 +182,7 @@ describe("the post payload carries what the shipped PostToolUse hooks parse", ()
   test("pi's real content array: a JSON text block arrives as the parsed document", () => {
     const payload = toClaudePostPayload(
       {
-        toolName: "mcp_ai-raccoon_memory_search",
+        toolName: "mcp_ai-raccoon_query",
         input: {},
         content: [{ type: "text", text: '{"results":[]}' }],
       },
@@ -695,7 +695,7 @@ describe("the shipped PostToolUse matchers fire on the MCP names pi delivers", (
   const fired = (tool: string) => postCommandsForTool(shipped, tool).join("\n");
 
   test.skipIf(!present)("query fires the marker and the grade hook", () => {
-    for (const tool of ["mcp_ai-raccoon_memory_search", "mcp__ai-raccoon__memory_search"]) {
+    for (const tool of ["mcp_ai-raccoon_query", "mcp__ai-raccoon__query"]) {
       expect(fired(tool)).toContain("memory_first_gate_post_hook.py");
       expect(fired(tool)).toContain("memory_grade_hook.py");
     }
@@ -707,7 +707,7 @@ describe("the shipped PostToolUse matchers fire on the MCP names pi delivers", (
   });
 
   test.skipIf(!present)("a longer tool name from the same server fires nothing", () => {
-    expect(fired("mcp_ai-raccoon_memory_search_extra")).toBe("");
+    expect(fired("mcp_ai-raccoon_query_extra")).toBe("");
     expect(fired("mcp_semantica_export_graph_v2")).toBe("");
   });
 });
@@ -733,8 +733,8 @@ describe("matchers follow Claude's documented semantics, judged by the shared Py
   ];
   // [Claude spelling, pi spelling]
   const tools: Array<[string, string]> = [
-    ["mcp__ai-raccoon__memory_search", "mcp_ai-raccoon_memory_search"],
-    ["mcp__ai-raccoon__memory_search_extra", "mcp_ai-raccoon_memory_search_extra"],
+    ["mcp__ai-raccoon__query", "mcp_ai-raccoon_query"],
+    ["mcp__ai-raccoon__query_extra", "mcp_ai-raccoon_query_extra"],
     ["mcp__semantica__export_graph", "mcp_semantica_export_graph"],
     ["mcp__semantica__export_graph_v2", "mcp_semantica_export_graph_v2"],
     ["Read", "read"],

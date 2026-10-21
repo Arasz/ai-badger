@@ -337,5 +337,5 @@ def test_ai_raccoon_memory_skill_watch_ritual_names_semantica_dir(root):
 
 def test_ai_raccoon_memory_skill_watch_ritual_detects_missing_semantica_dir():
     """A watch ritual that never names .semantica/ is detected as wrong."""
-    body = "## 1. Watch-on-docs ritual\n\nmemory_watch_add(projectId, <abs path to docs>)\n"
+    body = "## 1. Watch-on-docs ritual\n\nadd_watch(projectId, <abs path to docs>)\n"
     assert ".semantica/" not in body

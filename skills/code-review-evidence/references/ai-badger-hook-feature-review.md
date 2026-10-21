@@ -74,8 +74,8 @@ task hooks, ...).
   defaulted to `""` while workspaceId defaulted to `null` — nit).
 - Non-string tool names never match; non-memory tools (`add_memory`,
   `get_store_statistics`, `terminal`, `mcp__code_review_graph__get_prompt`) never
-  match; all name spellings match (`mcp__the_project__memory_search`,
-  `mcp__<server>__memory_search`, `<server>:query`, bare).
+  match; all name spellings match (`mcp__the_project__query`,
+  `mcp__<server>__query`, `<server>:query`, bare).
 - Matcher is unanchored-regex-search per Claude Code semantics — same shape
   as the existing `Edit|Write|MultiEdit|NotebookEdit` precedent.
 - Dual-spelling args (`project_id`|`projectId`, `workspace_id`|`workspaceId`)

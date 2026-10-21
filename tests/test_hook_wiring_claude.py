@@ -250,7 +250,7 @@ def test_every_claude_hooks_json_entry_names_its_script(root):
 
 # ------------------------------------------------------------ memory-first gate wiring
 GATE_SCRIPT = "memory_first_gate_hook.py"
-MEMORY_SEARCH_TOOL = "mcp__ai-raccoon__memory_search"
+QUERY_TOOL = "mcp__ai-raccoon__query"
 
 
 def _hooks_json(root):
@@ -274,7 +274,7 @@ def test_hooks_json_post_tool_use_keeps_the_folded_recorder(root):
     must not add a second entry that select_hooks' endswith filter cannot match. The entry is
     found by the name Claude delivers for the MCP tool, not by its matcher's spelling."""
     entries = [e for e in _hooks_json(root)["hooks"]["PostToolUse"]
-               if claude_matches(e.get("matcher"), MEMORY_SEARCH_TOOL)]
+               if claude_matches(e.get("matcher"), QUERY_TOOL)]
     assert len(entries) == 1
     commands = [h["command"] for e in entries for h in e["hooks"]]
     assert len(commands) == 2
@@ -533,7 +533,7 @@ def test_scaffold_wires_memory_grade_for_mcp_search_and_read(tmp_path, load_scri
     hooks.wire()
 
     settings = json.loads((target / ".claude" / "settings.json").read_text(encoding="utf-8"))
-    for tool in (MEMORY_SEARCH_TOOL, "Read"):
+    for tool in (QUERY_TOOL, "Read"):
         fired = [h["command"] for e in settings["hooks"]["PostToolUse"]
                  if claude_matches(e.get("matcher"), tool) for h in e["hooks"]]
         assert any("memory_grade_hook.py" in c for c in fired), tool

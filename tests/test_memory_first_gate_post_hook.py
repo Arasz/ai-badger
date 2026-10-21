@@ -46,7 +46,7 @@ def _searched(gate, query):
     return gate.unsearched("post-proj", [query]) == []
 
 
-def test_plain_memory_search_records_marker(hook, gate, monkeypatch, tmp_path):
+def test_plain_query_records_marker(hook, gate, monkeypatch, tmp_path):
     rc = _run(hook, monkeypatch, {"tool_name": "query", "session_id": "t1",
                                   "tool_input": {"projectId": "post-proj", "query": "alpha"}})
 
@@ -56,7 +56,7 @@ def test_plain_memory_search_records_marker(hook, gate, monkeypatch, tmp_path):
 
 def test_mcp_prefixed_spelling_records_marker(hook, gate, monkeypatch):
     rc = _run(hook, monkeypatch, {
-        "toolName": "mcp__ai_raccoon__memory_search", "sessionId": "t2",
+        "toolName": "mcp__ai_raccoon__query", "sessionId": "t2",
         "toolArgs": '{"projectId": "post-proj", "query": "beta"}'})
 
     assert rc == 0
@@ -94,10 +94,10 @@ def test_missing_session_id_is_silent_noop(hook, gate, monkeypatch):
 
 
 class TestMatcher:
-    def test_matches_only_memory_search(self, gate):
-        for name in ("query", "mcp__x__memory_search", "a:b:query",
-                     "mcp_ai-raccoon_memory_search", "mcp_ai_raccoon_memory_search"):
-            assert gate.is_memory_search(name), name
-        for name in ("add_memory", "memory_search_extra", "search", "", 42, None,
-                     "mcp_ai-raccoon_memory_search_extra", "mcp_write"):
-            assert not gate.is_memory_search(name), name
+    def test_matches_only_query(self, gate):
+        for name in ("query", "mcp__x__query", "a:b:query",
+                     "mcp_ai-raccoon_query", "mcp_ai_raccoon_query"):
+            assert gate.is_query(name), name
+        for name in ("add_memory", "query_extra", "search", "", 42, None,
+                     "mcp_ai-raccoon_query_extra", "mcp_write"):
+            assert not gate.is_query(name), name

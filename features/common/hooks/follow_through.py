@@ -22,7 +22,7 @@ _RECENT_SEARCHES: Dict[str, list] = {}
 FOLLOW_THROUGH_WINDOW = 60  # seconds
 
 
-def _is_memory_search(tool_name: Any) -> bool:
+def _is_query(tool_name: Any) -> bool:
     """True for any naming spelling of the query tool. Duplicated from ai_badger_hooks."""
     if not isinstance(tool_name, str):
         return False
@@ -49,7 +49,7 @@ def _is_read_file(tool_name: Any) -> bool:
 def stash_search_sources(tool_name: str, result: str, cwd: str,
                          debug_fn=None) -> None:
     """After query, stash {correlationId, sourceFiles, timestamp} for follow-through."""
-    if not _is_memory_search(tool_name):
+    if not _is_query(tool_name):
         return
     try:
         data = json.loads(result) if isinstance(result, str) else result

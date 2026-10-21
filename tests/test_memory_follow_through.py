@@ -1,4 +1,5 @@
 """Tests for the memory-follow-through hook (passive implicit-feedback measurement)."""
+# pylint: disable=protected-access,redefined-outer-name  # hook internals + pytest fixture shadowing; see pyproject.toml
 
 from __future__ import annotations
 
@@ -58,7 +59,7 @@ class TestStashSearchSources:
         assert entries[0]["sourceFiles"] == [
             "/project/docs/adr/0001.md", "/project/src/Program.cs"]
 
-    def test_ignores_non_memory_search_tools(self, fresh_hook_state, tmp_path):
+    def test_ignores_non_query_tools(self, fresh_hook_state, tmp_path):
         hooks, ft = fresh_hook_state
         hooks._stash_search_sources("read_file", self.MEMORY_SEARCH_RESULT, str(tmp_path))
         assert str(tmp_path) not in ft._RECENT_SEARCHES
@@ -78,7 +79,7 @@ class TestStashSearchSources:
     def test_handles_mcp_prefixed_tool_name(self, fresh_hook_state, tmp_path):
         hooks, ft = fresh_hook_state
         hooks._stash_search_sources(
-            "mcp__ai_raccoon__memory_search", self.MEMORY_SEARCH_RESULT, str(tmp_path))
+            "mcp__ai_raccoon__query", self.MEMORY_SEARCH_RESULT, str(tmp_path))
         assert str(tmp_path) in ft._RECENT_SEARCHES
 
     def test_handles_non_json_result(self, fresh_hook_state, tmp_path):
@@ -264,7 +265,7 @@ class TestMemoryGradeHook:
         self.searches_file.parent.mkdir(parents=True, exist_ok=True)
         self.searches_file.write_text(json.dumps({"recent": entries}), encoding="utf-8")
 
-    def test_memory_search_appends_store_row_and_leaves_no_legacy_file(self, hook_env):
+    def test_query_appends_store_row_and_leaves_no_legacy_file(self, hook_env):
         assert self._run(self._stash_payload("abc-123", "/p/a.md")) == 0
 
         store = self.mgh.open_store()
