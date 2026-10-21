@@ -79,7 +79,8 @@ function searchEntriesInContext(context: string): SearchEntry[] {
 							? rawResultHash
 							: undefined,
 				};
-			});
+			})
+			.filter((entry) => entry.pattern.trim().length > 0);
 	}
 	return [];
 }

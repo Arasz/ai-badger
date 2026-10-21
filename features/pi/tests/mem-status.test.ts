@@ -59,6 +59,12 @@ describe("the memory gate's footer status", () => {
 		expect(searchedPatterns([])).toEqual([]);
 	});
 
+	test("an empty pattern is not a search", () => {
+		const context = gateContext([{ pattern: "" }, { pattern: "  " }, { pattern: "one" }]);
+		expect(searchedPatterns([context])).toEqual(["one"]);
+		expect(capturedHashes([context])).toEqual([]);
+	});
+
 	test("only a pattern with a captured raw output counts as captured", () => {
 		const context = gateContext([
 			{ pattern: "one", rawResultHash: "a".repeat(64) },
