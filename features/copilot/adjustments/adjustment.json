@@ -4,7 +4,8 @@
     {
       "feature": "hooks",
       "description": "Wire ai-badger hooks into .github/hooks/ for Copilot CLI",
-      "script": "adjust_hooks.py"
+      "script": "adjust_hooks.py",
+      "cleanupOnDeselection": true
     },
     {
       "feature": "skills",

@@ -573,6 +573,7 @@ class Scaffolder:
         # An adjustment is loaded by path: what it cannot resolve itself travels in the context.
         declared_mcp = sorted(self.mcp.split_servers_by_scope(self.mcp.declared_servers())[0])
         selected = self.config.get("agents", [])
+        instruction_only = "limited-env" in self.config.get("stacks", [])
         for agent_name in dict.fromkeys([*selected, *bl.AGENT_NAMES]):
             adj_path = self.root / "features" / agent_name / "adjustments" / "adjustment.json"
             if not adj_path.exists():
@@ -584,7 +585,9 @@ class Scaffolder:
                 continue
 
             for adj in adj_manifest.get("adjustments", []):
-                if agent_name not in selected and not adj.get("cleanupOnDeselection", False):
+                hook_feature = adj.get("feature") in {"hooks", "tools"}
+                if ((agent_name not in selected or (instruction_only and hook_feature))
+                        and not adj.get("cleanupOnDeselection", False)):
                     continue
                 script_name = adj.get("script")
                 if not script_name:
@@ -620,15 +623,23 @@ class Scaffolder:
                                     if any(s in bl.catalog_skills_for_stack(self.root, st)
                                            for st in agent_stacks)]
 
+                    adjustment_config = dict(self.config)
+                    adjustment_tools = self.tools.prepare()
+                    if instruction_only and hook_feature:
+                        adjustment_config["agents"] = [a for a in selected if a != agent_name]
+                        adjustment_tools = {
+                            name: dict(tool, agents={})
+                            for name, tool in adjustment_tools.items()
+                        }
                     context = {
                         "framework_root": self.root,
-                        "config": self.config,
+                        "config": adjustment_config,
                         "feature_dir": self.root / "features" / agent_name / "adjustments",
                         "target_dir": self.aib,
                         "target": self.target,
                         # --no-install reaches the adjustments: user-global state
                         # (~/.hermes/plugins) is never written when it is set.
-                        "install": self.install,
+                        "install": self.install and not (instruction_only and hook_feature),
                         "skills": agent_skills,
                         "prune": self.prune_discovery,
                         "personas": [item for _stack, item in bl.applicable_feature_items(
@@ -637,7 +648,7 @@ class Scaffolder:
                         "mcp_servers": declared_mcp,
                         "mcp_declarations": self.mcp.declarations_for_agent(agent_name),
                         "mcp_declined": self.mcp.declined_servers(),
-                        "tools": self.tools.prepare(),
+                        "tools": adjustment_tools,
                     }
                     result = mod.adjust(context)
                     if result.get("applied"):

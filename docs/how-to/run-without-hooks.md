@@ -1,5 +1,24 @@
 # Run ai-badger on a machine where hooks are disabled
 
+## Use the instruction-only scaffold
+
+For a project that must not add ai-badger project hooks, add `limited-env` to
+`.ai-badger/config.json`'s `stacks` array and re-scaffold using the repository's normal
+`welcome-ai-badger` workflow. The stack gives the agent memory-first and hook-independent
+workflow instructions, suppresses ai-badger project hook registrations, and removes prior
+registrations only where ai-badger ownership is identifiable. With Hermes or Pi, it skips a
+new ai-badger user-level hook install and leaves any existing user-level plugin or extension
+untouched.
+
+This is instruction delivery, not enforcement. It does not disable administrator, plugin or
+user hooks installed outside the project scaffold, and it does not prohibit repository scripts.
+Automatic hook telemetry, per-turn context injection, and interruption checkpoints may be
+unavailable. The task, research, prompt-marker, and raw-search skill extensions describe the
+manual steps for these gaps. Do not run `limited_mode.py checkin` or `checkin --end` in this
+mode; check-in executes commands from the project's hook registry.
+
+## Use the Claude check-in mode
+
 Use this when your organisation's managed Claude Code settings set `disableAllHooks: true`.
 That setting stops every hook, including plugin and managed ones, so none of ai-badger's
 session-start context, tool guards, post-tool nudges or end-of-turn checkpoints run. Limited
