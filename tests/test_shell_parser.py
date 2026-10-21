@@ -224,37 +224,6 @@ def test_the_hermes_arm_ships_the_parser_beside_the_git_guard(load_script):
     assert ("git-work", "shell_parser.py") in adjust_hooks.SHARED_SKILL_MODULES
 
 
-# ------------------------------------------------------------------------------ rtk
-
-@pytest.mark.parametrize("command", [
-    "rtk rm x",
-    "rtk -v err rm x",
-    "rtk --skip-env summary --skip-env -- rm x",
-    "/opt/homebrew/bin/rtk bypass rm x",
-    "RTK_DISABLED=1 rtk proxy sudo -u root rm x",
-])
-def test_rtk_and_its_runner_subcommands_are_stripped(sp, command):
-    assert [(c.program, c.args) for c in sp.parse(command)] == [("rm", ("x",))]
-
-
-def test_an_rtk_runner_keeps_its_arguments_quoted(sp):
-    assert _programs(sp, 'rtk err echo "a; rm x"') == ["echo"]
-
-
-@pytest.mark.parametrize("command", ["rtk run -c 'rm x'", "rtk run --command='rm x'",
-                                     "rtk err --shell bash 'rm x'"])
-def test_an_rtk_runner_shell_string_runs_as_a_script(sp, command):
-    assert [c.args for c in sp.parse(command) if c.program == "rm"] == [("x",)]
-
-
-@pytest.mark.parametrize("command,program", [
-    ("rtk", ""), ("rtk --version", ""), ("rtk -V", ""), ("rtk test", ""), ("rtk gain", "gain"),
-    ("rtk -v gain --history", "gain"),
-])
-def test_rtk_alone_runs_no_dangerous_program(sp, command, program):
-    assert [c.program for c in sp.parse(command)] == [program]
-
-
 # ------------------------------------------------------------------------------ pipelines
 
 def _upstream(sp, command, program):
@@ -269,7 +238,7 @@ def _upstream(sp, command, program):
     ("git log | grep fix", "git"),
     ("git log |& grep fix", "git"),
     ("git log |\n grep fix", "git"),
-    ("rtk git log | grep fix", "git"),
+    ("env git log | grep fix", "git"),
     ("sudo docker ps | grep fix", "docker"),
     ("git log --oneline | head -50 | grep fix", "head"),
     ("git log || grep fix", ""),

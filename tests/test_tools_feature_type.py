@@ -1,7 +1,7 @@
 """The `tools` catalog feature type: registry, discovery rule, index/manifest buckets and
 the tool.schema.json that describes `features/<stack>/tools/<tool>/meta.json`.
 
-A tool is an external CLI (rtk first). Its meta.json names the agents it can hook and how;
+A tool is an external CLI (shim first). Its meta.json names the agents it can hook and how;
 each harness's adjust_tools.py owns the file format it writes.
 """
 from __future__ import annotations
@@ -13,7 +13,7 @@ import pytest
 from conftest import _test_write
 
 
-def _fake_root(tmp_path, root, tools=("rtk",)):
+def _fake_root(tmp_path, root, tools=("shim",)):
     """A synthetic framework tree carrying one stack's tools/ directory."""
     shutil.copytree(root / "schemas", tmp_path / "schemas")
     _test_write(tmp_path / "VERSION", "1.2.3\n", encoding="utf-8")
@@ -24,12 +24,12 @@ def _fake_root(tmp_path, root, tools=("rtk",)):
     return tmp_path
 
 
-def _meta(name="rtk", **extra):
+def _meta(name="shim", **extra):
     meta = {
         "name": name,
         "description": "CLI output compression proxy.",
-        "prerequisite": {"summary": "the rtk CLI, 1.0.1 or later",
-                         "check": "rtk --version"},
+        "prerequisite": {"summary": "the shim CLI, 1.0.1 or later",
+                         "check": "shim --version"},
         "hooks": {
             "claude": {"mode": "native", "arg": "claude"},
             "codex": {"mode": "native", "arg": "codex"},
@@ -104,7 +104,7 @@ def test_build_index_puts_tools_in_their_stacks_bucket_and_passes_its_schema(tmp
     index = index_build.build_index(fake_root)
 
     assert index["stacks"]["common"]["tools"] == [
-        {"name": "rtk", "path": "features/common/tools/rtk"}]
+        {"name": "shim", "path": "features/common/tools/shim"}]
     assert bl.validate(index, bl.load_json(root / "schemas" / "index.schema.json")) == []
 
 
@@ -112,7 +112,7 @@ def test_the_index_schema_refuses_an_unknown_bucket_but_admits_tools(root, load_
     """The tools bucket passes because it is listed, not because the stack object is open."""
     bl = load_script("engine/badger_lib.py")
     schema = bl.load_json(root / "schemas" / "index.schema.json")
-    item = [{"name": "rtk", "path": "features/common/tools/rtk"}]
+    item = [{"name": "shim", "path": "features/common/tools/shim"}]
 
     def index(bucket):
         return {"frameworkVersion": "1.2.3", "stacks": {"common": {bucket: item}}}
@@ -192,11 +192,11 @@ def test_validate_maps_tool_schema_onto_every_tool_meta(load_script):
 def test_validate_all_reports_a_broken_tool_meta(tmp_path, root, load_script, capsys):
     validate = load_script("tooling/validate.py")
     fake_root = _fake_root(tmp_path, root)
-    meta_path = fake_root / "features" / "common" / "tools" / "rtk" / "meta.json"
+    meta_path = fake_root / "features" / "common" / "tools" / "shim" / "meta.json"
     _test_write(meta_path, json.dumps(_meta(hooks={"cursor": {"mode": "native"}})),
                 encoding="utf-8")
 
     validate.validate_all(fake_root)
 
     out = capsys.readouterr().out
-    assert "INVALID  features/common/tools/rtk/meta.json" in out
+    assert "INVALID  features/common/tools/shim/meta.json" in out

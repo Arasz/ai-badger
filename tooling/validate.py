@@ -177,6 +177,9 @@ SCHEMAS_WITHOUT_LOCAL_INSTANCES = {
     "learned-skills.schema.json": "instances live in consumer projects (skills-data/)",
     "agents.schema.json": "vocabulary schema, referenced by others; no standalone instance",
     "mcp-tools.schema.json": "instances live in consumer projects (.ai-badger/mcp-tools.json)",
+    "tool.schema.json": "the tools catalog ships no tool; the glob still names where the next "
+                        "one lands, and a tool's meta.json is validated by this schema as soon "
+                        "as it is added at features/<stack>/tools/<name>/meta.json",
     "message.schema.json": "instances are runtime rows: documents the store's delivery API "
                            "returns and hooks inject (P1/F4), validated at runtime — "
                            "tests/test_new_schemas.py round-trips one through the store",

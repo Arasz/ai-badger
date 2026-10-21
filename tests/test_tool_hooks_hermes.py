@@ -4,14 +4,25 @@ from pathlib import Path
 
 import pytest
 
+import tool_fixtures
+
 ROOT = Path(__file__).resolve().parents[1]
+
+
+@pytest.fixture(name="root")
+def root_fixture(tmp_path):
+    """The framework root under test: the real tree with the synthetic catalog tool added.
+
+    The `tools` feature type ships no tool of its own, so the tests bring their own.
+    """
+    return tool_fixtures.overlay_root(tmp_path, ROOT)
 ARM = 'features/hermes/adjustments/adjust_tools.py'
 
 
 def context(target, enabled=True):
     return {'target': target, 'target_dir': target / '.ai-badger', 'framework_root': ROOT,
             'config': {'agents': ['hermes']}, 'install': True,
-            'tools': {'rtk': {'agents': {'hermes': {'mode': 'propose', 'arg': 'hermes'}}}}
+            'tools': {'shim': {'agents': {'hermes': {'mode': 'propose', 'arg': 'hermes'}}}}
             if enabled else {}}
 
 
@@ -29,16 +40,16 @@ def test_note_proposes_user_wide_init(load_script, tmp_path, monkeypatch, hermes
     result = load_script(ARM).adjust(context(tmp_path))
     note = result['notes']
     assert result['files'] == []
-    assert 'rtk init -g --agent hermes --auto-patch' in note
+    assert 'shim init -g --agent hermes --auto-patch' in note
     assert (str(tmp_path / hermes_home) if hermes_home else '~/.hermes') in note
-    for fragment in ('user-wide', 'rtk-rewrite', 'rtk-prefixed', 'enabled: []'):
+    for fragment in ('user-wide', 'shim-rewrite', 'shim-prefixed', 'enabled: []'):
         assert fragment in note
     assert list(tmp_path.iterdir()) == []
 
 
 def test_no_hermes_arm_no_note(load_script, tmp_path):
     result = load_script(ARM).adjust(context(tmp_path, enabled=False))
-    assert not result['applied'] and 'rtk init' not in result['notes']
+    assert not result['applied'] and 'shim init' not in result['notes']
 
 
 @pytest.mark.parametrize('execute', [False, True])
@@ -57,7 +68,7 @@ def test_scaffold_leaves_sandboxed_homes_unchanged(load_script, root, tmp_path, 
     before = (tree(home), tree(hermes_home))
     module = load_script('features/common/skills/welcome-ai-badger/scripts/scaffold.py')
     config = _config(stacks=['python'], agents=['hermes'])
-    config['tools'] = {'rtk': {'hooks': ['hermes']}}
+    config['tools'] = {'shim': {'hooks': ['hermes']}}
     scaf = build_scaffolder(module, root=root, target=project, config=config, execute=execute)
     ran = []
     scaf.tools.run = lambda argv, **_: ran.append(argv) or subprocess.CompletedProcess(argv, 0)
@@ -68,6 +79,6 @@ def test_scaffold_leaves_sandboxed_homes_unchanged(load_script, root, tmp_path, 
                         lambda argv, **_: subprocess.CompletedProcess(argv, 0, '', ''))
     scaf.run()
     assert (tree(home), tree(hermes_home)) == before
-    assert any('rtk init -g --agent hermes --auto-patch' in note for note in scaf.notes)
+    assert any('shim init -g --agent hermes --auto-patch' in note for note in scaf.notes)
     assert all('init' not in ' '.join(argv) for argv in ran)
     assert bool(ran) is execute

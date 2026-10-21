@@ -117,7 +117,7 @@ def test_migration_preserves_mixed_groups_and_requires_assets(tmp_path):
     config = tmp_path / 'hooks.json'
     original = {'operator': True, 'hooks': {'PreToolUse': [{'matcher': '.*', 'operator': 9,
         'hooks': [{'type': 'command', 'command': 'python3 ~/.claude/skills/auto-wm/hooks/awm_gate.py'},
-                  {'type': 'command', 'command': 'rtk hook'}]}],
+                  {'type': 'command', 'command': 'third-party hook'}]}],
         'UserPromptSubmit': [{'hooks': [{'command': 'python3 ~/.claude/skills/auto-wm/hooks/awm_context.py'}]}]}}
     config.write_text(json.dumps(original))
     with pytest.raises(ValueError, match='missing replacement asset'):
@@ -138,7 +138,7 @@ def test_migration_preserves_mixed_groups_and_requires_assets(tmp_path):
     assert module.migrate(config, package)
     result = json.loads(config.read_text())
     assert result['operator'] and result['hooks']['PreToolUse'][0]['operator'] == 9
-    assert result['hooks']['PreToolUse'][0]['hooks'] == [{'type': 'command', 'command': 'rtk hook'}]
+    assert result['hooks']['PreToolUse'][0]['hooks'] == [{'type': 'command', 'command': 'third-party hook'}]
     assert result['hooks']['UserPromptSubmit'] == []
     assert json.loads(config.with_name('hooks.json.auto-wm.bak').read_text()) == original
     assert not module.migrate(config, package)

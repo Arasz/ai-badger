@@ -19,6 +19,7 @@ When cutting a release:
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
+| 0.213.0 | [rtk is out of ai-badger](0.213.0-remove-rtk.md) |
 | 0.212.1 | [The memory gate's footer share is a percentage again](0.212.1-memory-gate-footer-share-percent.md) |
 | 0.212.0 | [The map pins only the ids the key may route](0.212.0-the-map-pins-only-routable-ids.md) |
 | 0.211.1 | [The memory gate's footer status counts every search](0.211.1-memory-gate-footer-status-searches.md) |

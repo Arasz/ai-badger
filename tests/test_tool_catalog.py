@@ -11,13 +11,25 @@ import shutil
 import subprocess
 import sys
 import types
+from pathlib import Path
 
 import pytest
 
+import tool_fixtures
 from scaffold_helpers import _config
 
 SCRIPTS = "features/common/skills/welcome-ai-badger/scripts"
-RTK = "features/common/tools/rtk"
+TOOL_DIR = tool_fixtures.TOOL_PATH
+ROOT = Path(__file__).resolve().parents[1]
+
+
+@pytest.fixture(name="root")
+def root_fixture(tmp_path):
+    """The framework root under test: the real tree with the synthetic catalog tool added.
+
+    The `tools` feature type ships no tool of its own, so the tests bring their own.
+    """
+    return tool_fixtures.overlay_root(tmp_path, ROOT)
 
 
 @pytest.fixture
@@ -65,7 +77,7 @@ def _catalog(tool_catalog, ctx, execute=False, runner=None):
     return tool_catalog.ToolCatalog(ctx, execute=execute, run=runner or Runner([]))
 
 
-ALL = {"rtk": {"hooks": ["claude", "codex", "copilot", "pi", "hermes"]}}
+ALL = {"shim": {"hooks": ["claude", "codex", "copilot", "pi", "hermes"]}}
 
 
 # -- s5-a1: notes and the empty case -------------------------------------------------------
@@ -81,25 +93,25 @@ def test_no_config_tools_gives_no_notes_and_no_tools(tool_catalog, root, tmp_pat
 
 def test_enabled_tool_notes_its_prerequisite_with_absolute_framework_paths(
         tool_catalog, root, tmp_path):
-    ctx = _ctx(root, tmp_path, tools={"rtk": {}})
+    ctx = _ctx(root, tmp_path, tools={"shim": {}})
 
     _catalog(tool_catalog, ctx).prepare()
 
-    [note] = [n for n in ctx.notes if n.startswith("prerequisite — rtk")]
-    assert f"python3 {root / RTK / 'scripts' / 'check.py'}" in note
-    assert f"python3 {root / RTK / 'scripts' / 'install.py'} --run" in note
+    [note] = [n for n in ctx.notes if n.startswith("prerequisite — shim")]
+    assert f"python3 {root / TOOL_DIR / 'scripts' / 'check.py'}" in note
+    assert f"python3 {root / TOOL_DIR / 'scripts' / 'install.py'} --run" in note
     assert " features/common" not in note
 
 
 def test_empty_hooks_still_enables_the_tool_with_no_arms(tool_catalog, root, tmp_path):
     """Intersection: enabled, no hooks, no --execute — present, armless, check unknown."""
-    ctx = _ctx(root, tmp_path, tools={"rtk": {}})
+    ctx = _ctx(root, tmp_path, tools={"shim": {}})
 
     tools = _catalog(tool_catalog, ctx).prepare()
 
-    assert tools["rtk"]["agents"] == {}
-    assert tools["rtk"]["check_ok"] is None
-    assert tools["rtk"]["meta"]["name"] == "rtk"
+    assert tools["shim"]["agents"] == {}
+    assert tools["shim"]["check_ok"] is None
+    assert tools["shim"]["meta"]["name"] == "shim"
 
 
 # -- s5-a2: what runs, and when ------------------------------------------------------------
@@ -111,7 +123,7 @@ def test_order_without_execute_nothing_runs(tool_catalog, root, tmp_path):
     tools = _catalog(tool_catalog, ctx, runner=Runner(calls)).prepare()
 
     assert calls == []
-    assert tools["rtk"]["check_ok"] is None
+    assert tools["shim"]["check_ok"] is None
 
 
 def test_order_execute_with_a_passing_check_skips_install(tool_catalog, root, tmp_path):
@@ -121,7 +133,7 @@ def test_order_execute_with_a_passing_check_skips_install(tool_catalog, root, tm
     tools = _catalog(tool_catalog, ctx, execute=True, runner=Runner(calls, [0])).prepare()
 
     assert calls == ["check"]
-    assert tools["rtk"]["check_ok"] is True
+    assert tools["shim"]["check_ok"] is True
 
 
 def test_order_execute_with_a_failing_check_installs_with_run_then_rechecks(
@@ -133,8 +145,8 @@ def test_order_execute_with_a_failing_check_installs_with_run_then_rechecks(
     tools = _catalog(tool_catalog, ctx, execute=True, runner=runner).prepare()
 
     assert calls == ["check", "install", "check"]
-    assert runner.argv[1] == [sys.executable, str(root / RTK / "scripts" / "install.py"), "--run"]
-    assert tools["rtk"]["check_ok"] is True
+    assert runner.argv[1] == [sys.executable, str(root / TOOL_DIR / "scripts" / "install.py"), "--run"]
+    assert tools["shim"]["check_ok"] is True
 
 
 def test_order_execute_with_a_failed_install_leaves_check_false(tool_catalog, root, tmp_path):
@@ -145,8 +157,8 @@ def test_order_execute_with_a_failed_install_leaves_check_false(tool_catalog, ro
     tools = _catalog(tool_catalog, ctx, execute=True, runner=runner).prepare()
 
     assert calls == ["check", "install"]
-    assert tools["rtk"]["check_ok"] is False
-    assert any("rtk" in n and "install" in n and "failed" in n for n in ctx.notes)
+    assert tools["shim"]["check_ok"] is False
+    assert any("shim" in n and "install" in n and "failed" in n for n in ctx.notes)
 
 
 def test_order_prepare_runs_once_however_often_it_is_asked(tool_catalog, root, tmp_path):
@@ -182,7 +194,7 @@ def test_order_scaffold_runs_check_and_install_before_adjustments_with_tools_in_
                         lambda name, _path: real_spec(name, fake))
 
     config = _config(stacks=["python"], agents=["claude"])
-    config["tools"] = {"rtk": {"hooks": ["claude"]}}
+    config["tools"] = {"shim": {"hooks": ["claude"]}}
     scaf = make_scaffolder(config=config, execute=True)
     scaf.tools.run = Runner(calls, check_codes=[1, 0])
     monkeypatch.setattr(scaf, "install_plugins", lambda: [])
@@ -194,31 +206,31 @@ def test_order_scaffold_runs_check_and_install_before_adjustments_with_tools_in_
     assert calls[:3] == ["check", "install", "check"]
     assert calls[3:] and set(calls[3:]) == {"adjust"}
     tools = seen[0]["tools"]
-    assert set(tools) == {"rtk"}
-    assert tools["rtk"]["check_ok"] is True
-    assert set(tools["rtk"]["agents"]) == {"claude"}
-    assert tools["rtk"]["meta"]["name"] == "rtk"
+    assert set(tools) == {"shim"}
+    assert tools["shim"]["check_ok"] is True
+    assert set(tools["shim"]["agents"]) == {"claude"}
+    assert tools["shim"]["meta"]["name"] == "shim"
 
 
 # -- s5-a3: what is skipped, and said ------------------------------------------------------
 
 def test_a_hook_agent_missing_from_config_agents_is_warned_and_skipped(
         tool_catalog, root, tmp_path):
-    ctx = _ctx(root, tmp_path, tools={"rtk": {"hooks": ["claude", "codex"]}},
+    ctx = _ctx(root, tmp_path, tools={"shim": {"hooks": ["claude", "codex"]}},
                agents=("claude",))
 
     tools = _catalog(tool_catalog, ctx).prepare()
 
-    assert set(tools["rtk"]["agents"]) == {"claude"}
+    assert set(tools["shim"]["agents"]) == {"claude"}
     assert any("codex" in n and "config.agents" in n for n in ctx.notes)
 
 
 def test_a_tool_missing_from_the_catalog_is_warned_and_skipped(tool_catalog, root, tmp_path):
-    ctx = _ctx(root, tmp_path, tools={"nosuchtool": {"hooks": ["claude"]}, "rtk": {}})
+    ctx = _ctx(root, tmp_path, tools={"nosuchtool": {"hooks": ["claude"]}, "shim": {}})
 
     tools = _catalog(tool_catalog, ctx).prepare()
 
-    assert set(tools) == {"rtk"}
+    assert set(tools) == {"shim"}
     assert any("nosuchtool" in n and "catalog" in n for n in ctx.notes)
     assert not any(n.startswith("prerequisite — nosuchtool") for n in ctx.notes)
 
@@ -235,13 +247,13 @@ def test_no_which_native_arms_resolve_from_config_alone(
     monkeypatch.setattr(shutil, "which", _no_which)
     ctx = _ctx(root, tmp_path, tools=ALL)
 
-    agents = _catalog(tool_catalog, ctx).prepare()["rtk"]["agents"]
+    agents = _catalog(tool_catalog, ctx).prepare()["shim"]["agents"]
 
-    guard = (root / RTK / "scripts" / "rtk_guard.py").read_text(encoding="utf-8")
+    guard = (root / TOOL_DIR / "scripts" / "shim_guard.py").read_text(encoding="utf-8")
     assert agents["copilot"] == {"mode": "native", "arg": "copilot",
-                                 "command": tool_hooks.guarded_command("rtk", "copilot")}
+                                 "command": tool_hooks.guarded_command("shim", "copilot")}
     assert agents["claude"] == {"mode": "native", "arg": "claude",
-                                "command": tool_hooks.guarded_command("rtk", "claude", guard)}
+                                "command": tool_hooks.guarded_command("shim", "claude", guard)}
     assert agents["codex"] == {"mode": "propose", "arg": "codex"}
     assert agents["hermes"] == {"mode": "propose", "arg": "hermes"}
 
@@ -250,13 +262,13 @@ def test_flipping_codex_to_native_wires_the_same_guard_as_claude(tool_catalog, r
     """Codex stays propose until a live run; its spec already names the guard, so a flip is one word."""
     import json
     tool_hooks = sys.modules.get("tool_hooks") or __import__("tool_hooks")
-    meta = json.loads((root / RTK / "meta.json").read_text(encoding="utf-8"))
+    meta = json.loads((root / TOOL_DIR / "meta.json").read_text(encoding="utf-8"))
     spec = dict(meta["hooks"]["codex"], mode="native")
 
-    arm = tool_catalog.ToolCatalog._arm("rtk", root / RTK, spec, None)  # pylint: disable=protected-access
+    arm = tool_catalog.ToolCatalog._arm("shim", root / TOOL_DIR, spec, None)  # pylint: disable=protected-access
 
-    guard = (root / RTK / "scripts" / "rtk_guard.py").read_text(encoding="utf-8")
-    assert arm["command"] == tool_hooks.guarded_command("rtk", "codex", guard)
+    guard = (root / TOOL_DIR / "scripts" / "shim_guard.py").read_text(encoding="utf-8")
+    assert arm["command"] == tool_hooks.guarded_command("shim", "codex", guard)
 
 
 @pytest.mark.parametrize("check_codes, expected", [([0], True), ([1, 1], False)])
@@ -266,13 +278,13 @@ def test_no_which_init_arm_runs_only_when_the_check_passed(
     ctx = _ctx(root, tmp_path, tools=ALL)
 
     agents = _catalog(tool_catalog, ctx, execute=True,
-                      runner=Runner([], check_codes)).prepare()["rtk"]["agents"]
+                      runner=Runner([], check_codes)).prepare()["shim"]["agents"]
 
     assert agents["pi"] == {"mode": "init", "arg": "pi", "run": expected}
 
 
 def test_no_which_init_arm_does_not_run_without_execute(tool_catalog, root, tmp_path):
-    agents = _catalog(tool_catalog, _ctx(root, tmp_path, tools=ALL)).prepare()["rtk"]["agents"]
+    agents = _catalog(tool_catalog, _ctx(root, tmp_path, tools=ALL)).prepare()["shim"]["agents"]
 
     assert agents["pi"]["run"] is False
 
@@ -289,5 +301,5 @@ def test_posix_only_windows_resolves_no_arms_and_says_so(
         patch.setattr(tool_catalog.os, "name", "nt")
         tools = catalog.prepare()
 
-    assert tools["rtk"]["agents"] == {}
-    assert any("rtk" in n and "POSIX-only" in n for n in ctx.notes)
+    assert tools["shim"]["agents"] == {}
+    assert any("shim" in n and "POSIX-only" in n for n in ctx.notes)

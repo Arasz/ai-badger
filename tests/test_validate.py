@@ -249,13 +249,18 @@ def test_a_tree_with_no_hooks_manifest_is_a_violation_not_a_pass(tmp_path, root,
 
 def test_every_schema_instance_glob_matches_at_least_one_file(root, load_script):
     """A glob matching nothing validates nothing: model.schema.json pointed at
-    features/*/agent-instructions/model.json, which has never existed (the review's A10)."""
+    features/*/agent-instructions/model.json, which has never existed (the review's A10).
+
+    A schema the repo declares as having no local instance is exempt: its glob still
+    names where the next instance lands, and that instance is validated by it.
+    """
     validate = load_script("tooling/validate.py")
+    excused = validate.SCHEMAS_WITHOUT_LOCAL_INSTANCES
 
     inert = sorted(f"{name} -> {pattern}"
                    for name, patterns in validate.SCHEMA_INSTANCES.items()
                    for pattern in patterns
-                   if not list(root.glob(pattern)))
+                   if name not in excused and not list(root.glob(pattern)))
 
     assert not inert, f"these globs validate nothing: {inert}"
 

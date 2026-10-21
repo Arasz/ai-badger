@@ -215,24 +215,6 @@ def test_rg_first_sighting_launches_async_capture_with_exact_pattern_hash(
         "rg", "-n", pattern, "features/hook_wiring.py"]
 
 
-def test_rtk_rg_standalone_capture_uses_an_argv_payload(env, monkeypatch, capsys):
-    pattern = "rtkNeedle"
-    pattern_hash = hashlib.sha256(pattern.encode("utf-8")).hexdigest()
-    launched = []
-    monkeypatch.setattr(env.gate.subprocess, "Popen",
-                        lambda *args, **kwargs: launched.append((args, kwargs))
-                        or SimpleNamespace(pid=1239))
-
-    context = _bash(env, monkeypatch, capsys, "rtk rg -n rtkNeedle src/file.py")
-
-    assert context is not None and pattern_hash in context
-    assert len(launched) == 1
-    capture_args = launched[0][0][0]
-    capture_at = capture_args.index("--capture")
-    assert json.loads(capture_args[capture_at + 2]) == [
-        "rg", "-n", pattern, "src/file.py"]
-
-
 def test_hook_launched_capture_can_be_retrieved_from_same_working_directory(
         env, monkeypatch, capsys, load_script):
     pattern = "captureNeedle_73"
@@ -600,7 +582,7 @@ def test_grep_over_git_log_passes_without_search(env, monkeypatch, capsys):
 @pytest.mark.parametrize("command", [
     "git log | grep fix",
     "git log |& grep fix",
-    "rtk git log | grep fix",
+    "env git log | grep fix",
     "sudo docker ps | grep fix",
     "env | grep PATH",
     "printenv | egrep 'A|B'",
@@ -611,7 +593,7 @@ def test_grep_over_git_log_passes_without_search(env, monkeypatch, capsys):
     "/usr/bin/git log | grep fix",
 ])
 def test_piped_grep_over_an_excluded_program_is_not_text_search(env, command):
-    """Mutation: drop the wrapper resolution (`rtk`/`sudo` read as the upstream) -> red."""
+    """Mutation: drop the wrapper resolution (`env`/`sudo` read as the upstream) -> red."""
     assert env.gate.search_patterns("Bash", {"command": command}) is None
 
 

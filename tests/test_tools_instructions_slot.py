@@ -6,12 +6,21 @@ It sits beside `{{MCP_INSTRUCTIONS}}` in every agent template, renders a tool's 
 from __future__ import annotations
 
 import sys
+from pathlib import Path
 
 import pytest
 
+import tool_fixtures
+
 SCRIPTS = "features/common/skills/welcome-ai-badger/scripts"
 SLOT = "{{TOOLS_INSTRUCTIONS}}"
-RTK_MD = ("features", "common", "tools", "rtk", "tool.md")
+ROOT = Path(__file__).resolve().parents[1]
+
+
+@pytest.fixture(name="root")
+def root_fixture(tmp_path):
+    """The framework root under test: the real tree with the synthetic catalog tool added."""
+    return tool_fixtures.overlay_root(tmp_path, ROOT)
 
 
 def _config(tools=None) -> dict:
@@ -46,8 +55,8 @@ def _documents(make_scaffolder, tools=None) -> dict:
     return {name: path.read_text(encoding="utf-8") for name, path in paths.items()}
 
 
-def _rtk_block(root) -> str:
-    return root.joinpath(*RTK_MD).read_text(encoding="utf-8").strip() + "\n\n"
+def _shim_block(root) -> str:
+    return (root / tool_fixtures.TOOL_PATH / "tool.md").read_text(encoding="utf-8").strip() + "\n\n"
 
 
 # -- s5b-a1: the templates ----------------------------------------------------------------
@@ -76,18 +85,18 @@ def rendering_fixture(load_script, root):
 # -- s5b-a2: rendering --------------------------------------------------------------------
 
 def test_an_enabled_tool_renders_its_block_in_every_agent_file(make_scaffolder, root):
-    docs = _documents(make_scaffolder, tools={"rtk": {}})
+    docs = _documents(make_scaffolder, tools={"shim": {}})
 
     for name, text in docs.items():
-        assert text.count("## Tools: rtk") == 1, name
-        assert _rtk_block(root) in text, name
+        assert text.count("## Tools: shim") == 1, name
+        assert _shim_block(root) in text, name
         assert "{{" not in text, name
 
 
 def test_hooks_do_not_gate_the_block_only_the_config_key_does(make_scaffolder):
-    docs = _documents(make_scaffolder, tools={"rtk": {"hooks": ["claude"]}})
+    docs = _documents(make_scaffolder, tools={"shim": {"hooks": ["claude"]}})
 
-    assert all("## Tools: rtk" in text for text in docs.values())
+    assert all("## Tools: shim" in text for text in docs.values())
 
 
 @pytest.mark.parametrize("tools", [None, {}])
@@ -102,11 +111,11 @@ def test_no_enabled_tool_renders_no_block_and_no_placeholder(make_scaffolder, to
 def test_the_enabled_block_is_the_only_difference_from_the_disabled_render(
         make_scaffolder, root, tmp_path_factory):
     """Disabled adds no stray line: removing the block from the enabled render gives it back."""
-    enabled = _documents(make_scaffolder, tools={"rtk": {}})
+    enabled = _documents(make_scaffolder, tools={"shim": {}})
     disabled = _documents(make_scaffolder, tools=None)
 
     for name, text in enabled.items():
-        assert text.replace(_rtk_block(root), "", 1) == disabled[name], name
+        assert text.replace(_shim_block(root), "", 1) == disabled[name], name
 
 
 def test_an_unknown_tool_name_renders_nothing(make_scaffolder):

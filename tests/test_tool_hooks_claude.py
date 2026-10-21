@@ -10,9 +10,20 @@ from pathlib import Path
 
 import pytest
 
+import tool_fixtures
+
 ROOT = Path(__file__).resolve().parents[1]
+
+
+@pytest.fixture(name="root")
+def root_fixture(tmp_path):
+    """The framework root under test: the real tree with the synthetic catalog tool added.
+
+    The `tools` feature type ships no tool of its own, so the tests bring their own.
+    """
+    return tool_fixtures.overlay_root(tmp_path, ROOT)
 ARM = "features/claude/adjustments/adjust_tools.py"
-COMMAND = "env AI_BADGER_TOOL=rtk RTK_TELEMETRY_DISABLED=1 sh -c 'rtk hook claude'"
+COMMAND = "env AI_BADGER_TOOL=shim SHIM_TELEMETRY_DISABLED=1 sh -c 'shim hook claude'"
 OTHER = "env AI_BADGER_TOOL=other OTHER_TELEMETRY_DISABLED=1 sh -c 'other hook claude'"
 MARKER = "AI_BADGER_TOOL="
 SKILLS_WITH_HOOKS = ("git-work", "commit-reminder")
@@ -107,7 +118,7 @@ def test_a_handler_already_last_is_left_untouched(arm, tmp_path):
 
 
 def test_a_stale_marked_command_is_replaced_not_duplicated(arm, tmp_path):
-    stale = COMMAND.replace("rtk hook claude", "rtk hook old")
+    stale = COMMAND.replace("shim hook claude", "shim hook old")
     _write(tmp_path, {"hooks": {"PreToolUse": [
         {"matcher": "Bash", "hooks": [{"type": "command", "command": stale, "timeout": 5}]}]}})
 
@@ -217,7 +228,7 @@ def _base_config(agents=("claude",), tools=None):
 
 
 def _stale_wired(load_script, root, tmp_path, monkeypatch) -> dict:
-    """A scaffolded project with operator keys and the bare-`rtk hook` handler 0.194.0 wired."""
+    """A scaffolded project with operator keys and the bare-`shim hook` handler 0.194.0 wired."""
     before = _scaffold(load_script, root, tmp_path, monkeypatch, _base_config())
     before["model"] = "opus"
     before["hooks"].setdefault("Stop", []).append(
@@ -231,14 +242,14 @@ def _stale_wired(load_script, root, tmp_path, monkeypatch) -> dict:
 
 @pytest.mark.parametrize("route", [
     {"tools": {}},
-    {"tools": {"rtk": {"hooks": []}}},
+    {"tools": {"shim": {"hooks": []}}},
     {"agents": ["codex"]},
 ], ids=["tool-removed", "claude-not-in-hooks", "claude-deselected"])
 def test_a_scaffold_removes_the_handler_an_earlier_native_release_wired(
         load_script, root, tmp_path, monkeypatch, route):
     """Every opt-out route drops a handler 0.194.0 wired and leaves the rest as it was."""
     before = _stale_wired(load_script, root, tmp_path, monkeypatch)
-    config = _base_config(tools={"rtk": {"hooks": ["claude"]}})
+    config = _base_config(tools={"shim": {"hooks": ["claude"]}})
     config.update(route)
 
     after = _scaffold(load_script, root, tmp_path, monkeypatch, config)
@@ -247,17 +258,17 @@ def test_a_scaffold_removes_the_handler_an_earlier_native_release_wired(
     assert after == before
 
 
-def test_a_scaffold_replaces_the_bare_rtk_hook_with_the_guard(load_script, root, tmp_path,
+def test_a_scaffold_replaces_the_bare_shim_hook_with_the_guard(load_script, root, tmp_path,
                                                               monkeypatch):
-    """Still opted in: the 0.194.0 `rtk hook claude` handler becomes the one guard handler."""
+    """Still opted in: the 0.194.0 `shim hook claude` handler becomes the one guard handler."""
     before = _stale_wired(load_script, root, tmp_path, monkeypatch)
 
     after = _scaffold(load_script, root, tmp_path, monkeypatch,
-                      _base_config(tools={"rtk": {"hooks": ["claude"]}}))
+                      _base_config(tools={"shim": {"hooks": ["claude"]}}))
 
     [(matcher, handler)] = _marked(after)
     assert matcher == "Bash" and handler["timeout"] == 5
-    assert "rtk hook" not in handler["command"] and "rtk rewrite" in handler["command"]
+    assert "shim hook" not in handler["command"] and "shim rewrite" in handler["command"]
     assert after["hooks"]["PreToolUse"][-1]["hooks"] == [handler]
     after["hooks"]["PreToolUse"].pop()
     assert after == before
@@ -269,20 +280,20 @@ def test_a_propose_arm_removes_the_wired_handler_and_says_why(arm, tmp_path):
     _write(tmp_path, {"hooks": {"PreToolUse": [
         {"matcher": "Bash", "hooks": [{"type": "command", "command": COMMAND}]}]}})
     context = _context(tmp_path)
-    context["tools"]["rtk"]["agents"]["claude"] = {"mode": "propose", "arg": "claude"}
+    context["tools"]["shim"]["agents"]["claude"] = {"mode": "propose", "arg": "claude"}
 
     result = arm.adjust(context)
 
     assert _marked(json.loads(_settings(tmp_path).read_text())) == []
     assert "permissions.ask" in result["notes"]
-    # A local `rtk init` wires no Claude hook: only the user-wide init does, so say so.
-    assert "`rtk init -g`" in result["notes"] and "user-wide" in result["notes"]
-    assert "--agent" not in result["notes"] and "config.tools.rtk.hooks" in result["notes"]
+    # A local `shim init` wires no Claude hook: only the user-wide init does, so say so.
+    assert "`shim init -g`" in result["notes"] and "user-wide" in result["notes"]
+    assert "--agent" not in result["notes"] and "config.tools.shim.hooks" in result["notes"]
 
 
 def test_a_propose_arm_on_a_fresh_project_writes_no_settings_but_still_notes(arm, tmp_path):
     context = _context(tmp_path, commands=())
-    context["tools"] = {"rtk": {"meta": {"name": "rtk"}, "check_ok": None, "agents": {
+    context["tools"] = {"shim": {"meta": {"name": "shim"}, "check_ok": None, "agents": {
         "claude": {"mode": "propose", "arg": "claude"}}}}
 
     result = arm.adjust(context)

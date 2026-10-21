@@ -1,6 +1,6 @@
 {
   "$schema": "./schemas/index.schema.json",
-  "frameworkVersion": "0.212.1",
+  "frameworkVersion": "0.213.0",
   "stacks": {
     "ai-raccoon": {
       "skills": [
@@ -763,12 +763,6 @@
         {
           "name": "task-graph",
           "path": "features/common/mcp/task-graph"
-        }
-      ],
-      "tools": [
-        {
-          "name": "rtk",
-          "path": "features/common/tools/rtk"
         }
       ]
     },

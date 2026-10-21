@@ -543,7 +543,7 @@ def test_merge_hooks_puts_framework_groups_ahead_of_a_marked_tool_group(load_scr
     """A catalog tool's marked hook stays last, so its arm has nothing to move on a rerun."""
     hook_wiring = _load(load_script, root, "hook_wiring")
     tool = {"matcher": "Bash", "hooks": [{"type": "command", "command":
-            "env AI_BADGER_TOOL=rtk RTK_TELEMETRY_DISABLED=1 sh -c 'rtk hook claude'"}]}
+            "env AI_BADGER_TOOL=shim SHIM_TELEMETRY_DISABLED=1 sh -c 'shim hook claude'"}]}
     guard = {"matcher": "Bash", "hooks": [{"type": "command", "command": "echo guard"}]}
     existing = {"PreToolUse": [tool]}
 
