@@ -48,7 +48,7 @@ The original plan (Section 1-8) remains valid with these adjustments:
 - **stack-mcp.json**: No changes.
 
 ### Section 2 (Skill) changes:
-- Gotcha 1: "Graph is session-scoped and ephemeral — no import mechanism. Export produces archival snapshot only. Durable facts → AiRaccoon memory_write."
+- Gotcha 1: "Graph is session-scoped and ephemeral — no import mechanism. Export produces archival snapshot only. Durable facts → AiRaccoon add_memory."
 - Gotcha 2: "extract_entities/relations need torch and transformers for full NLP. Without them: entities return types without names; relations return empty."
 - Gotcha 3 (new): "add_relationship uses source/target parameter names, not source_id/target_id."
 - When NOT to Use: Sharpen — don't claim AiRaccoon answers relationship questions.

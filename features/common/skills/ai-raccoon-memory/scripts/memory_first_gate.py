@@ -9,7 +9,7 @@ carries model-side context (Claude Code, Codex and pi all speak the Claude envel
 gate runs one memory search, hands the hits to the model as `additionalContext` and lets
 the search through: the agent gets the data, the user sees nothing. A host without that
 seam gets a one-line deny, and the agent runs the search itself. Either way the pattern
-is recorded as searched when the bank answered. An agent's own memory_search records its
+is recorded as searched when the bank answered. An agent's own query records its
 query too (the PostToolUse hook).
 
 Searched patterns live per project id in the audit store's hook_state table (file fallback
@@ -58,7 +58,7 @@ STORE_TIMEOUT_SECONDS = 1.0
 
 _STATE_TABLE = "hook_state"
 _STATE_PREFIX = "memory_first.searched."
-# Stored entry kinds: a pattern the gate searched for, a query an agent's memory_search ran.
+# Stored entry kinds: a pattern the gate searched for, a query an agent's query ran.
 PATTERN_KIND = "p:"
 QUERY_KIND = "q:"
 _UNKNOWN_PROJECT = "unknown"
@@ -149,7 +149,7 @@ def _pi_mcp_spelling_matches(tool_name: str, target: str) -> bool:
 
 
 def is_memory_search(tool_name: Any) -> bool:
-    """True for any naming spelling of the memory_search tool; never matches other tools."""
+    """True for any naming spelling of the query tool; never matches other tools."""
     if not isinstance(tool_name, str):
         return False
     name = tool_name
@@ -157,11 +157,11 @@ def is_memory_search(tool_name: Any) -> bool:
         name = name[len(_MCP_PREFIX):].split(_DOUBLE_UNDERSCORE, 1)[-1]
     if ":" in name:
         name = name.rsplit(":", 1)[-1]
-    return name == "memory_search" or _pi_mcp_spelling_matches(tool_name, "memory_search")
+    return name == "query" or _pi_mcp_spelling_matches(tool_name, "query")
 
 
 _REASON = (
-    "Memory-first gate: run memory_search (projectId={project_id}) with the search pattern "
+    "Memory-first gate: run query (projectId={project_id}) with the search pattern "
     "before repo text search, then re-issue the call."
 )
 
@@ -524,7 +524,7 @@ def unsearched(project: str, patterns: Iterable[str]) -> List[str]:
 
 
 def credit_search(project: str, args: Any, failed: bool = False) -> bool:
-    """Record a memory_search's query as searched for *project*; only a call that succeeded
+    """Record a query's query as searched for *project*; only a call that succeeded
     and named that same projectId counts."""
     if failed or not isinstance(args, dict) or args.get("projectId") != project:
         return False
@@ -532,7 +532,7 @@ def credit_search(project: str, args: Any, failed: bool = False) -> bool:
 
 
 def record_query(project: str, query: Any) -> bool:
-    """Record an agent memory_search query as searched; False when blank or not persisted."""
+    """Record an agent query query as searched; False when blank or not persisted."""
     return isinstance(query, str) and remember(project, [query], QUERY_KIND)
 
 
@@ -572,7 +572,7 @@ def _open_store():
 
 
 def record_search(session_id: Optional[str]) -> bool:
-    """Record the session's memory_search as a consulted telemetry row; False on failure.
+    """Record the session's query as a consulted telemetry row; False on failure.
 
     The first write lazy-migrates the legacy marker set (D6). An unavailable store falls
     back to touching the legacy marker file.

@@ -18,7 +18,7 @@ SCRIPTS = {
     'git-work/scripts/git_internals_guard.py': ('PreToolUse', '^Bash$'),
     'ai-raccoon-memory/scripts/memory_first_gate_hook.py': ('PreToolUse', '^Bash$'),
     'ai-raccoon-memory/scripts/memory_first_gate_post_hook.py':
-        ('PostToolUse', '^(mcp__.+__)?memory_search$'),
+        ('PostToolUse', '^(mcp__.+__)?query$'),
 }
 PREFIX = 'env AI_BADGER_CODEX_HOOK=1 '
 RUNNER = (

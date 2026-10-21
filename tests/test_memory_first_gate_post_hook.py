@@ -1,6 +1,6 @@
 """PostToolUse hook for the memory-first gate: record the consulted marker.
 
-The marker must be recorded for every memory_search spelling (plain, mcp__-prefixed,
+The marker must be recorded for every query spelling (plain, mcp__-prefixed,
 colon-qualified); other tools and malformed payloads must be silent no-ops. Exit 0 on
 every path is a hard requirement: Copilot command hooks are fail-closed.
 """
@@ -47,7 +47,7 @@ def _searched(gate, query):
 
 
 def test_plain_memory_search_records_marker(hook, gate, monkeypatch, tmp_path):
-    rc = _run(hook, monkeypatch, {"tool_name": "memory_search", "session_id": "t1",
+    rc = _run(hook, monkeypatch, {"tool_name": "query", "session_id": "t1",
                                   "tool_input": {"projectId": "post-proj", "query": "alpha"}})
 
     assert rc == 0
@@ -64,7 +64,7 @@ def test_mcp_prefixed_spelling_records_marker(hook, gate, monkeypatch):
 
 
 def test_colon_spelling_records_marker(hook, gate, monkeypatch):
-    rc = _run(hook, monkeypatch, {"tool_name": "ai-raccoon:memory_search",
+    rc = _run(hook, monkeypatch, {"tool_name": "ai-raccoon:query",
                                   "session_id": "t3", "tool_input": {"projectId": "post-proj", "query": "gamma"}})
 
     assert rc == 0
@@ -88,16 +88,16 @@ def test_malformed_payload_exits_zero(hook, monkeypatch, capsys):
 
 
 def test_missing_session_id_is_silent_noop(hook, gate, monkeypatch):
-    rc = _run(hook, monkeypatch, {"tool_name": "memory_search"})
+    rc = _run(hook, monkeypatch, {"tool_name": "query"})
 
     assert rc == 0
 
 
 class TestMatcher:
     def test_matches_only_memory_search(self, gate):
-        for name in ("memory_search", "mcp__x__memory_search", "a:b:memory_search",
+        for name in ("query", "mcp__x__memory_search", "a:b:query",
                      "mcp_ai-raccoon_memory_search", "mcp_ai_raccoon_memory_search"):
             assert gate.is_memory_search(name), name
-        for name in ("memory_write", "memory_search_extra", "search", "", 42, None,
+        for name in ("add_memory", "memory_search_extra", "search", "", 42, None,
                      "mcp_ai-raccoon_memory_search_extra", "mcp_write"):
             assert not gate.is_memory_search(name), name

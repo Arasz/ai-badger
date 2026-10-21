@@ -78,7 +78,7 @@ PY=/Users/arasz/RiderProjects/ai-badger/.venv/bin/python3
 `/skill:` rules), the hook spawns the `ai-raccoon` proxy and performs the MCP handshake over
 newline-delimited JSON-RPC on its stdin/stdout. When `OPENROUTER_API_KEY` is set and
 `AI_BADGER_MEMORY_CONTEXT_PIPELINE` is not `"0"`, it asks an OpenRouter model for 2–6 retrieval
-queries, runs one `memory_search` per deduplicated query over that one session, scores the pooled
+queries, runs one `query` per deduplicated query over that one session, scores the pooled
 hits with Jev, and keeps the best five by pi's document-aware merge. Otherwise, or when the planner
 fails, it runs one search on the gated prompt. If hits survive pruning, a "Memory context" block
 equal to pi's default-mode `toMemoryContext` output (parity scoped in §1.5) is injected as
@@ -134,7 +134,7 @@ reduced to one synchronous client per hook run.
 - **Handshake.** Line 1: `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"ai-badger-memory-context","version":"1"}}}`.
   Wait for the `id:1` reply. Line 2: `{"jsonrpc":"2.0","method":"notifications/initialized"}`.
 - **Search.** `session.search(query, budget)` writes
-  `{"jsonrpc":"2.0","id":N,"method":"tools/call","params":{"name":"memory_search","arguments":{"projectId","sessionId","query","limit":5,"scope":"project"}}}`
+  `{"jsonrpc":"2.0","id":N,"method":"tools/call","params":{"name":"query","arguments":{"projectId","sessionId","query","limit":5,"scope":"project"}}}`
   with `N` from 2, and returns `SearchResult(mem, code)` or `None`. `scope:"project"` is mandatory
   (the owner measured that omitting it leaks shared-tier hits; deliberate difference from pi). No
   `kind` argument. `limit: 5` equals pi's pipeline `searchLimit`.
@@ -781,7 +781,7 @@ count as one row.
 | C5 | `min_words=1`: 20 chars ok, 19 `too-short` | Off-by-one | `<` → `<=` |
 | C6 | 5-word thin prompt → `too-thin`; 6-word ok at default, `too-thin` at `min_words=7` | Floor off-by-one | 6 → 5; `<` → `<=` |
 | C7 | `f: please explain …` enriches and the query keeps `f:` | Marker stripped | `re.sub` leading `/\w+:` |
-| C8 | Tokenizer table: case fold; `a an the it is on` → 0; `EPIPE ENOENT SIGTERM` counted; `use the api key for env bus` → 5; `wasn't isn't` → 0; `memory_search` whole; `café résumé` → `{caf, sum}` | Tokenizer drift vs JS | drop `.lower()`; `>=2`; `>3`; split on `[^a-z0-9]`; `\W+` |
+| C8 | Tokenizer table: case fold; `a an the it is on` → 0; `EPIPE ENOENT SIGTERM` counted; `use the api key for env bus` → 5; `wasn't isn't` → 0; `query` whole; `café résumé` → `{caf, sum}` | Tokenizer drift vs JS | drop `.lower()`; `>=2`; `>3`; split on `[^a-z0-9]`; `\W+` |
 | C9 | `NOISE_WORDS` is exactly the 35 pi words | Dictionary drift | delete `wasn` |
 | C10 | **Bun goldens:** `format_block(case) == golden_outputs[case]` for every committed case (incl. rank `"high"`, rank `true`, path `docs/My  Notes.md`, U+00A0/U+FEFF path, U+001C snippet) | Wording, format or whitespace-class drift from pi (incl. trust header) | change one header char; `str(rank)`; `str.strip()` for `js_trim`; `one_line` on the path |
 | C12 | Empty/empty → both placeholders; mem-only → `(no code hits)` under code only | Section vanishes | single `(no hits)` |
@@ -804,7 +804,7 @@ count as one row.
 |---|---|---|---|
 | T1 | `find_executable`: PATH hit wins; else `<home>/.dotnet/tools/ai-raccoon` if executable; non-executable or absent → `None`; PATH and home read at call time | Real executable captured at import; fallback runs a non-executable | hoist `Path.home()`; drop `X_OK` |
 | T2 | Spawn shape: across every mode the spawn log is exactly `[[fake_abs]]` per run; `shell` false; stderr DEVNULL | Shell spawn; argv injection; stderr noise | `shell=True`; add `--transport stdio`; inherit stderr |
-| T3 | Wire: `initialize` `2024-11-05`, then `notifications/initialized` with no `id`, then `tools/call` `memory_search` with arguments `== {projectId, sessionId, query, limit:5, scope:"project"}` | Cross-project leak; handshake broken | drop `scope`; add `kind`; skip the notification; limit 8 |
+| T3 | Wire: `initialize` `2024-11-05`, then `notifications/initialized` with no `id`, then `tools/call` `query` with arguments `== {projectId, sessionId, query, limit:5, scope:"project"}` | Cross-project leak; handshake broken | drop `scope`; add `kind`; skip the notification; limit 8 |
 | T4 | `slowinit`: nothing written before the `initialize` reply | Talking to an uninitialized server | write the call before awaiting init |
 | T5 | `hits` → mem and code lists parsed from the text part | Permanent silence | read `result` not `content[].text` |
 | T7 | `iserror` → `None` | Error text injected as memory | ignore `isError` |

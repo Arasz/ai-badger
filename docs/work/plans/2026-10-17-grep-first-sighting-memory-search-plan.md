@@ -15,7 +15,7 @@ the second attempt with that pattern runs grep. Example that slipped through the
    Search failure, timeout, no proxy or no project id → plain deny reason. Exit 0 on every path.
 2. A search call passes only when BOTH hold: (a) a memory search for every one of its
    patterns has already run — the hook's own first-sighting search records the pattern, and so
-   does an agent `memory_search` whose query contains it (post hook) — and (b) the call carries
+   does an agent `query` whose query contains it (post hook) — and (b) the call carries
    the marker `# memory-checked` (trailing shell comment). The deny reason and the
    ai-raccoon-memory SKILL.md both name the marker. Grep/Glob tools carry no free-text field, so
    for them (a) alone suffices. No extractable pattern → key on the segment's words.
@@ -56,7 +56,7 @@ are 10 s; Hermes abandons at 30 s).
 | retry with `# memory-checked` passes | keys not recorded | skip `remember_keys` |
 | marker on a never-searched pattern denied | marker alone unlocks | drop seen check |
 | same pattern, other flags/path + marker passes | key on command | key on command string |
-| agent memory_search containing the pattern counts as searched | post hook not recording | skip post-hook record |
+| agent query containing the pattern counts as searched | post hook not recording | skip post-hook record |
 | Grep tool: seen pattern passes without marker | marker demanded where impossible | require marker for Grep tool |
 | new pattern in same shape denied | session-wide open | always "seen" |
 | compound: seen + unseen grep denied | `any` instead of `all` | swap |
@@ -65,7 +65,7 @@ are 10 s; Hermes abandons at 30 s).
 | `grep -A 3 -e foo` pattern is `foo` | value-flag parsing | drop skip |
 | search raises/times out → plain deny, exit 0 | crash blocks tool | remove try/except |
 | 4th new-pattern denial still denies | 3-strike leftover | restore MAX_DENIALS |
-| memory_search consult unlocks nothing | session unlock leftover | restore `search_consulted` |
+| query consult unlocks nothing | session unlock leftover | restore `search_consulted` |
 | store missing → `.seen` fallback persists | fallback lost | skip fallback write |
 | seen pattern survives a new session / session start | reset leftover | clear on session start |
 | `sed`/`cat` never touched | over-matching | match any segment |
@@ -81,10 +81,10 @@ are 10 s; Hermes abandons at 30 s).
    dir `~/.ai-badger/memory-first-searched/<project_id>`. A set of normalized pattern strings, no hashing,
    no cap. No project id (`"unknown"`) → do not persist (deny stays plain).
 3. **What counts as "searched" (owner rule kept literal).** Record a pattern only when a search actually
-   ran: the hook's in-process search got a reply (hits or empty), or the PostToolUse `memory_search`
+   ran: the hook's in-process search got a reply (hits or empty), or the PostToolUse `query`
    payload's `query` contains the pattern. When the hook cannot search (no executable/project id/timeout),
-   the deny reason tells the agent to call `memory_search` with that pattern; the post hook then records it.
-   Test row: no executable → deny names memory_search; post hook with that query → marker retry passes.
+   the deny reason tells the agent to call `query` with that pattern; the post hook then records it.
+   Test row: no executable → deny names query; post hook with that query → marker retry passes.
 4. **`memory_context.search_block(query, project_id, session_id, budget)`** applies neither `should_enrich`
    nor the session-id check; `build()` keeps both and delegates. One `Budget(4)` from hook start covers
    open+search+close; project id resolved once and passed in.

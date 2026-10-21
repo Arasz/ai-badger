@@ -633,13 +633,13 @@ over committed project memory and a shared promotion tier, durable-fact writes t
 source paths, workspace outboxes for in-progress notes, and directory watching that mirrors a
 docs tree into memory.
 
-**What it does.** The watch-on-docs ritual runs first — `memory_watch_status(project_id)`, and
-`memory_watch_add` when the docs directory is not watched — then search-first:
-`memory_search(project_id, scope=all)` with 2-3 formulations before web search, code search,
+**What it does.** The watch-on-docs ritual runs first — `get_watch_status(project_id)`, and
+`add_watch` when the docs directory is not watched — then search-first:
+`query(project_id, scope=all)` with 2-3 formulations before web search, code search,
 or asking the user. Results escalate by outcome: a decisive hit is cited as evidence, a
 partial hit gets one targeted external search, and a miss gets an external search followed by
-a `memory_write` of the finding (source path included). Durable cross-project facts are
-promoted with `memory_share`, never automatically.
+a `add_memory` of the finding (source path included). Durable cross-project facts are
+promoted with `share_memory`, never automatically.
 
 **The per-prompt hook (0.178.0).** The skill also ships `memory_context_hook.py`, which
 searches memory before the model sees each gated prompt and injects a "Memory context" block,
@@ -670,7 +670,7 @@ extracts entities and relations from text, traces causal chains, and runs forwar
 reasoning over an in-memory graph that accumulates across tool calls within a session.
 
 **What it does.** The graph is session-scoped — no import mechanism exists, so `export_graph`
-produces archival snapshots only. Durable facts go to AiRaccoon (`memory_write`). Four
+produces archival snapshots only. Durable facts go to AiRaccoon (`add_memory`). Four
 workflows: decision recording (record rationale + link to affected components), entity
 extraction from documents (needs torch/transformers for full NLP), decision archaeology
 (query past decisions and trace causal ancestry), and graph export for audit trails.

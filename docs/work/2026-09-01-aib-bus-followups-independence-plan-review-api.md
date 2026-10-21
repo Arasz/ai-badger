@@ -3,7 +3,7 @@
 2026-09-01 · Reviewer: api/structure (non-author). Basis: the join plan + architect/test/harness
 appendices + research-a/b/c, verified against worktree HEAD c7424c6f. Method: read the four plan
 files, then verified every finding's load-bearing claim in the repo (files/lines cited below).
-The memory-first-gate hook notice on repo text search is expected and non-fatal (no memory_search
+The memory-first-gate hook notice on repo text search is expected and non-fatal (no query
 in this toolset); reads proceeded under that exception, same as research-c.
 
 ## MUST (fix before dispatch)

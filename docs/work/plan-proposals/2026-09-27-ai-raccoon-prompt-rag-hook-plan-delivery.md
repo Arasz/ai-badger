@@ -67,15 +67,15 @@ milliseconds (INFERRED; the same cost `context_enrichment_hook.py` already pays)
 | file | role | imports |
 |---|---|---|
 | `memory_context.py` | **Pure core.** `should_enrich(prompt) -> Decision` (port of `shouldEnrich` minus the `/skill:` rules, S6), `unique_long_words`, `NOISE_3CHAR_WORDS`, `CONTROL_WORDS`, `prune_hits(mem, code)`, `one_line`, `format_block(query, mem, code) -> str` (the verbatim default-mode block, lane B §1.10). Also the orchestrator `context_for(prompt, cwd, session_id, search) -> str or None`: kill switch → gate → project-id → `search(...)` → prune → both-empty → block. The transport is passed in as `search`, so the core does no I/O of its own. | stdlib only |
-| `raccoon_search.py` | **Transport.** `read_token(home)`, `project_id(cwd)` (delegates to the sibling `badger_store.resolve_project_id`, `features/common/hooks/badger_store.py:2105-2119`, instead of a second walk; see §4), and `search(query, project_id, session_id, *, url, token, timeout) -> (mem, code) or None`: one JSON-RPC `tools/call` of `memory_search` `{projectId, sessionId, query, scope:"project", limit:5}` to `http://127.0.0.1:7721/mcp` with `X-AiRaccoon-Token`, parses the single SSE `data:` frame, and returns None on any error, `isError`, 401, refusal or timeout. | stdlib (`urllib.request`, `json`), sibling `badger_store` loaded by path |
+| `raccoon_search.py` | **Transport.** `read_token(home)`, `project_id(cwd)` (delegates to the sibling `badger_store.resolve_project_id`, `features/common/hooks/badger_store.py:2105-2119`, instead of a second walk; see §4), and `search(query, project_id, session_id, *, url, token, timeout) -> (mem, code) or None`: one JSON-RPC `tools/call` of `query` `{projectId, sessionId, query, scope:"project", limit:5}` to `http://127.0.0.1:7721/mcp` with `X-AiRaccoon-Token`, parses the single SSE `data:` frame, and returns None on any error, `isError`, 401, refusal or timeout. | stdlib (`urllib.request`, `json`), sibling `badger_store` loaded by path |
 | `memory_context_hook.py` | **Claude entry.** Reads stdin JSON (`prompt`, `session_id`/`sessionId`, `cwd`), loads the two siblings by path under distinctive `sys.modules` keys (the `_load_context_enrichment` pattern, `features/common/skills/mcp-index/scripts/context_enrichment_hook.py:41-68`), prints `{"hookSpecificOutput":{"hookEventName":"UserPromptSubmit","additionalContext":block}}` or nothing. `guarded_main()` always exits 0 (the pattern at `context_enrichment_hook.py:173-199`). | siblings by path |
 
 Hermes does not use the entry script. It calls `memory_context.context_for(..., search=raccoon_search.search)` in-process (§1.3c).
 
-**Mode:** ship **default mode only**. Expanded mode costs one `memory_get`/`code_get` per hit
+**Mode:** ship **default mode only**. Expanded mode costs one `get_entry`/`get_entry` per hit
 (up to 10 calls) under the same deadline. The measured base search already takes 1.27–1.56 s
 (S2), so expanded mode would not fit a 5 s budget without partial results. The default block
-already tells the model to call `memory_get`/`code_get` by hash when it needs more (lane B
+already tells the model to call `get_entry`/`get_entry` by hash when it needs more (lane B
 §1.10), so expanded mode only pre-fetches what the model can fetch on demand. Leave out the
 mode env var and add it only if someone asks for it (ask-if-simpler).
 
@@ -317,7 +317,7 @@ that must turn the row red.
 | behaviour | failure mode | mutation |
 |---|---|---|
 | request carries `X-AiRaccoon-Token` equal to the file contents (stripped) | 401 in production | drop the header |
-| body is `tools/call` `memory_search` with `projectId`, `sessionId`, `scope:"project"`, `limit:5` | cross-project results / `isError` | omit `scope` / `sessionId` |
+| body is `tools/call` `query` with `projectId`, `sessionId`, `scope:"project"`, `limit:5` | cross-project results / `isError` | omit `scope` / `sessionId` |
 | single SSE `data:` frame parsed into (mem=`data.results`, code=`data.code`) | nothing ever injected | parse as plain JSON |
 | a plain `application/json` reply is also accepted | brittle to serve changes | remove the fallback |
 | 401 → None | exception escapes | remove the status check |

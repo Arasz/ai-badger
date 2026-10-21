@@ -31,7 +31,7 @@ SCRIPTS = REPO / ".ai-badger" / "skills" / "ai-raccoon-memory" / "scripts"
 PRE_FIX_REV = "62479893^"          # the commit before the fix landed
 FIXED_REV = "62479893"             # the fix itself
 MODEL = "openrouter/openrouter/free"   # the only provider that calls tools in this harness
-BLOCK = "Memory context (ai-raccoon memory_search"
+BLOCK = "Memory context (ai-raccoon query"
 SEARCH_LOG = Path.home() / ".ai-badger" / "memory-first-search" / "searches.jsonl"
 CANDIDATES = ["memory_broker", "design-tests", "review-tests", "explore-codebase",
               "evidence-first-research", "documentation-drift-audit", "multi-lane-report-assembly",

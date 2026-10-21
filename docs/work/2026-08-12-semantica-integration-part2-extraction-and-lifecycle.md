@@ -58,15 +58,15 @@ To prevent data loss from Semantica's ephemeral process lifecycle, we implement 
        ▼ (export_graph via Hook / Stop / SessionEnd)
 [Seeded Graph File: .ai-raccoon/semantica-graph.json]
        │
-       ▼ (memory_watch_add)
+       ▼ (add_watch)
 [AiRaccoon Memory Server] ──► SQLite memory.db (FTS5 + Vector Chunks)
        │
-       ▼ (memory_search in future sessions)
+       ▼ (query in future sessions)
 [AI Agent Context]
 ```
 
 1. **Export as a Hook / Procedure**: On tool execution completion, session stop, or pre-commit, the graph is exported via `export_graph(format="json")` and saved to a seeded project file (e.g. `.ai-raccoon/semantica-graph.json`).
-2. **Seed & Watch**: The project seeds `.ai-raccoon/semantica-graph.json` and registers an active watch using AiRaccoon's `memory_watch_add(project_id="...", path="<absolute-path>/semantica-graph.json")`.
+2. **Seed & Watch**: The project seeds `.ai-raccoon/semantica-graph.json` and registers an active watch using AiRaccoon's `add_watch(project_id="...", path="<absolute-path>/semantica-graph.json")`.
 3. **Automatic Synchronization**: Whenever the graph is exported and updated on disk, AiRaccoon automatically detects the change, parses the JSON file, and indexes it into AiRaccoon's persistent memory bank (`memory.db`).
 
 ---
@@ -75,10 +75,10 @@ To prevent data loss from Semantica's ephemeral process lifecycle, we implement 
 
 ### Can we integrate structural info from JSON files in AiRaccoon? **YES.**
 
-AiRaccoon's memory ingestion engine (`memory_ingest_file` / `memory_watch_add`) natively processes JSON files:
+AiRaccoon's memory ingestion engine (`ingest_file` / `add_watch`) natively processes JSON files:
 - **Structural Parsing & Chunking**: AiRaccoon reads JSON key-value trees, breaks down complex node/edge arrays or entity objects, and indexes them into `memory_chunks` with section metadata.
 - **FTS5 + Vector Hybrid Indexing**: Node names, entity types, relationship source/target pairs, properties, and decision rationale are all indexed into SQLite FTS5 (`nodes_fts`) and embedded for semantic retrieval.
-- **Cross-Session Structural Recall**: In future sessions, even if Semantica starts with an empty graph, calling `memory_search` in AiRaccoon retrieves the exact structural relations (e.g. `"Decision D-001 -> affects -> Module X"`) and property fields directly from the indexed JSON snapshot.
+- **Cross-Session Structural Recall**: In future sessions, even if Semantica starts with an empty graph, calling `query` in AiRaccoon retrieves the exact structural relations (e.g. `"Decision D-001 -> affects -> Module X"`) and property fields directly from the indexed JSON snapshot.
 
 ---
 

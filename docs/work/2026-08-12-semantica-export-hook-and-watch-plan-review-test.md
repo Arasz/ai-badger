@@ -12,7 +12,7 @@
 
 This review evaluates the testability, TDD RED-GREEN discipline, sensitivity coverage (`prove-the-check-fails`), gate chain requirements (`validate.py --all`, `pylint`, `pytest`), and failure mode edge cases in `docs/work/2026-08-12-semantica-export-hook-and-watch-plan.md`.
 
-The overall architectural direction (exporting Semantica graph snapshots to JSON, seeding a template file, and registering an AiRaccoon `memory_watch_add` watcher per ADR-0019) is sound. However, the implementation plan contains **7 specific findings** (1 Critical, 4 High, 2 Medium) spanning factual inaccuracies regarding repository files, untestable process assumptions, reversed TDD execution ordering, and gaps in test isolation and failure mode coverage.
+The overall architectural direction (exporting Semantica graph snapshots to JSON, seeding a template file, and registering an AiRaccoon `add_watch` watcher per ADR-0019) is sound. However, the implementation plan contains **7 specific findings** (1 Critical, 4 High, 2 Medium) spanning factual inaccuracies regarding repository files, untestable process assumptions, reversed TDD execution ordering, and gaps in test isolation and failure mode coverage.
 
 The plan is **APPROVED WITH FIXES**, pending incorporation of the required remediations outlined in Section 4.
 
@@ -23,7 +23,7 @@ The plan is **APPROVED WITH FIXES**, pending incorporation of the required remed
 ### 1. Component & Integration Testability
 - **Scaffolding Integration (WP A)**: The plan specifies updating `features/common/scaffolding.json`. However, `features/common/scaffolding.json` **does not exist** in the repository. Scaffolding manifests are stack-specific (e.g. `features/hermes/scaffolding.json`). Testing a non-existent file path will invalidate scaffolding tests.
 - **Hook Execution Model (WP B)**: The plan claims `export_semantica_graph.py` will "connect to running Semantica stdio" when triggered on session stop or pre-commit. Standalone python hook scripts running in a git/session subshell cannot attach to an active stdio process owned by an agent harness without an explicit IPC channel or export buffer. The script can only be tested reliably via CLI arguments (`--json`) or data structures passed to `export_graph()`.
-- **AiRaccoon Watch Integration (WP C)**: Registration of `.ai-raccoon/semantica-graph.json` via `memory_watch_add` is testable either by mocking `memory_watch_add` or asserting entry creation in `.ai-raccoon/watches.json`.
+- **AiRaccoon Watch Integration (WP C)**: Registration of `.ai-raccoon/semantica-graph.json` via `add_watch` is testable either by mocking `add_watch` or asserting entry creation in `.ai-raccoon/watches.json`.
 
 ### 2. TDD RED-GREEN Cycle & Witnessing
 - **Sequence Error**: Work Package D (TDD Test Suite) is listed *after* Work Packages A, B, and C. Per repo invariant `tdd-mandatory` and `prove-the-check-fails`, tests must be authored and witnessed in a RED state *before* implementing templates, hook scripts, or scaffolding declarations.

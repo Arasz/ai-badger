@@ -78,7 +78,7 @@ They share the "SessionEnd is too late" constraint but have a `PostToolUse` even
 
 ### D7 — Watch registration is a skill ritual (one-time per project)
 
-Extend the ai-raccoon-memory skill's "watch-on-docs" ritual: on session start, `memory_watch_status(projectId)`; if `.semantica/` isn't watched, `mkdir -p .semantica` then `memory_watch_add(projectId, <abs path to .semantica>)`. Idempotent (re-add is a no-op, persisted ai-raccoon state). The hook cannot do it.
+Extend the ai-raccoon-memory skill's "watch-on-docs" ritual: on session start, `get_watch_status(projectId)`; if `.semantica/` isn't watched, `mkdir -p .semantica` then `add_watch(projectId, <abs path to .semantica>)`. Idempotent (re-add is a no-op, persisted ai-raccoon state). The hook cannot do it.
 
 ## Units of work (unit = isolated worktree + one PR)
 
@@ -94,7 +94,7 @@ U1 and U3 are disjoint → parallel. U2 consumes U1's functions → serializes a
 ## Acceptance criteria (each is a test that can fail)
 
 **U1**
-- `is_export_graph` matches `mcp__semantica__export_graph`, `semantica:export_graph`, `export_graph`; rejects `add_entity`, `memory_search`, non-str.
+- `is_export_graph` matches `mcp__semantica__export_graph`, `semantica:export_graph`, `export_graph`; rejects `add_entity`, `query`, non-str.
 - `session_export_target("sess/1:2", p)` → `p/.semantica/sess_1_2-<ts>.json`; two calls with the same id → different paths; `None` → timestamp-only path.
 - `extract_graph_json`: dict passthrough, JSON-string parse, `None` on `isError`/error payload, non-JSON string, non-dict.
 - `autosave_export` with a valid result writes a valid `.semantica/` JSON file (metadata.updatedAt stamped); returns `None` for non-export tool, empty result, and error payloads (no seed-write).

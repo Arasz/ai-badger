@@ -397,7 +397,7 @@ def test_project_post_hook_uses_codex_adjustment_adapter(load_script, tmp_path):
     shared.write_text('pass')
     hooks_file = hooks_dir / 'hooks.json'
     hooks_file.write_text(json.dumps({'hooks': {'PostToolUse': [{
-        'matcher': '^(mcp__.+__)?memory_search$', 'hooks': [{
+        'matcher': '^(mcp__.+__)?query$', 'hooks': [{
             'type': 'command', 'command': f'python3 "${{CLAUDE_PLUGIN_ROOT}}/features/common/skills/{shared.relative_to(target_dir / "skills")}"'
         }]}]}}))
 
@@ -406,7 +406,7 @@ def test_project_post_hook_uses_codex_adjustment_adapter(load_script, tmp_path):
     adapter = hooks_dir / 'codex_memory_first_gate_post_hook.py'
     assert adapter.is_file()
     registered = json.loads((tmp_path / '.codex/hooks.json').read_text())['hooks']['PostToolUse'][0]
-    assert registered['matcher'] == '^(mcp__.+__)?memory_search$'
+    assert registered['matcher'] == '^(mcp__.+__)?query$'
     assert 'hooks/codex_memory_first_gate_post_hook.py' in registered['hooks'][0]['command']
     assert str(shared) in registered['hooks'][0]['command']
 

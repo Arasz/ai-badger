@@ -61,7 +61,7 @@ def _block(out):
 
 
 def _search(hooks, query, **extra):
-    """A memory_search for the project the cwd resolves to, as Hermes reports it."""
+    """A query for the project the cwd resolves to, as Hermes reports it."""
     gate = sys.modules[hooks.MEMORY_FIRST_GATE_MODULE_NAME]
     hooks.post_tool_observer(
         function_name="mcp__ai_raccoon__memory_search",
@@ -101,7 +101,7 @@ def test_memory_search_with_the_pattern_unblocks_search_files(
 def test_colon_spelling_of_memory_search_also_records(
         hooks, fake_gate, proj_a, monkeypatch):
     monkeypatch.chdir(proj_a)
-    hooks.post_tool_observer(tool_name="ai-raccoon:memory_search",
+    hooks.post_tool_observer(tool_name="ai-raccoon:query",
                              args={"projectId": fake_gate.project_id(os.getcwd()), "query": "x"},
                              result="")
 
@@ -113,7 +113,7 @@ def test_non_search_tools_never_blocked(hooks, fake_gate, proj_a, monkeypatch):
     monkeypatch.chdir(proj_a)
     for tool_name, args in (("read_file", {"path": "a.cs"}),
                             ("write_file", {"path": "a.cs"}),
-                            ("memory_search", {"query": "q"}),):
+                            ("query", {"query": "q"}),):
         assert hooks.pre_tool_call_memory_gate(
             tool_name=tool_name, args=args, task_id="t1") is None
 

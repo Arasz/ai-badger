@@ -57,7 +57,7 @@ READ via research), Hermes `kwargs["session_id"]` (`ai_badger_hooks.py:665`, REA
 
 **Request (fixed by ruling):** `POST http://127.0.0.1:7721/mcp`, header `X-AiRaccoon-Token: <~/.ai-raccoon/mcp-token>`,
 `Content-Type: application/json`, `Accept: application/json, text/event-stream`, body
-`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"memory_search","arguments":{"projectId","sessionId","query","kind":"both","scope":"project","limit":5}}}`.
+`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"query","arguments":{"projectId","sessionId","query","kind":"both","scope":"project","limit":5}}}`.
 No `initialize` (T7, MEASURED). Reply: first `data:` line of the SSE body, else the whole body as JSON;
 `result.content[type=text].text` → `{"data":{"results","code"}}`; `isError`, JSON-RPC `error`, 401, refused,
 timeout, or any exception → `None`.
@@ -69,9 +69,9 @@ too-thin (`<6` unique ≥3-char words outside the 35-word noise set). `extract_q
 **Block:** byte-for-byte `toMemoryContext` (Lane B §1.10): header, three-line trust header, memories section,
 code section, footer; snippets `one_line` to 300 chars + `…`, query echo to 80, top 5 per corpus after prune.
 
-**Modes — decision: default only; no mode env var.** Expanded mode needs `memory_get`/`code_get` fan-out,
+**Modes — decision: default only; no mode env var.** Expanded mode needs `get_entry`/`get_entry` fan-out,
 a second formatter, a per-hit fallback path and ~6 more tests, for a benefit the default block already
-offers on demand (every line carries the hash and names `memory_get`/`code_get`). The ruling makes the mode
+offers on demand (every line carries the hash and names `get_entry`/`get_entry`). The ruling makes the mode
 var optional; ask-if-simpler says cut it. If it is added later, it is additive (`AI_BADGER_MEMORY_CONTEXT=expanded`
 can reuse the same variable, so no second env name is spent now).
 

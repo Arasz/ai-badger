@@ -29,14 +29,14 @@ the design is in [ADR-0034](../adr/0034-third-party-egress-is-opt-in-and-lockabl
 | Playwright MCP | npm package fetch (`@playwright/mcp@latest`), then any site the agent browses | npm, the web | declared when `npx` exists | `config.mcp.decline: ["playwright"]` |
 | Hermes MCP | messages the agent writes | the chat platforms Hermes is connected to | declared when `hermes` exists | `config.mcp.decline: ["hermes"]` |
 | `mcp-index --discover` (`mcp_client.py`) | an `initialize` and `tools/list` exchange; HTTP servers also receive the headers their own config carries | each server already in the user's Claude config: stdio servers are launched as configured, streamable-HTTP servers contacted at their configured URL (redirects refused, no OAuth) | on demand | not governed by the opt-in or a `dataPolicy` lock; run it only with servers you trust |
-| ai-raccoon `memory_sync` | memory snapshots | the cloud storage configured in ai-raccoon | off unless configured | ai-raccoon config |
+| ai-raccoon `sync_to_cloud` | memory snapshots | the cloud storage configured in ai-raccoon | off unless configured | ai-raccoon config |
 
 Everything else is local:
 - the message bus, task tracking and the task-graph server (SQLite, stdio);
 - the BM25 MCP recommender;
 - ai-raccoon: the memory server and search run on the machine, and embeddings use its bundled
   local model (`ai-raccoon model embedding set local`). The owner approved it
-  for client data on 2026-10-03. Only a configured `memory_sync` target (the row above) leaves;
+  for client data on 2026-10-03. Only a configured `sync_to_cloud` target (the row above) leaves;
 - the drift notice and the debug and audit logs;
 - archify preview, which serves on loopback.
 

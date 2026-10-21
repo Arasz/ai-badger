@@ -58,7 +58,7 @@ per-session file, so two sessions (or a session and a subagent) destroy each oth
 ### Gap 4 — the watch is manual and file-scoped
 
 The ai-raccoon-memory skill's "watch-on-docs" ritual targets the docs directory only; the
-Semantica skill's step 4 tells the agent to `memory_watch_add` a single file path. Nothing
+Semantica skill's step 4 tells the agent to `add_watch` a single file path. Nothing
 registers a watch on a `.semantica/` directory, and nothing ensures a new session's dump file is
 picked up.
 

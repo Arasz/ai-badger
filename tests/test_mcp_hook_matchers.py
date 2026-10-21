@@ -15,8 +15,8 @@ from hook_matcher_rules import claude_is_exact, claude_matches, copilot_matches
 
 # (script, MCP server, MCP tool) — the hooks whose job is to run after an MCP tool call.
 MCP_TARGETS = [
-    ("memory_first_gate_post_hook.py", "ai-raccoon", "memory_search"),
-    ("memory_grade_hook.py", "ai-raccoon", "memory_search"),
+    ("memory_first_gate_post_hook.py", "ai-raccoon", "query"),
+    ("memory_grade_hook.py", "ai-raccoon", "query"),
     ("semantica_export_autosave_hook.py", "semantica", "export_graph"),
 ]
 
@@ -59,13 +59,13 @@ def test_claude_rule_reproduces_the_documented_examples():
     assert claude_matches("Edit.*", "NotebookEdit")
     assert claude_matches("mcp__memory__.*", "mcp__memory__create_entities")
     assert not claude_matches("mcp__memory", "mcp__memory__create_entities")
-    assert not claude_matches("memory_search", "mcp__ai-raccoon__memory_search")
+    assert not claude_matches("query", "mcp__ai-raccoon__memory_search")
 
 
 def test_copilot_rule_is_a_whole_name_regex():
     assert copilot_matches("bash|Bash", "bash")
     assert not copilot_matches("bash", "bash2")
-    assert not copilot_matches("memory_search", "ai-raccoon-memory_search")
+    assert not copilot_matches("query", "ai-raccoon-query")
 
 
 # ------------------------------------------------------------------ Claude-shaped copies

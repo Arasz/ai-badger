@@ -84,8 +84,8 @@ class Rig:
         return instance
 
     def search(self, query: str, seconds: float = 5.0, session=SESSION):
-        """One memory_search through the broker; the raw reply, or None."""
-        params = {"name": "memory_search", "arguments": {
+        """One query through the broker; the raw reply, or None."""
+        params = {"name": "query", "arguments": {
             "projectId": PROJECT, "sessionId": session, "query": query, "limit": 5,
             "scope": "project"}}
         return broker.call(session, "tools/call", params, seconds, str(self.home))
@@ -152,7 +152,7 @@ def test_a_client_that_hangs_up_does_not_break_the_next_request(rig):
     rig.start()
     sock = broker.open_socket(SESSION, str(rig.home))
     sock.sendall(json.dumps({"op": "call", "method": "tools/call", "seconds": 5, "params": {
-        "name": "memory_search", "arguments": {"query": "slow:1.0:gone"}}}).encode() + b"\n")
+        "name": "query", "arguments": {"query": "slow:1.0:gone"}}}).encode() + b"\n")
     sock.close()
     assert echoed(rig.search("next")) == "next"
 

@@ -199,7 +199,7 @@ metadata:
 
 **Skill body outline:**
 
-1. **When NOT to Use** — A one-off lookup "is this connected to that?" — use `memory_search` (AiRaccoon); no decision was made and no entity needs extraction → skip the graph ceremony. The graph is in-memory per session; don't record trivia.
+1. **When NOT to Use** — A one-off lookup "is this connected to that?" — use `query` (AiRaccoon); no decision was made and no entity needs extraction → skip the graph ceremony. The graph is in-memory per session; don't record trivia.
 
 2. **Decision-recording workflow** — When making an architectural decision:
    - `record_decision(decision_text, context="...", rationale="...", alternatives=["..."], constraints=["..."])` — persist with full provenance
@@ -234,17 +234,17 @@ metadata:
    - The graph is session-scoped; cross-project sharing is via export, not a shared server.
 
 8. **AiRaccoon complementarity**:
-   - AiRaccoon: "what do we know?" (semantic recall) → `memory_search`
+   - AiRaccoon: "what do we know?" (semantic recall) → `query`
    - Semantica: "how are things connected?" (structured reasoning) → `get_graph_summary` → `query_decisions`
    - Use both: search AiRaccoon for context first, then trace relationships in Semantica
-   - Write durable facts to AiRaccoon (`memory_write`); decisions and causal chains go to Semantica
+   - Write durable facts to AiRaccoon (`add_memory`); decisions and causal chains go to Semantica
 
 9. **Verification Checklist**:
    - [ ] `get_graph_summary` returns node/edge counts reflecting the session's activity
    - [ ] At least one decision was recorded with `record_decision` and is findable via `query_decisions`
    - [ ] `get_causal_chain` traces back to the root for at least one decision
    - [ ] `export_graph` produces valid JSON when persistence is needed
-   - [ ] AiRaccoon `memory_search` and Semantica `query_decisions` return complementary, non-overlapping results
+   - [ ] AiRaccoon `query` and Semantica `query_decisions` return complementary, non-overlapping results
 
 **Acceptance criteria:**
 - [ ] YAML frontmatter is valid and `scope: default` ensures auto-inclusion via DEFAULT_SKILLS
@@ -445,7 +445,7 @@ After the integration is complete (all tests pass, index_build succeeds, version
 
 #### Scenario 4: Complementarity with AiRaccoon
 - Ask a question that benefits from both: "what do we know about our auth system and what decisions shaped it?"
-- The agent should use `memory_search` (AiRaccoon) for recall + `query_decisions` (Semantica) for decisions
+- The agent should use `query` (AiRaccoon) for recall + `query_decisions` (Semantica) for decisions
 - Verify: both tools return complementary results
 
 #### Scenario 5: Graph persistence across sessions

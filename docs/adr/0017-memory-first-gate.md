@@ -11,12 +11,12 @@ grep its way through a repo without ever touching the AiRaccoon memory bank, and
 bank's value is proportional to how often it is consulted. The framework already ships
 hook surfaces on all three agents (Hermes plugin, Claude `hooks.json`, Copilot
 `.github/hooks/`), and the memory-grade telemetry (0.79.0) already observes
-`memory_search` calls — observing was not enough.
+`query` calls — observing was not enough.
 
 ## Decision
 
 Add a **memory-first gate**: block repo text-search tools until the session has
-consulted `memory_search`, with a deny reason that names the tool to run and explicitly
+consulted `query`, with a deny reason that names the tool to run and explicitly
 permits re-issue after consultation. Memory-first, never memory-only.
 
 - One shared pure-logic module (`memory_first_gate.py`) with the tool matchers, the
@@ -38,12 +38,12 @@ permits re-issue after consultation. Memory-first, never memory-only.
   Claude-cased source matcher is not reusable). The hook exits 0 on every path because
   Copilot command preToolUse is fail-closed: a crash would deny the very tool call the
   gate only meant to gate.
-- The consulted marker is recorded by the existing PostToolUse memory_search entry
+- The consulted marker is recorded by the existing PostToolUse query entry
   (folded into `memory_grade_hook.py`, unconditional), so Claude/Copilot run one
   process per search; a separate recorder entry was rejected because the wiring's
   endswith script filter cannot match a command with a trailing flag.
 - Matcher strictness is deliberate: only repo text search is gated; `read_file`,
-  `memory_search` itself, and non-search commands always pass. Missing gate module on
+  `query` itself, and non-search commands always pass. Missing gate module on
   Hermes fails open.
 
 ## Consequences
@@ -63,7 +63,7 @@ permits re-issue after consultation. Memory-first, never memory-only.
 
 ## Amendment (2026-10-18, v0.196.0): first sighting of each pattern, `# memory-checked` marker
 
-The session-wide unlock let one unrelated `memory_search` open every later grep, and the
+The session-wide unlock let one unrelated `query` open every later grep, and the
 gate read only a Bash command's first word, so `sed ...; echo; grep -n "a\|b" f | head`
 passed untouched. The gate now keys on the search pattern, not the session.
 
@@ -84,14 +84,14 @@ passed untouched. The gate now keys on the search pattern, not the session.
   (`memory_context.search_block`: no prompt gate, no session check, one 4 s budget from hook
   start over open+search+close) with the unsearched patterns as the query. A reply (hits or
   empty) records them and its hits go into the deny reason; a search that could not run
-  records nothing and the reason tells the agent to call `memory_search` with the pattern.
+  records nothing and the reason tells the agent to call `query` with the pattern.
   Every deny reason names the marker.
 - **Searched means.** Stored entries carry their kind: `p:` a pattern the gate searched,
   `q:` an agent's query. A pattern counts as searched when its normalized form (regex escapes
   undone, `^ $ \b` and grouping parentheses dropped, lowercase, whitespace collapsed) equals a
   recorded pattern, or is a contiguous whole-word run of a recorded query (`def` is not inside
   `default`). Only the patterns that fit the 500-char query are recorded. The PostToolUse
-  `memory_search` hook records the call's
+  `query` hook records the call's
   `query` (Copilot's string `toolArgs` included); `record_search` stays as telemetry.
 - **Store.** `hook_state` row `memory_first.searched.<project_id>` via `kv_update`; file
   fallback `~/.ai-badger/memory-first-searched/<project_id>`, one entry per line. Never reset,
@@ -111,7 +111,7 @@ passed untouched. The gate now keys on the search pattern, not the session.
   `--recursive`/`-d recurse`, `rg --files`, find, an input redirect (`< f`, `<<<`), a grep run
   by `xargs`, a grep nested in `bash -c` (its stdin is not proven), and the shlex fallback.
   Exception: a listed program that prints repo files is not exempt — `git ls-files`, `git ls-tree`, `git grep` (subcommand found past `-C`/`-c`/`--git-dir`/`--work-tree`) and `ls -R`/`--recursive`; a grep over their output stays gated.
-  A `memory_search` credits its query only when the call succeeded (not Claude's `PostToolUseFailure`, a Copilot `resultType` other than `success`, or a Hermes status other than ok) and its `projectId` equals the project the gate resolved; a search of another project, or one with no `projectId`, unlocks nothing. A `grep -f`/`rg -f`/`--file` search takes its patterns from a file the gate cannot read, so it is keyed on its own words.
+  A `query` credits its query only when the call succeeded (not Claude's `PostToolUseFailure`, a Copilot `resultType` other than `success`, or a Hermes status other than ok) and its `projectId` equals the project the gate resolved; a search of another project, or one with no `projectId`, unlocks nothing. A `grep -f`/`rg -f`/`--file` search takes its patterns from a file the gate cannot read, so it is keyed on its own words.
 - **Untrusted hits.** The search hits quoted in a deny reason are bank content, untrusted data
   exactly as in the prompt hook's injected context.
 - **Removed.** `MAX_DENIALS` and the denial counter (`deny_count`, `increment_denials`),
@@ -151,7 +151,7 @@ Claude Code, Codex and pi all speak the Claude envelope, so one host branch cove
 receives the hits beside the call. Copilot and Hermes keep their deny, with the reason reduced
 to one line: `Memory-first: search memory for "…" (projectId=…) first, then re-run this search.`
 When the memory lookup could not run at all, every host denies with that one line, so the agent
-searches memory itself; the pattern is then credited by the agent's own `memory_search` through
+searches memory itself; the pattern is then credited by the agent's own `query` through
 the existing rule.
 
 **The payload.** `rawGrepInput` is renamed `textSearchInput`: the gate's subject is text search,

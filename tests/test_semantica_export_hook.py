@@ -135,7 +135,7 @@ def test_main_cli_returns_zero_on_exception(monkeypatch):
         ("semantica:export_graph", True),
         ("export_graph", True),
         ("add_entity", False),
-        ("memory_search", False),
+        ("query", False),
         ("export_graph_extra", False),
         (None, False),
         (123, False),

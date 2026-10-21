@@ -559,7 +559,7 @@ def test_copilot_string_tool_args_on_both_hooks(env, monkeypatch, capsys):
     assert "{" not in decision["permissionDecisionReason"]
 
     _feed(monkeypatch, {"hookEventName": "postToolUse", "sessionId": "c1",
-                        "cwd": str(env.tmp), "toolName": "memory_search",
+                        "cwd": str(env.tmp), "toolName": "query",
                         "toolArgs": json.dumps({"projectId": PROJECT, "query": "gizmo"})})
     assert env.post.main([]) == 0
 
@@ -767,7 +767,7 @@ def test_live_output_upstreams_stay_exempt(env, command):
     assert env.gate.search_patterns("Bash", {"command": command}) is None
 
 
-# ------------------------------------------------------------------ crediting a memory_search
+# ------------------------------------------------------------------ crediting a query
 def _post(env, monkeypatch, payload):
     _feed(monkeypatch, payload)
     assert env.post.main([]) == 0
@@ -794,7 +794,7 @@ def test_a_memory_search_without_a_project_id_credits_nothing(env, monkeypatch, 
 
 
 @pytest.mark.parametrize("payload", [
-    {"hookEventName": "postToolUse", "toolName": "memory_search",
+    {"hookEventName": "postToolUse", "toolName": "query",
      "toolArgs": json.dumps({"projectId": PROJECT, "query": "widgetFactory"}),
      "toolResult": {"resultType": "failure", "textResultForLlm": "boom"}},
     {"hook_event_name": "PostToolUseFailure", "tool_name": "mcp__ai-raccoon__memory_search",
@@ -812,7 +812,7 @@ def test_a_successful_copilot_memory_search_credits_its_query(env, monkeypatch, 
     """Guards the failure check against rejecting every Copilot result."""
     env.state.reply = None
     _post(env, monkeypatch, {"hookEventName": "postToolUse", "cwd": str(env.tmp),
-                             "toolName": "memory_search",
+                             "toolName": "query",
                              "toolArgs": json.dumps({"projectId": PROJECT, "query": "widgetFactory"}),
                              "toolResult": {"resultType": "success"}})
 

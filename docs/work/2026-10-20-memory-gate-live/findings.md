@@ -30,7 +30,7 @@ against the fixed adapter, and the difference is the fix.
 PRE-FIX                                  POST-FIX
 user:    use the grep tool once          user:    use the grep tool once
 assistant: [toolCall grep …]             assistant: [toolCall grep …]
-toolResult: 5 matches in 3F: …           toolResult: Memory context (ai-raccoon memory_search …)
+toolResult: 5 matches in 3F: …           toolResult: Memory context (ai-raccoon query …)
 assistant: Grep called once …            assistant: Done — one grep call over `features` …
 custom (ai-badger-memory): Memory context …
 assistant: The snippets are untrusted background only …
@@ -199,8 +199,8 @@ Measured, not inferred — `shouldEnrich` and `toMemoryContext` from the install
 ```
 shouldEnrich(block) -> {"enrich":true, "reason":"ok", "uniqueWords":54, ...}
 the block it would produce, first line:
-  Memory context (ai-raccoon memory_search, snippets — query: "Memory context
-  (ai-raccoon memory_search, snippets — query: "memory.gate"): Trea…"):
+  Memory context (ai-raccoon query, snippets — query: "Memory context
+  (ai-raccoon query, snippets — query: "memory.gate"): Trea…"):
 query is the PREVIOUS block's header: true
 ```
 

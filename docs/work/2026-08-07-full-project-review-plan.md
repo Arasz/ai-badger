@@ -228,7 +228,7 @@ dispatch; an item without chunks is one dispatch.
   `~/.ai-badger/hook-errors.log` (B7); distinguish absent from corrupt sibling modules (B8).
 - **W7.d** Close the six stale `IN_PROGRESS` tracker entries (B13).
 - **Acceptance:** `task_tracker.py status` finds the task from any worktree; the gate names
-  `ai-badger` from any worktree; `memory_stats` is non-zero with a healthy watch.
+  `ai-badger` from any worktree; `get_store_statistics` is non-zero with a healthy watch.
 - **Gate:** a test registering from the checkout and reading from a worktree — must fail today.
 
 ### W8 — Make the gate chain honest about itself `[HIGH]`

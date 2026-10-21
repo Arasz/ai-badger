@@ -14,7 +14,7 @@ Two mechanisms deliver memory to a model, and they were allowed to collide.
 
 The first is the **prompt hook** (`memory_context.py`): on every user prompt it searches
 this project's memory bank and injects a block — `Memory context (ai-raccoon
-memory_search, snippets — query: "…"):` plus the hits it found. The second is the
+query, snippets — query: "…"):` plus the hits it found. The second is the
 **memory-first gate** (`memory_first_gate.py`): on a text search whose patterns the project
 has not memory-searched yet, it runs the search itself and hands the model the result as
 `additionalContext` on the tool call's decision.

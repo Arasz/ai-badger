@@ -344,7 +344,7 @@
     },
     {
       "name": "memory-first-gate-marker",
-      "description": "Record a memory_search query as searched for the memory-first gate (PostToolUse)",
+      "description": "Record a query query as searched for the memory-first gate (PostToolUse)",
       "agents": {
         "claude": {
           "type": "hooks-json",
@@ -391,7 +391,7 @@
     },
     {
       "name": "memory-follow-through",
-      "description": "Passive follow-through detection (Joachims implicit feedback): after memory_search stash results, after read_file check for path match within 60s and record follow_through_count",
+      "description": "Passive follow-through detection (Joachims implicit feedback): after query stash results, after read_file check for path match within 60s and record follow_through_count",
       "agents": {
         "claude": {
           "type": "hooks-json",

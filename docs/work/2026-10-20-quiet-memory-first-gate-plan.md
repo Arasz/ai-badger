@@ -89,7 +89,7 @@ lookup is unavailable) — unchanged.
 - Claude Code / Codex: the memory block as `additionalContext` on the allowed call.
 - pi: the adapter turns the same envelope into a model-side message with
   `display: false` — the agent gets it, the terminal shows nothing.
-- Copilot CLI / Hermes: the agent's own `memory_search` (its normal tool call) — the
+- Copilot CLI / Hermes: the agent's own `query` (its normal tool call) — the
   pattern unlocks through the existing credit rule (`credit_search`), so the re-issued
   search passes.
 

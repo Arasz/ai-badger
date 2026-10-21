@@ -75,7 +75,7 @@ class TestWhatCountsAsAnAttributeUse:
                                            "McpServerTool") == 1
 
     def test_an_ordinary_named_attribute_counts(self, derive):
-        source = '[McpServerTool(Name = "memory_write"), Description("x")]\n'
+        source = '[McpServerTool(Name = "add_memory"), Description("x")]\n'
 
         assert derive.count_attribute_uses(source, "McpServerTool") == 1
 

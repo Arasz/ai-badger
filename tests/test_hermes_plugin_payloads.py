@@ -11,7 +11,7 @@ The observers must accept these verbatim (keyword args) and behave identically t
 the legacy tool_name/args spelling. No cwd arrives in any payload — callbacks fall
 back to os.getcwd() (the session process cwd), matching pre_llm's pop side.
 
-The memory-grade file logging is gone (2026-08-11, task mem-cleanup): a memory_search
+The memory-grade file logging is gone (2026-08-11, task mem-cleanup): a query
 payload must unlock the memory-first gate and must NOT create any quality-log file.
 """
 # pylint: disable=redefined-outer-name  # module-local fixture reuse; see pyproject.toml
@@ -96,7 +96,7 @@ def test_post_tool_observer_legacy_spelling_unlocks_the_gate(
 def test_post_tool_observer_non_search_tool_writes_nothing_and_keeps_gate(
         tmp_path, hooks, fake_gate, fresh, monkeypatch):
     monkeypatch.chdir(tmp_path)
-    hooks.post_tool_observer(**_real_post_tool_payload(function_name="memory_write"))
+    hooks.post_tool_observer(**_real_post_tool_payload(function_name="add_memory"))
 
     out = hooks.pre_tool_call_memory_gate(
         tool_name="search_files", args={"pattern": "q"}, task_id="t1")
@@ -114,7 +114,7 @@ def test_pre_llm_inject_context_accepts_real_pre_llm_payload(
         session_id="sess-1", user_message="hello", conversation_history=[],
         is_first_turn=True, model="gpt-4", platform="cli")
     if context is not None:
-        assert "Rate that memory_search" not in (context.get("context") or "")
+        assert "Rate that query" not in (context.get("context") or "")
 
 
 def test_on_session_start_drift_notice_accepts_session_only_payload(hooks):

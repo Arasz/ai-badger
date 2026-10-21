@@ -110,7 +110,7 @@ def test_g3_fake_modes_that_answer(memory_context_env, mode):
                             stderr=subprocess.DEVNULL)
     init = {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}}
     call = {"jsonrpc": "2.0", "id": 2, "method": "tools/call",
-            "params": {"name": "memory_search", "arguments": {"query": "alpha"}}}
+            "params": {"name": "query", "arguments": {"query": "alpha"}}}
     out, _ = proc.communicate((json.dumps(init) + "\n" + json.dumps(call) + "\n").encode(),
                               timeout=5)
     replies = [json.loads(line) for line in out.decode().splitlines() if line.startswith("{")]
@@ -142,7 +142,7 @@ def test_g3_blocking_modes_end_by_the_ceiling(memory_context_env, mode):
     started = time.monotonic()
     init = {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}}
     call = {"jsonrpc": "2.0", "id": 2, "method": "tools/call",
-            "params": {"name": "memory_search", "arguments": {"query": "alpha"}}}
+            "params": {"name": "query", "arguments": {"query": "alpha"}}}
     try:
         out, _ = proc.communicate((json.dumps(init) + "\n" + json.dumps(call) + "\n").encode(),
                                   timeout=3)
@@ -171,12 +171,12 @@ def test_g3_latereply_holds_reply_until_second_request_is_read(memory_context_en
         line({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}})
         assert json.loads(proc.stdout.readline())["id"] == 1
         line({"jsonrpc": "2.0", "id": 2, "method": "tools/call",
-              "params": {"name": "memory_search", "arguments": {"query": "a"}}})
+              "params": {"name": "query", "arguments": {"query": "a"}}})
         time.sleep(0.3)
         assert not any(r["event"] == "line" and '"id": 3' in r["line"]
                        for r in env.fake.events())
         line({"jsonrpc": "2.0", "id": 3, "method": "tools/call",
-              "params": {"name": "memory_search", "arguments": {"query": "b"}}})
+              "params": {"name": "query", "arguments": {"query": "b"}}})
         first = json.loads(proc.stdout.readline())
         second = json.loads(proc.stdout.readline())
         assert (first["id"], second["id"]) == (2, 3)
@@ -281,7 +281,7 @@ def test_t3_wire(memory_context_env):
     assert requests[0]["params"]["protocolVersion"] == "2024-11-05"
     assert requests[1] == {"jsonrpc": "2.0", "method": "notifications/initialized"}
     call = requests[2]
-    assert call["method"] == "tools/call" and call["params"]["name"] == "memory_search"
+    assert call["method"] == "tools/call" and call["params"]["name"] == "query"
     assert call["params"]["arguments"] == {"projectId": "proj-123", "sessionId": "sess-1",
                                            "query": "alpha query", "limit": 5,
                                            "scope": "project"}
@@ -740,7 +740,7 @@ def test_b8_long_prompt_is_sent_whole(memory_context_env):
 
 def test_build_happy_block(memory_context_env):
     block = build(memory_context_env)
-    assert block.startswith("Memory context (ai-raccoon memory_search, snippets")
+    assert block.startswith("Memory context (ai-raccoon query, snippets")
     assert "[m1] /repo/docs/one.md (rank 1) :: first memory" in block
     assert "[c1] /repo/src/one.py:1-2 (rank 0.75) :: def one(): pass" in block
 
@@ -947,7 +947,7 @@ def test_sb1_search_block_skips_the_prompt_gate_and_the_session_check(memory_con
 
     block = search_block(env, "foo")
 
-    assert block.startswith("Memory context (ai-raccoon memory_search, snippets")
+    assert block.startswith("Memory context (ai-raccoon query, snippets")
     assert len(env.guards.spawns) == 1
     assert env.fake.calls()[0]["params"]["arguments"]["query"] == "foo"
 

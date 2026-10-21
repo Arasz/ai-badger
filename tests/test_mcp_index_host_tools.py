@@ -156,7 +156,7 @@ def test_listing_names_map_to_init_prefixes_by_claude_codes_rule(load_script):
     assert found.tools == {
         "plugin:context7:context7": ["query-docs"],
         "claude.ai Nocat": ["web_search_exa"],
-        "ai-raccoon": ["memory_get", "memory_write"],
+        "ai-raccoon": ["get_entry", "add_memory"],
         "plugin:canva:canva": [],
     }
     assert found.statuses["plugin:canva:canva"] == "needs-auth"

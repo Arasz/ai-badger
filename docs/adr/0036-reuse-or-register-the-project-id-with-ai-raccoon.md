@@ -65,7 +65,7 @@ given by session `ai-raccoon-f7` on 2026-10-04, PR #846):
 
 ## Alternatives
 
-- **Mint via the MCP tool `project_id_token_get`.** Rejected by the owner: it rewrites
+- **Mint via the MCP tool `save_project_id_token`.** Rejected by the owner: it rewrites
   identity and cannot register an existing id.
 - **`check` before `register`.** Dropped per the owner's 2026-10-04 ruling: `register` folds
   aliases itself, and the contract confirms an alias exits 0 with `already registered
@@ -91,7 +91,7 @@ given by session `ai-raccoon-f7` on 2026-10-04, PR #846):
   a second project under that name, which makes a later `get --name` ambiguous; the owner
   resolves that with ai-raccoon's repair alias map.
 - **Under 1.57.0, a repo with no id file resolves the gate to the basename**, which the bank
-  refuses on reads. Tolerated: the post hook records any `memory_search`
+  refuses on reads. Tolerated: the post hook records any `query`
   (`memory_first_gate_post_hook.py`) and its query unlocks the patterns it contains. (Until
   0.196.0 a `MAX_DENIALS` pass-through also failed open; ADR-0017's 0.196.0 amendment removed it.)
 - **The id file stays machine-local convenience, not an authentication token** (ADR-0024/L8):

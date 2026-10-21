@@ -80,7 +80,7 @@ unverified).
   Re-run anything load-bearing and report the numbers actually observed.
 - **Commit messages are claims.** Several this week assert gate results ("3301 passed",
   "freshness PASS 1342 paths"). They are hypotheses until re-run.
-- **Search project memory first.** `ai-raccoon` `memory_search` with 2–3 query formulations,
+- **Search project memory first.** `ai-raccoon` `query` with 2–3 query formulations,
   `scope=all`, before any external search or broad file scan.
 - **Prefer the code graph.** `code-review-graph` MCP tools return callers, dependents and test
   coverage that file scanning cannot, at lower token cost.

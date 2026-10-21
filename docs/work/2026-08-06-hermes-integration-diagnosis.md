@@ -78,11 +78,11 @@ Hermes plugin contract (verified in `~/.hermes/hermes-agent/hermes_cli/plugins.p
   Hermes never imported them (all other loaded Hermes modules leave pycache).
 - `~/.hermes/logs/agent.log*` mentions `ai_badger_hooks` only in lint (pyright) and a
   blocked-command log — never as plugin execution.
-- Live test: a real `memory_search` via the Hermes MCP client (projectId=ai-raccoon,
+- Live test: a real `query` via the Hermes MCP client (projectId=ai-raccoon,
   ranking 1.0 hit) while `AI_BADGER_MEMORY_GRADE=1` is set in the shell appended **no
   line** to `~/.ai-badger/memory-grade/memory-quality.jsonl`.
 - The quality log's single line ("live probe wp7", 2026-08-05T19:11:59Z) was produced by
-  direct helper invocation, not by a live host: no `memory_search` tool_use exists in any
+  direct helper invocation, not by a live host: no `query` tool_use exists in any
   Claude Code transcript (`~/.claude/projects/`), and Hermes never loads the plugin.
   WP7's "live probe" verified the helper pipeline (log → grade round-trip), not that any
   agent host fires the hook.
@@ -100,7 +100,7 @@ Hermes plugin contract (verified in `~/.hermes/hermes-agent/hermes_cli/plugins.p
 - The memory-grade telemetry feature — built to answer "is memory search useful?" — has
   zero organic data points; its only log line is a verification artifact.
 - Claude/Copilot sides are wired correctly (hooks.json / hooks.json entries); Claude
-  simply has not invoked `memory_search` in a session since deployment, so nothing was
+  simply has not invoked `query` in a session since deployment, so nothing was
   logged there either.
 
 ## 4a. Relationship to prior findings (2026-08-02-hermes-task-tracking.md)
@@ -131,7 +131,7 @@ Hermes plugin.
    `hermes plugins enable ai-badger` — user plugins are opt-in by design). Decide who
    runs it: scaffold prints the instruction, or the adjustment edits config (needs a
    Hermes-owned mechanism, not a hand edit).
-3. Re-verify with the gate WP7 was missing: a real `memory_search` inside a live Hermes
+3. Re-verify with the gate WP7 was missing: a real `query` inside a live Hermes
    session must append a line with `projectId`/`workspaceId`, then the grade round-trip
    must fill it in place.
 4. Update `references/hooks-subsystem.md` (correct the "loose copies" claim), the
