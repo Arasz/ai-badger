@@ -19,10 +19,10 @@ PROPOSAL = ('{tool} is not wired for Codex yet: its guard keeps Codex rules judg
 NOTE = ('Codex tool hooks need project trust and /hooks approval; the guard rewrites a command '
         'only when no Codex rule names it, with the permissionDecision allow Codex requires '
         'beside a rewrite, so the approval prompt and the safe/dangerous classifier see the '
-        'rtk-prefixed form; optional: if rtk history fails with SQLITE_CANTOPEN in the '
-        'workspace-write sandbox, add rtk\'s data directory (~/Library/Application Support/rtk '
-        'on macOS, ~/.local/share/rtk on Linux) to [sandbox_workspace_write] writable_roots in '
-        'config.toml yourself; config.toml is not changed')
+        '{tool}-prefixed form; optional: if {tool} history fails with SQLITE_CANTOPEN in the '
+        'workspace-write sandbox, add {tool}\'s data directory (~/Library/Application Support/'
+        '{tool} on macOS, ~/.local/share/{tool} on Linux) to [sandbox_workspace_write] '
+        'writable_roots in config.toml yourself; config.toml is not changed')
 
 
 def _scripts(framework_root: Path) -> None:
@@ -86,8 +86,11 @@ def _wire(context: dict[str, Any]) -> dict[str, Any]:
     dst = context['target'] / '.codex/hooks.json'
     if symlink_parent(dst, context['target']):
         return {'applied': False, 'files': [], 'notes': 'Codex config discovery symlink preserved'}
-    commands = [arm['command'] for tool in context.get('tools', {}).values()
+    names = [name for name, tool in context.get('tools', {}).items()
+             if (arm := tool.get('agents', {}).get('codex')) and arm.get('mode') == 'native']
+    commands = [tool['agents']['codex']['command'] for tool in context.get('tools', {}).values()
                 if (arm := tool.get('agents', {}).get('codex')) and arm.get('mode') == 'native']
+    note = '; '.join(NOTE.format(tool=name) for name in names)
     try:
         existing = _load(dst)
     except (ValueError, OSError) as exc:
@@ -98,6 +101,7 @@ def _wire(context: dict[str, Any]) -> dict[str, Any]:
     before = json.dumps(existing)
     _merge(hooks, [_entry(command) for command in commands], is_ours)
     if json.dumps(existing) == before:
-        return {'applied': bool(commands), 'files': [], 'notes': NOTE if commands else 'No tool hooks for Codex'}
+        return {'applied': bool(commands), 'files': [],
+                'notes': note if commands else 'No tool hooks for Codex'}
     config_guard.write_json_with_backup(dst, existing)
-    return {'applied': True, 'files': [], 'notes': NOTE if commands else 'Codex tool hooks removed'}
+    return {'applied': True, 'files': [], 'notes': note if commands else 'Codex tool hooks removed'}

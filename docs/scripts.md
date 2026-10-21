@@ -164,8 +164,9 @@ The task-graph plan server runs through `uv run --script`; its CLI twin is
 `features/common/skills/task-decomposition/scripts/task_graph_cli.py` (`<tool> --json`), used
 where no `.mcp.json` is loaded, such as worktree sessions.
 
-The `rtk` tool (`features/common/tools/rtk/`) ships `scripts/install.py`, `check.py`, `rtk_guard.py`
-(the Claude PreToolUse rewrite guard) and `user_hook.py --apply` (user-scope install).
+A tool in the catalog ships `scripts/install.py` and `scripts/check.py`; a tool that declares a
+`guard` script also ships that guard, which the harness's marked hook runs in place of the
+tool's own. The catalog itself ships no tool.
 
 `call-behaviorist` (`features/common/skills/call-behaviorist/scripts/behaviorist.py`) switches
 on ai-badger's own audit log — `on [DURATION] [--project]`, `off`, `status`, `tail`, `analyze`,

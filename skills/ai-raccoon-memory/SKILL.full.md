@@ -159,7 +159,7 @@ the search it demands cannot point at two different projects.
 **Repo text search: memory first.** The gate keys on the search pattern. A grep/egrep/fgrep/
 rg/find anywhere in a shell command (every segment of `a; b | c` counts, a piped search
 included), or a Grep/Glob/search_files call, passes only when every pattern was already
-memory-searched for this project. This includes `rg` and `rtk rg`.
+memory-searched for this project. This includes `rg`.
 
 On a pattern's first sighting the gate runs one `memory_search` and hands the result to the
 agent. On a host whose tool-call seam carries model-side context (Claude Code, Codex and pi)
@@ -186,7 +186,7 @@ escapes such as `\.`). Searched patterns persist per project and are never reset
 
 **Excluded list.** A grep/egrep/fgrep/rg reading a pipe from git, gh, ps, ls, env, printenv,
 history, docker, kubectl, pip, npm, lsof, brew, dotnet is not repo search:
-`git log | grep fix` is excluded from repo search, including through `rtk`/`sudo` wrappers.
+`git log | grep fix` is excluded from repo search, including through `sudo` wrappers.
 Only the program immediately before the grep counts (`git log | head -50 | grep fix` is gated:
 `head` is not listed). A grep with a file operand, `-r`/`-R`/`-d recurse`, `rg --files`, an
 input redirect, or run by `xargs` stays gated, as does any file grep elsewhere in the command.

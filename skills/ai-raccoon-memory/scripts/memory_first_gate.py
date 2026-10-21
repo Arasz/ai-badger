@@ -183,8 +183,6 @@ def _commands(command: str) -> List[_Segment]:
         words = shlex.split(command, comments=True)
     except ValueError:
         return []
-    if words and words[0].rsplit("/", 1)[-1] == "rtk":  # rtk's `grep`/`rg`/`find` filters
-        words = [w for w in words[1:] if not w.startswith("-")]
     if not words:
         return []
     return [(words[0].rsplit("/", 1)[-1].lower(), tuple(words[1:]), tuple(words), None)]
@@ -252,7 +250,7 @@ def _grep_parse(program: str, args: Tuple[str, ...]) -> Tuple[List[str], List[st
 
 
 def _feeding_program(upstream: Any) -> str:
-    """The program writing into a pipe: what runs past rtk/sudo/env wrappers, else the first
+    """The program writing into a pipe: what runs past sudo/env wrappers, else the first
     word that is not an assignment (`env` alone prints the environment)."""
     if upstream.program:
         return upstream.program.lower()
@@ -374,7 +372,7 @@ def _capture_argv(parsed: Any, program: str, args: Tuple[str, ...],
             or parsed.start >= len(parsed.words)):
         return None
     prefix = parsed.words[:parsed.start]
-    if prefix and not (len(prefix) == 1 and prefix[0].rsplit("/", 1)[-1] == "rtk"):
+    if prefix:
         return None
     if any("$" in arg or "`" in arg or "{" in arg or "}" in arg
            or re.search(r"[<>][(]", arg) or arg.startswith("~")

@@ -155,7 +155,7 @@ stacks that have no external skills.
 
 ## Adding a tool
 
-A tool is a CLI program that ai-badger wires into each agent harness, such as `rtk`, which rewrites
+A tool is a CLI program that ai-badger wires into each agent harness, such as one that rewrites
 shell commands so their output reaches the model compressed. Give it a directory
 `features/<stack>/tools/<name>/` with a `meta.json` that validates against
 `schemas/tool.schema.json`. `name` and `prerequisite` are required. `prerequisite` carries a
@@ -163,7 +163,7 @@ shell commands so their output reaches the model compressed. Give it a directory
 `copilot`, `pi`, `hermes`). Each entry's `mode` is `native` (ai-badger writes the hook), `init` (it
 runs the tool's own installer) or `propose` (it prints the command for the user). An optional
 `guard` names a stdlib-only script under `scripts/` that a native hook runs in place of
-`<tool> hook <arg>`. `features/common/tools/rtk/` is a worked example.
+`<tool> hook <arg>`.
 
 A tool installs nothing until the project opts in through `config.json`:
 `tools.<name>.hooks: [agent, ...]`. [ADR-0039](adr/0039-tools-feature-type.md) has the

@@ -1,7 +1,7 @@
 """Own one `.github/hooks/<tool>-rewrite.json` per opted-in tool (ADR-0039).
 
-The file carries the PascalCase `PreToolUse` shape `rtk init --copilot` writes, with the
-guarded command in place of the bare `rtk hook copilot`.
+The file carries the PascalCase `PreToolUse` shape a tool's own `--copilot` init writes, with
+the guarded command in place of the bare `<tool> hook copilot`.
 """
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 HOOKS = '.github/hooks'
-NOTE = ('{files}: rtk answers VS Code Copilot Chat with updatedInput and Copilot CLI with '
+NOTE = ('{files}: {tool} answers VS Code Copilot Chat with updatedInput and Copilot CLI with '
         'modifiedArgs (a rewrite), though its own install text calls Copilot CLI '
         'deny-with-suggestion; live Copilot behaviour is unverified')
 
@@ -54,12 +54,11 @@ def adjust(context: Dict[str, Any]) -> Dict[str, Any]:
             {'type': 'command', 'command': command, 'cwd': '.', 'timeout': 5}]}}
         changed |= config_guard.write_json_with_backup(dst, data)
         files.append(f'{HOOKS}/{name}')
+        notes.append(NOTE.format(files=f'{HOOKS}/{name}', tool=name))
     for stale in sorted(hooks.glob('*-rewrite.json')) if hooks.is_dir() else []:
         if stale.name not in wanted and _marked(stale, tool_hooks.is_ours):
             stale.unlink()
             changed = True
             notes.append(f'{HOOKS}/{stale.name} removed')
-    if files:
-        notes.insert(0, NOTE.format(files=', '.join(files)))
     return {'applied': bool(files) or changed, 'files': files,
             'notes': '; '.join(notes) or 'No tool hooks for Copilot'}

@@ -51,7 +51,7 @@ def _is_ai_badger_command(command: str) -> bool:
 def test_limited_env_does_not_add_ai_badger_hook_registrations(
         agent, registration, make_scaffolder):
     config = _config(stacks=[agent, "limited-env"], agents=[agent])
-    config["tools"] = {"rtk": {"hooks": [agent]}}
+    config["tools"] = {"shim": {"hooks": [agent]}}
     scaffolder = make_scaffolder(config=config, skills=HOOK_SKILLS, install=True)
 
     scaffolder.run(generated_at="2026-10-21T00:00:00Z")
@@ -117,7 +117,7 @@ def test_limited_env_preserves_third_party_claude_hook_when_removing_owned_hook(
                 {"hooks": [{"type": "command", "command": "third-party startup check"}]},
                     {"hooks": [{"type": "command", "command": None}]},
                     {"hooks": None},
-                    {"hooks": [{"type": "command", "command": "env AI_BADGER_TOOL=rtk rtk hook claude"}]},
+                    {"hooks": [{"type": "command", "command": "env AI_BADGER_TOOL=shim shim hook claude"}]},
             ]
         },
         "permissions": {"allow": ["Read"]},
@@ -161,7 +161,7 @@ def test_limited_env_removes_owned_codex_hook_and_preserves_unrelated(
     config_path.parent.mkdir(parents=True)
     config_path.write_text(json.dumps({"hooks": {"SessionStart": [
         {"hooks": [{"type": "command", "command": owned},
-                   {"type": "command", "command": "env AI_BADGER_TOOL=rtk rtk hook codex"},
+                   {"type": "command", "command": "env AI_BADGER_TOOL=shim shim hook codex"},
                    {"type": "command", "command": unrelated}]}
     ]}}), encoding="utf-8")
 
@@ -187,13 +187,13 @@ def test_limited_env_removes_copilot_hook_file_without_touching_sibling(
     ]}}), encoding="utf-8")
     unrelated = hooks_dir / "vendor-hooks.json"
     unrelated.write_text('{"vendor": true}\n', encoding="utf-8")
-    tool_hook = hooks_dir / "rtk-rewrite.json"
+    tool_hook = hooks_dir / "shim-rewrite.json"
     tool_hook.write_text(json.dumps({"version": 1, "hooks": {"PreToolUse": [
-        {"type": "command", "command": "env AI_BADGER_TOOL=rtk rtk hook copilot"}
+        {"type": "command", "command": "env AI_BADGER_TOOL=shim shim hook copilot"}
     ]}}), encoding="utf-8")
 
     config = _config(stacks=["copilot", "limited-env"], agents=["copilot"])
-    config["tools"] = {"rtk": {"hooks": ["copilot"]}}
+    config["tools"] = {"shim": {"hooks": ["copilot"]}}
     scaffolder = make_scaffolder(
         config=config, skills=HOOK_SKILLS)
     scaffolder.run(generated_at="2026-10-21T00:00:00Z")

@@ -71,9 +71,7 @@ How each kind behaves once scaffolded:
   `meta.json` ([`schemas/tool.schema.json`](../schemas/tool.schema.json)), a `tool.md` rendered
   into every agent file, and `check` and `install` scripts. Nothing is wired until the project
   names the tool in `config.tools`; each agent's `adjust_tools` then adds the tool's marked hook,
-  or prints a proposal where the tool declares one (rtk proposes on Codex and Hermes, wires
-  natively on Claude and Copilot, and uses `init` on pi). The first
-  entry is `rtk`, which compresses shell output
+  or prints a proposal where the tool declares one. The catalog ships no tool of its own
   ([ADR-0039](adr/0039-tools-feature-type.md)).
 - **data** and **retrieval**: `features/common/data/model-groups.json` maps a persona's `model:`
   lane to a real model id, and `features/common/retrieval/` holds the BM25 matcher, tokenizer and
@@ -255,7 +253,7 @@ ai-badger/
       skills-source.json         # External skill sources
       skills.json                # External skills to install
       mcp/                       # MCP server catalog (code-review-graph, ai-raccoon, semantica, ...)
-      tools/                     # External CLI catalog (rtk), one meta.json each
+      tools/                     # External CLI catalog, one meta.json each
       mcp-tags.json              # The closed tag vocabulary an MCP tool must draw from
       stack-mcp.json             # Which MCP servers this stack wants, and how to launch them
       support.json               # Agent capability matrix

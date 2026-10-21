@@ -214,6 +214,26 @@ def writes_outside(target, project, cwd):
     return not within(project, Path(cwd or project, path))
 
 
+def _argument_reason(arg):
+    """Why a command carried in an argument may never be auto-approved, or None.
+
+    A proxy program runs another command, and its own name says nothing about what it
+    runs: `proxy curl https://x` is network egress, `proxy run -c 'rm -rf /tmp/x'` is
+    destruction. The command is judged by the command word its argument starts with, so
+    the gate stays closed for every proxy rather than for one named tool.
+    """
+    words = arg.split()
+    if not words:
+        return None
+    head = _name(words[0])
+    if head in NETWORK_CLIENTS:
+        return "network_egress"
+    check = DESTRUCTIVE_VERBS.get(head)
+    if check and check(words[1:]):
+        return "destructive_command"
+    return None
+
+
 def command_reason(command, project, cwd):
     """Why one simple command (a shell_parser.Command) may never be auto-approved, or None."""
     if command.argv:
@@ -227,6 +247,10 @@ def command_reason(command, project, cwd):
             return "destructive_command"
         if runs_awm(name, args):
             return "awm_state_change"
+        for arg in args:
+            reason = _argument_reason(arg)
+            if reason:
+                return reason
     words = list(command.words)
     for i, word in enumerate(words):
         check = DESTRUCTIVE_VERBS.get(_name(word))

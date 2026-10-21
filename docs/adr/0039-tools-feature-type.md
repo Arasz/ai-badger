@@ -3,7 +3,17 @@
 **Date:** 2026-10-17
 **Status:** Accepted; amended 2026-10-17 (0.195.1, Claude arm to propose); amended 2026-10-18
 (0.197.0, the rtk guard hook, Claude arm back to native); amended 2026-10-18 (0.198.0, the
-user-scope guard hook)
+user-scope guard hook); amended 2026-10-21 (0.213.0, rtk withdrawn — the feature type
+stays, its first and only member leaves)
+
+> **Amended 0.213.0 — rtk is withdrawn.** The `tools` feature type this ADR introduces stays
+> exactly as decided: a generic extension point for an external CLI, opt-in through
+> `config.tools.<name>.hooks`, with each harness's `adjust_tools.py` owning its file format.
+> rtk, its first and only member, is gone — the catalog ships no tool, and nothing in the
+> framework names it any more. The decision below is the record of why the type exists; the
+> rtk-specific detail in it (the guard script, the per-agent modes rtk declared, the
+> privacy and licence notes) is history, not current behaviour. A project that wants a tool
+> adds `features/<stack>/tools/<name>/` itself.
 
 ## Context
 

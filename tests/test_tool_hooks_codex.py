@@ -4,15 +4,26 @@ from pathlib import Path
 
 import pytest
 
+import tool_fixtures
+
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+@pytest.fixture(name="root")
+def root_fixture(tmp_path):
+    """The framework root under test: the real tree with the synthetic catalog tool added.
+
+    The `tools` feature type ships no tool of its own, so the tests bring their own.
+    """
+    return tool_fixtures.overlay_root(tmp_path, ROOT)
 
 
 def context(target, enabled=True):
     return {'target': target, 'target_dir': target / '.ai-badger',
             'framework_root': ROOT, 'config': {'agents': ['codex']},
-            'tools': {'rtk': {'agents': {'codex': {
-                'mode': 'native', 'arg': 'codex', 'command': 'env AI_BADGER_TOOL=rtk RTK_TELEMETRY_DISABLED=1 sh -c true'
+            'tools': {'shim': {'agents': {'codex': {
+                'mode': 'native', 'arg': 'codex', 'command': 'env AI_BADGER_TOOL=shim SHIM_TELEMETRY_DISABLED=1 sh -c true'
             }}}} if enabled else {}}
 
 
@@ -33,10 +44,10 @@ def test_marked_hook_composes_in_both_orders(load_script, tmp_path, order):
     groups = handlers(dst)
     commands = [h['command'] for group in groups for h in group['hooks']]
     assert commands.count(user['command']) == 1
-    assert sum('AI_BADGER_TOOL=rtk' in command for command in commands) == 1
-    rtk = next(group for group in groups if any('AI_BADGER_TOOL=rtk' in h['command'] for h in group['hooks']))
-    assert rtk == {'matcher': 'Bash', 'hooks': [{
-        'type': 'command', 'command': context(tmp_path)['tools']['rtk']['agents']['codex']['command'],
+    assert sum('AI_BADGER_TOOL=shim' in command for command in commands) == 1
+    shim = next(group for group in groups if any('AI_BADGER_TOOL=shim' in h['command'] for h in group['hooks']))
+    assert shim == {'matcher': 'Bash', 'hooks': [{
+        'type': 'command', 'command': context(tmp_path)['tools']['shim']['agents']['codex']['command'],
         'timeout': 5}]}
     before = dst.read_bytes()
     arms['tools'].adjust(context(tmp_path))
@@ -68,7 +79,7 @@ def test_symlinked_codex_preserved(load_script, tmp_path):
                          ids=['still-opted-in', 'tool-removed', 'codex-deselected'])
 def test_a_scaffold_removes_the_entry_an_earlier_native_release_wired(
         load_script, root, tmp_path, monkeypatch, route):
-    """rtk is propose-only for Codex, so an entry 0.195.0 wired goes; the operator's stays."""
+    """shim is propose-only for Codex, so an entry 0.195.0 wired goes; the operator's stays."""
     import badger_lib as bl
     from scaffold_helpers import _config, build_scaffolder
     index = load_script('tooling/index_build.py').build_index(root)
@@ -81,20 +92,20 @@ def test_a_scaffold_removes_the_entry_an_earlier_native_release_wired(
     existing = json.loads(dst.read_text())
     existing['hooks'].setdefault('Stop', []).append({'hooks': [{'command': 'operator'}]})
     existing['hooks'].setdefault('PreToolUse', []).append({'matcher': 'Bash', 'hooks': [
-        {'type': 'command', 'command': 'env AI_BADGER_TOOL=rtk RTK_TELEMETRY_DISABLED=1 sh -c true',
+        {'type': 'command', 'command': 'env AI_BADGER_TOOL=shim SHIM_TELEMETRY_DISABLED=1 sh -c true',
          'timeout': 5}]})
     dst.write_text(json.dumps(existing))
-    config['tools'] = {'rtk': {'hooks': ['codex']}}
+    config['tools'] = {'shim': {'hooks': ['codex']}}
     config.update(route)
 
     build_scaffolder(module, root=root, target=tmp_path, config=config,
                      skills=['git-work', 'commit-reminder']).run()
 
-    assert 'AI_BADGER_TOOL=rtk' not in dst.read_text()
+    assert 'AI_BADGER_TOOL=shim' not in dst.read_text()
     assert json.loads(dst.read_text())['hooks']['Stop'] == [{'hooks': [{'command': 'operator'}]}]
-    assert not (tmp_path / 'RTK.md').exists()
-    doc = tmp_path / 'AGENTS.md'
-    assert not doc.exists() or '@RTK.md' not in doc.read_text()
+    # the scaffold writes nothing of the tool's own: the tool's own files are the tool's
+    assert not (tmp_path / '.shim').exists()
+    assert not list(tmp_path.glob('SHIM*'))
 
 
 def test_codex_notice_and_no_config_change(load_script, tmp_path):
@@ -117,7 +128,7 @@ def test_every_tool_with_a_codex_arm_is_wired(load_script, tmp_path):
     assert arm.adjust(ctx)['applied']
     commands = [h['command'] for group in handlers(tmp_path / '.codex/hooks.json')
                 for h in group['hooks']]
-    assert commands == [ctx['tools']['rtk']['agents']['codex']['command'],
+    assert commands == [ctx['tools']['shim']['agents']['codex']['command'],
                         'env AI_BADGER_TOOL=other sh -c true']
 
 
@@ -150,7 +161,7 @@ def test_the_marked_group_is_moved_last_after_a_framework_group_is_appended(load
 
     groups = json.loads(path.read_text())['hooks']['PreToolUse']
     assert groups[0] == guard
-    assert 'AI_BADGER_TOOL=rtk' in groups[-1]['hooks'][0]['command']
+    assert 'AI_BADGER_TOOL=shim' in groups[-1]['hooks'][0]['command']
     assert len(groups) == 2
 
 
@@ -161,7 +172,7 @@ def test_adjust_hooks_inserts_framework_groups_ahead_of_a_marked_tool_group(load
     dst = tmp_path / '.codex/hooks.json'
     dst.parent.mkdir()
     tool = {'matcher': 'Bash', 'hooks': [{'type': 'command', 'timeout': 5, 'command':
-                                          'env AI_BADGER_TOOL=rtk RTK_TELEMETRY_DISABLED=1 sh -c true'}]}
+                                          'env AI_BADGER_TOOL=shim SHIM_TELEMETRY_DISABLED=1 sh -c true'}]}
     dst.write_text(json.dumps({'hooks': {'PreToolUse': [tool]}}))
 
     load_script('features/codex/adjustments/adjust_hooks.py').adjust(context(tmp_path, enabled=False))
@@ -175,13 +186,13 @@ def test_a_propose_arm_removes_the_wired_entry_and_says_why(load_script, tmp_pat
     dst = tmp_path / '.codex/hooks.json'
     dst.parent.mkdir()
     dst.write_text(json.dumps({'hooks': {'PreToolUse': [{'matcher': 'Bash', 'hooks': [
-        {'type': 'command', 'command': 'env AI_BADGER_TOOL=rtk RTK_TELEMETRY_DISABLED=1 sh -c true'}]}]}}))
+        {'type': 'command', 'command': 'env AI_BADGER_TOOL=shim SHIM_TELEMETRY_DISABLED=1 sh -c true'}]}]}}))
     ctx = context(tmp_path)
-    ctx['tools']['rtk']['agents']['codex'] = {'mode': 'propose', 'arg': 'codex'}
+    ctx['tools']['shim']['agents']['codex'] = {'mode': 'propose', 'arg': 'codex'}
 
     result = load_script('features/codex/adjustments/adjust_tools.py').adjust(ctx)
 
     assert 'AI_BADGER_TOOL' not in dst.read_text()
-    # A local `rtk init --codex` edits the generated AGENTS.md; only the user-wide init is safe.
-    assert 'approval' in result['notes'] and '`rtk init -g --codex`' in result['notes']
+    # A local `shim init --codex` edits the generated AGENTS.md; only the user-wide init is safe.
+    assert 'approval' in result['notes'] and '`shim init -g --codex`' in result['notes']
     assert 'user-wide' in result['notes'] and 'edits the generated AGENTS.md' in result['notes']
