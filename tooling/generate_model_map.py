@@ -11,19 +11,22 @@ The refresh rule, one pass over the leaderboard rows:
   tier    a row's tier is its input price against the rungs 0.1 / 2 / 4 USD per 1M
           tokens; the top tier takes the rest. A zero price is a price of zero, so it
           lands in low.
-  id      the id is a verbatim OpenRouter listing. pi's store carries the openrouter
-          catalogue, and a model pi lists only under a native vendor (anthropic, openai,
-          google) is admitted only when the OpenRouter id derived from its display name
-          is in the catalogue snapshot. A row with no admissible id stays out, with its
-          reason, and a row that resolves only to a free listing while the leaderboard
-          prices it above zero stays out too.
+  id      the id is a verbatim OpenRouter listing this key may route. pi's model store
+          carries the per-key list (OpenRouter's guardrails and provider restrictions
+          are already applied), so a model the key cannot route has no id: a model pi
+          lists only under a native vendor (anthropic, openai, google) stays out, with
+          its reason, even when the public OpenRouter catalogue lists it. A row with no
+          admissible id stays out, with its reason, and a row that resolves only to a
+          free listing while the leaderboard prices it above zero stays out too.
   newest  a tier keeps the newest model of each model line - the display name without
           its version tokens - the newest being the lowest leaderboard rank.
   family  the family a member belongs to: the line word for the anchored vendors
           (opus, sonnet, haiku, fable, luna, sol, astra, terra) and the product name
           for the rest (muse, glm, deepseek, mimo, gemini, step, dots3-note, gpt).
-  order   the group's primary anchor's model leads the group, then the rest in
-          ascending (input, output) price; the zero-priced open-weight members come
+  order   the group leads with the model the ladder's anchor names, when this key can
+          route a member of that family; a group whose ladder families are all out of
+          reach leads with the best member of a declared family instead. The rest follow
+          in ascending (input, output) price; the zero-priced open-weight members come
           last, because a zero price has no position in the order.
   price   the leaderboard prices the map. A row it leaves unpriced is reported by name
           and stays out of the map: the gap is in the leaderboard, not in the map.
@@ -137,6 +140,11 @@ def family_of(name: str, creator: str) -> str:
             break
         parts.append(part)
     return "-".join(parts).lower()
+
+
+def vendor_of(creator: str) -> Optional[str]:
+    """The declared family a model belongs to, when its creator is an anchored vendor."""
+    return creator.lower() if creator in ANCHORED_CREATORS else None
 
 
 def line_of(name: str) -> str:
@@ -256,8 +264,10 @@ def resolve_id(row: Dict[str, str], index: Dict[str, List[Dict[str, Any]]],
 
     Returns the id (or None), the reason a row is excluded, and the providers pi
     lists the model under. A listing pi carries under the openrouter provider is
-    admissible verbatim; a listing under a native vendor is admissible only when the
-    OpenRouter id derived from that listing's display name is in the catalogue.
+    admissible verbatim — that list is the key's own, so every id in it is one this
+    key may route. A listing under a native vendor is not: pi routes that model
+    through the native provider, and the OpenRouter id the public catalogue lists for
+    it is one this key cannot reach (an OpenRouter guardrail blocks the provider).
     """
     name = row["model"]
     entries = match_entries(plain_name(name), index)
@@ -271,9 +281,12 @@ def resolve_id(row: Dict[str, str], index: Dict[str, List[Dict[str, Any]]],
         entry = sorted(native, key=lambda item: item["id"])[0]
         candidate = f"openrouter/{entry['provider']}/{slug(plain_name(entry['name']))}"
         if candidate.split("/", 1)[1] in catalogue_ids:
-            return candidate, "", providers
-        return None, (f"no OpenRouter listing: the OpenRouter catalogue does not "
-                      f"carry {candidate}"), providers
+            return None, (f"no routable OpenRouter listing: the catalogue lists "
+                          f"{candidate}, but this key's model list does not carry it "
+                          f"(pi's store lists the model only under "
+                          f"{entry['provider']})"), providers
+        return None, (f"no OpenRouter listing: the catalogue does not carry "
+                      f"{candidate}"), providers
     if providers:
         return None, ("no OpenRouter listing: pi's store lists it only under "
                       + ", ".join(providers)), providers
@@ -325,6 +338,7 @@ def build_map(leaderboard: List[Dict[str, str]],
         members[tier].append({
             "id": ident,
             "family": family_of(model, row.get("creator", "")),
+            "vendor": vendor_of(row.get("creator", "")),
             "line": line_of(model),
             "rank": int(row["rank"]),
             "pricing": {"inputPerM": float(price_in), "outputPerM": float(price_out),
@@ -343,12 +357,24 @@ def build_map(leaderboard: List[Dict[str, str]],
             if current is None or member["rank"] < current["rank"]:
                 newest[line] = member
         kept = list(newest.values())
-        anchor = anchors[PRIMARY]
-        preferred = [member for member in kept if member["family"] == anchor]
-        if len(preferred) != 1:
-            raise SystemExit(f"{tier}: the primary anchor {anchor!r} has "
-                             f"{len(preferred)} members, not one")
-        lead = preferred[0]
+        derived = dict(anchors)
+        # The ladder's anchor leads the group when this key can route a member of that
+        # family. A group whose ladder families are all out of reach leads with the best
+        # member of a declared family, and that member's family becomes the anchor.
+        ladder_members = [member for member in kept
+                          if member["family"] in set(anchors.values())]
+        if ladder_members:
+            lead = min(ladder_members, key=lambda member: member["rank"])
+            primary = next(key for key, family in anchors.items()
+                           if family == lead["family"])
+        else:
+            own = [member for member in kept if member.get("vendor")]
+            if not own:
+                raise SystemExit(f"{tier}: no declared family has a member this key "
+                                 f"can route")
+            lead = min(own, key=lambda member: member["rank"])
+            primary = lead["vendor"]
+            derived[primary] = lead["family"]
         tail = sorted((member for member in kept if member is not lead),
                        key=lambda member: (member["pricing"]["inputPerM"] <= 0,
                                            member["pricing"]["inputPerM"],
@@ -357,6 +383,7 @@ def build_map(leaderboard: List[Dict[str, str]],
         for member in [lead] + tail:
             rank = member["rank"]
             member.pop("rank")
+            member.pop("vendor")
             pricing = member["pricing"]
             rendered.append({
                 "id": member["id"],
@@ -371,8 +398,7 @@ def build_map(leaderboard: List[Dict[str, str]],
                              f"{number(pricing['outputPerM'])} USD per 1M tokens; "
                              f"features/common/data/leaderboard.csv"),
             })
-        groups[tier] = {"anchors": dict(anchors), "primary": PRIMARY,
-                        "models": rendered}
+        groups[tier] = {"anchors": derived, "primary": primary, "models": rendered}
 
     document = {
         "$schema": "../../../schemas/model-groups.schema.json",
@@ -401,15 +427,19 @@ def build_map(leaderboard: List[Dict[str, str]],
             "excluded": sorted(excluded, key=lambda item: item["model"]),
             "note": (
                 "Prices and scores come from the leaderboard CSV; the ids come from "
-                "pi's model store and the OpenRouter catalogue. A tier holds the "
-                "models whose input price sits under its rung (low 0.1, medium 2, "
-                "high 4 USD per 1M tokens; the top tier takes the rest), keeping the "
-                "newest model of each model line in the tier. A group leads with the "
-                "model its primary anchor names, and the rest follow in ascending "
+                "pi's model store, which carries the models this key may route (an "
+                "OpenRouter guardrail or a provider restriction is already applied "
+                "there), and the OpenRouter catalogue, the public record of what "
+                "OpenRouter lists. A tier holds the models whose input price sits "
+                "under its rung (low 0.1, medium 2, high 4 USD per 1M tokens; the top "
+                "tier takes the rest), keeping the newest model of each model line in "
+                "the tier. A group leads with the model its ladder anchor names when "
+                "the key can route a member of that family, and with the best member "
+                "of a declared family when it cannot; the rest follow in ascending "
                 "price; the zero-priced open-weight members come last, because a zero "
                 "price has no position in the order. A row the leaderboard leaves "
-                "unpriced is reported under unpriced; a row with no OpenRouter listing "
-                "is reported under excluded, with its reason."),
+                "unpriced is reported under unpriced; a row with no id this key may "
+                "route is reported under excluded, with its reason."),
         },
         "groups": groups,
     }

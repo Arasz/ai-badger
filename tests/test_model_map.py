@@ -190,12 +190,11 @@ def _is_map_shape(doc):
 
 
 def _base_anchors(root):
-    """The per-group anchors a fixture should carry: the shipped map's own once it is in
-    the map shape, the owner's rulings until then."""
-    doc = _shipped_map(root)
-    if _is_map_shape(doc):
-        return {group: dict(entry["anchors"])
-                for group, entry in doc[_groups_key(doc)].items()}
+    """The per-group anchors a fixture should carry: the owner's ladder.
+
+    The ladder is the design's data (the generator's own table), not the shipped file's
+    content, so a rule fixture never moves when the map is regenerated.
+    """
     return {group: dict(zip(FAMILIES, anchors))
             for group, anchors in OWNER_ANCHORS.items()}
 
@@ -485,12 +484,20 @@ def test_shipped_map_preferred_member_is_the_primary_anchors_model(root):
 
 def test_shipped_map_anchors_the_owner_rulings(root):
     """The owner's rulings fix the ladder: low haiku/luna, medium sonnet/sol,
-    high opus/sol, top fable/astra."""
+    high opus/sol, top fable/astra. A group whose ladder families are all out of this
+    key's reach anchors the family of the model it leads with instead."""
     doc = _shipped_map(root)
     assert _is_map_shape(doc), "the shipped map is not in the map shape yet"
     for group, expected in OWNER_ANCHORS.items():
-        anchors = set(doc[_groups_key(doc)][group]["anchors"].values())
-        assert anchors == set(expected), f"{group} anchors {sorted(anchors)}"
+        entry = doc[_groups_key(doc)][group]
+        lead_family = entry["models"][0]["family"]
+        for family, value in entry["anchors"].items():
+            if family == entry["primary"]:
+                assert value == lead_family, (
+                    f"{group}'s primary anchor names {value!r}, not the family of the "
+                    f"model it leads with ({lead_family!r})")
+            else:
+                assert value in expected, f"{group} anchors {value!r}, not {expected}"
 
 
 def test_shipped_map_validates_under_the_map_validator_and_the_shipped_schema(
@@ -529,12 +536,11 @@ def test_a_family_may_anchor_more_than_one_group(root, load_script, pricing):
     assert _errors(_map_validator(root, load_script), doc) == []
 
 
-def test_shipped_map_anchors_the_sol_family_in_high_and_medium(root):
-    doc = _shipped_map(root)
-    assert _is_map_shape(doc), "the shipped map is not in the map shape yet"
-    groups = doc[_groups_key(doc)]
-    assert "sol" in set(groups["medium"]["anchors"].values())
-    assert "sol" in set(groups["high"]["anchors"].values())
+def test_the_ladder_spans_the_sol_family_over_two_groups(load_script):
+    """The sol family spans two price bands, so the ladder anchors it in two groups."""
+    generator = load_script("tooling/generate_model_map.py")
+    assert generator.ANCHORS["medium"]["openai"] == "sol"
+    assert generator.ANCHORS["high"]["openai"] == "sol"
 
 
 # ------------------------------------------------------------------ 4 the open-weight price rule
