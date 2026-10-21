@@ -19,6 +19,7 @@ When cutting a release:
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
+| 0.211.1 | [The memory gate's footer status counts every search](0.211.1-memory-gate-footer-status-searches.md) |
 | 0.211.0 | [instruction-only scaffolds for limited environments](0.211.0-limited-env-instruction-only.md) |
 | 0.210.3 | [The memory gate's footer status, counted right](0.210.3-memory-gate-footer-share.md) |
 | 0.210.2 | [The memory gate's footer status](0.210.2-memory-gate-footer-status.md) |
