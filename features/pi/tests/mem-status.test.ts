@@ -1,5 +1,5 @@
 /**
- * The memory-first gate's footer status: the pure counters behind `[mem <searched> <fetched>/<captured>]`.
+ * The memory-first gate's footer status: the pure counters behind `[mem <searched> <pct>%]`.
  *
  * The gate (ai-badger's memory-first gate) answers a repo text search with the memory result
  * instead of blocking it, and keeps the original grep/rg output alive for about two minutes.
@@ -7,6 +7,10 @@
  * worth its cost: how many searches the gate answered, how many of them it captured raw output
  * for, and how many of those raw results the agent actually fetched — a retrieval that answered
  * `pending` fetched nothing yet, and reading the same handle twice fetched one result.
+ *
+ * The segment carries the searches the gate answered and the fetched share of the captures as
+ * a percentage: a fraction (`9/10`) is a ratio the reader has to divide, and a share with no
+ * captures (`0/0`) is a division by zero dressed up as a number.
  */
 
 import { describe, expect, test } from "bun:test";
@@ -31,13 +35,18 @@ function gateContext(entries: Array<{ pattern: string; rawResultHash?: string }>
 
 describe("the memory gate's footer status", () => {
 	test("the segment is bracketed, in the style the other pi extensions use", () => {
-		expect(formatMemStatus({ searched: 12, captured: 10, fetched: 9 })).toBe("[mem 12 9/10]");
-		expect(formatMemStatus({ searched: 3, captured: 0, fetched: 0 })).toBe("[mem 3 0/0]");
+		expect(formatMemStatus({ searched: 12, captured: 10, fetched: 9 })).toBe("[mem 12 90%]");
+		expect(formatMemStatus({ searched: 3, captured: 0, fetched: 0 })).toBe("[mem 3 0%]");
 	});
 
 	test("the fetched share counts the captures, not the searches", () => {
-		expect(formatMemStatus({ searched: 9, captured: 3, fetched: 1 })).toBe("[mem 9 1/3]");
-		expect(formatMemStatus({ searched: 9, captured: 3, fetched: 3 })).toBe("[mem 9 3/3]");
+		expect(formatMemStatus({ searched: 9, captured: 3, fetched: 1 })).toBe("[mem 9 33%]");
+		expect(formatMemStatus({ searched: 9, captured: 3, fetched: 3 })).toBe("[mem 9 100%]");
+	});
+
+	test("the share is a whole percent", () => {
+		expect(formatMemStatus({ searched: 4, captured: 3, fetched: 1 })).toBe("[mem 4 33%]");
+		expect(formatMemStatus({ searched: 4, captured: 3, fetched: 2 })).toBe("[mem 4 67%]");
 	});
 
 	test("every pattern the gate searched counts, captured or not", () => {
