@@ -201,6 +201,8 @@ def adjust(context: Dict[str, Any]) -> Dict[str, Any]:
         {'applied': bool, 'files': list[str], 'notes': str}
     """
     config = context.get("config") or {}
+    if "limited-env" in config.get("stacks", []):
+        return {"applied": False, "files": [], "notes": "limited-env suppresses hook installation"}
     if "hermes" not in (config.get("agents") or []):
         return {"applied": False, "files": [], "notes": "hermes not in config.agents"}
 

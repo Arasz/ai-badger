@@ -1,0 +1,5 @@
+{
+  "skill": "get-raw-text-search",
+  "extension": "limited-env",
+  "requires": ["stacks=limited-env"]
+}

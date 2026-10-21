@@ -70,6 +70,8 @@ def adjust(context: Dict[str, Any]) -> Dict[str, Any]:
         {'applied': bool, 'files': list[str], 'notes': str}
     """
     config = context.get("config") or {}
+    if "limited-env" in config.get("stacks", []):
+        return {"applied": False, "files": [], "notes": "limited-env suppresses hook installation"}
     if "pi" not in (config.get("agents") or []):
         return {"applied": False, "files": [], "notes": "pi not in config.agents"}
 

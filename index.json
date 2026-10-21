@@ -1,6 +1,6 @@
 {
   "$schema": "./schemas/index.schema.json",
-  "frameworkVersion": "0.210.3",
+  "frameworkVersion": "0.211.0",
   "stacks": {
     "ai-raccoon": {
       "skills": [
@@ -1017,6 +1017,20 @@
           "*.mjs",
           "*.cjs"
         ],
+        "requires": [],
+        "commands": {}
+      }
+    },
+    "limited-env": {
+      "invariants": [
+        {
+          "name": "instruction-only",
+          "path": "features/limited-env/invariants/instruction-only.md"
+        }
+      ],
+      "meta": {
+        "description": "Instruction-only guidance for environments where project hooks are not permitted.",
+        "detectionSignals": [],
         "requires": [],
         "commands": {}
       }

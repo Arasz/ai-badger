@@ -76,6 +76,10 @@ def adjust(context: Dict[str, Any]) -> Dict[str, Any]:
     framework_root = context["framework_root"]
     target_dir = context["target_dir"]
     target = context["target"]
+    hooks_file = target / ".github" / "hooks" / "ai-badger-hooks.json"
+    if "copilot" not in context.get("config", {}).get("agents", []):
+        hooks_file.unlink(missing_ok=True)
+        return {"applied": False, "files": [], "notes": "Copilot hooks deselected"}
     _skills = context.get("skills", [])
 
     # Where shipped hook scripts land inside the project (e.g. .ai-badger/hooks).

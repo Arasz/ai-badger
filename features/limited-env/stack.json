@@ -1,0 +1,7 @@
+{
+  "name": "limited-env",
+  "description": "Instruction-only guidance for environments where project hooks are not permitted.",
+  "detectionSignals": [],
+  "requires": [],
+  "commands": {}
+}
