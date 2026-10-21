@@ -28,9 +28,14 @@ export interface MemStatus {
 }
 
 /** The footer segment, in the bracketed style the other pi extensions use: the number of
- * searches the gate answered, and the fetched share of the captures. */
+ * searches the gate answered, and the fetched share of the captures as a percentage.
+ *
+ * The share is a percentage, not a fraction: a fraction (`9/10`) is a ratio the reader has to
+ * divide, and a share with no captures (`0/0`) is a division by zero dressed up as a number.
+ * A session the gate captured nothing for has no captures to fetch, so its share is 0%. */
 export function formatMemStatus(status: MemStatus): string {
-	return `[mem ${status.searched} ${status.fetched}/${status.captured}]`;
+	const share = status.captured > 0 ? Math.round((100 * status.fetched) / status.captured) : 0;
+	return `[mem ${status.searched} ${share}%]`;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

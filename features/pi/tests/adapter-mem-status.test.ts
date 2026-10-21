@@ -1,5 +1,5 @@
 /**
- * The memory-first gate's footer status in pi: `[mem <searched> <fetched>/<captured>]`.
+ * The memory-first gate's footer status in pi: `[mem <searched> <pct>%]`.
  *
  * The gate answers a repo text search with the memory result and keeps the raw grep output
  * alive for a while; the `get-raw-text-search` skill fetches that output. The adapter sees
@@ -151,7 +151,7 @@ describe("the memory gate's footer status in pi", () => {
 
 		await capture(toolCall, toolResult, ctx);
 
-		expect(ctx.statuses.at(-1)).toEqual(["mem", "[mem 2 0/1]"]);
+		expect(ctx.statuses.at(-1)).toEqual(["mem", "[mem 2 0%]"]);
 	});
 
 	test("a search the gate could not capture still shows up in the footer", async () => {
@@ -161,7 +161,7 @@ describe("the memory gate's footer status in pi", () => {
 
 		await capture(toolCall, toolResult, ctx);
 
-		expect(ctx.statuses.at(-1)).toEqual(["mem", "[mem 1 0/0]"]);
+		expect(ctx.statuses.at(-1)).toEqual(["mem", "[mem 1 0%]"]);
 	});
 
 	test("a raw-result fetch is counted, and the footer follows", async () => {
@@ -184,7 +184,7 @@ describe("the memory gate's footer status in pi", () => {
 			ctx,
 		);
 
-		expect(ctx.statuses.at(-1)).toEqual(["mem", "[mem 2 1/1]"]);
+		expect(ctx.statuses.at(-1)).toEqual(["mem", "[mem 2 100%]"]);
 	});
 
 	test("a denied fetch is not counted — the retrieval never ran", async () => {
@@ -199,7 +199,7 @@ describe("the memory gate's footer status in pi", () => {
 		);
 
 		expect(blocked).toMatchObject({ block: true });
-		expect(ctx.statuses.at(-1)).toEqual(["mem", "[mem 2 0/1]"]);
+		expect(ctx.statuses.at(-1)).toEqual(["mem", "[mem 2 0%]"]);
 	});
 
 	test("a pending retrieval is not a fetch yet — the skill retries it", async () => {
@@ -222,7 +222,7 @@ describe("the memory gate's footer status in pi", () => {
 			ctx,
 		);
 
-		expect(ctx.statuses.at(-1)).toEqual(["mem", "[mem 2 0/1]"]);
+		expect(ctx.statuses.at(-1)).toEqual(["mem", "[mem 2 0%]"]);
 	});
 
 	test("reading one handle twice fetched one result", async () => {
@@ -247,7 +247,7 @@ describe("the memory gate's footer status in pi", () => {
 			);
 		}
 
-		expect(ctx.statuses.at(-1)).toEqual(["mem", "[mem 2 1/1]"]);
+		expect(ctx.statuses.at(-1)).toEqual(["mem", "[mem 2 100%]"]);
 	});
 
 	test("a retrieval the gate did not capture is not part of the ratio", async () => {
@@ -270,7 +270,7 @@ describe("the memory gate's footer status in pi", () => {
 			ctx,
 		);
 
-		expect(ctx.statuses.at(-1)).toEqual(["mem", "[mem 2 0/1]"]);
+		expect(ctx.statuses.at(-1)).toEqual(["mem", "[mem 2 0%]"]);
 	});
 
 	test("a new session starts the counters over", async () => {
@@ -292,14 +292,14 @@ describe("the memory gate's footer status in pi", () => {
 			},
 			ctx,
 		);
-		expect(ctx.statuses.at(-1)).toEqual(["mem", "[mem 2 1/1]"]);
+		expect(ctx.statuses.at(-1)).toEqual(["mem", "[mem 2 100%]"]);
 
 		// /new, /resume, /fork and /clone re-fire session_start on the same adapter.
 		await sessionStart({}, ctx);
 		expect(ctx.statuses.at(-1)).toEqual(["mem", undefined]);
 
 		await capture(toolCall, toolResult, ctx);
-		expect(ctx.statuses.at(-1)).toEqual(["mem", "[mem 2 0/1]"]);
+		expect(ctx.statuses.at(-1)).toEqual(["mem", "[mem 2 0%]"]);
 	});
 
 	test("a gate that searched nothing shows no status at all", async () => {
