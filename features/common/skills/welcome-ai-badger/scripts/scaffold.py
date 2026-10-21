@@ -196,6 +196,8 @@ def demote_headings(text: str, levels: int = 2) -> str:
 
 # The shared context, the manifest's generated-config ledger, and the seven collaborators
 from scaffold_context import ScaffoldContext  # noqa: E402
+from adjustment_policy import (build_adjustment_context,
+                               instruction_only_adjustment_context)  # noqa: E402
 from generated_config import GeneratedConfigRecords  # noqa: E402
 from hook_wiring import HookWiring, merge_hooks  # noqa: E402
 from template_rendering import TemplateRendering, invariant_summary  # noqa: E402
@@ -623,33 +625,22 @@ class Scaffolder:
                                     if any(s in bl.catalog_skills_for_stack(self.root, st)
                                            for st in agent_stacks)]
 
-                    adjustment_config = dict(self.config)
-                    adjustment_tools = self.tools.prepare()
-                    if instruction_only and hook_feature:
-                        adjustment_config["agents"] = [a for a in selected if a != agent_name]
-                        adjustment_tools = {
-                            name: dict(tool, agents={})
-                            for name, tool in adjustment_tools.items()
-                        }
-                    context = {
-                        "framework_root": self.root,
-                        "config": adjustment_config,
-                        "feature_dir": self.root / "features" / agent_name / "adjustments",
-                        "target_dir": self.aib,
-                        "target": self.target,
-                        # --no-install reaches the adjustments: user-global state
-                        # (~/.hermes/plugins) is never written when it is set.
-                        "install": self.install and not (instruction_only and hook_feature),
-                        "skills": agent_skills,
-                        "prune": self.prune_discovery,
-                        "personas": [item for _stack, item in bl.applicable_feature_items(
-                            self.index, self.config, "personas")],
-                        "index": self.index,
-                        "mcp_servers": declared_mcp,
-                        "mcp_declarations": self.mcp.declarations_for_agent(agent_name),
-                        "mcp_declined": self.mcp.declined_servers(),
-                        "tools": adjustment_tools,
-                    }
+                    adjustment_config, adjustment_tools, adjustment_install = (
+                        instruction_only_adjustment_context(
+                            self.config, self.tools.prepare(), self.install,
+                            agent_name, instruction_only and hook_feature,
+                        )
+                    )
+                    personas = [item for _stack, item in bl.applicable_feature_items(
+                        self.index, self.config, "personas")]
+                    context = build_adjustment_context(
+                        self.root, adjustment_config,
+                        self.root / "features" / agent_name / "adjustments",
+                        self.aib, self.target, adjustment_install, agent_skills,
+                        self.prune_discovery, personas, self.index, declared_mcp,
+                        self.mcp.declarations_for_agent(agent_name),
+                        self.mcp.declined_servers(), adjustment_tools,
+                    )
                     result = mod.adjust(context)
                     if result.get("applied"):
                         self.notes.append(
