@@ -1,12 +1,12 @@
 /**
- * The memory-first gate's footer status: the pure counters behind `[mem <captured> <fetched>%]`.
+ * The memory-first gate's footer status: the pure counters behind `[mem <searched> <fetched>/<captured>]`.
  *
  * The gate (ai-badger's memory-first gate) answers a repo text search with the memory result
  * instead of blocking it, and keeps the original grep/rg output alive for about two minutes.
- * The `get-raw-text-search` skill fetches that output. Two numbers say whether the capture is
- * worth its cost: how many searches were captured, and how many of those raw results the agent
- * actually fetched — a retrieval that answered `pending` fetched nothing yet, and reading the
- * same handle twice fetched one result.
+ * The `get-raw-text-search` skill fetches that output. Three numbers say whether the capture is
+ * worth its cost: how many searches the gate answered, how many of them it captured raw output
+ * for, and how many of those raw results the agent actually fetched — a retrieval that answered
+ * `pending` fetched nothing yet, and reading the same handle twice fetched one result.
  */
 
 import { describe, expect, test } from "bun:test";
@@ -16,6 +16,7 @@ import {
 	formatMemStatus,
 	isRawSearchFetch,
 	readRawFetchOutcome,
+	searchedPatterns,
 } from "../adjustments/adapter/mem-status.ts";
 
 /** The gate's context: the memory block, then the JSON line it appends. */
@@ -30,14 +31,38 @@ function gateContext(entries: Array<{ pattern: string; rawResultHash?: string }>
 
 describe("the memory gate's footer status", () => {
 	test("the segment is bracketed, in the style the other pi extensions use", () => {
-		expect(formatMemStatus({ captured: 12, fetched: 9 })).toBe("[mem 12 75%]");
-		expect(formatMemStatus({ captured: 0, fetched: 0 })).toBe("[mem 0 0%]");
+		expect(formatMemStatus({ searched: 12, captured: 10, fetched: 9 })).toBe("[mem 12 9/10]");
+		expect(formatMemStatus({ searched: 3, captured: 0, fetched: 0 })).toBe("[mem 3 0/0]");
 	});
 
-	test("the fetched share is a percentage, rounded", () => {
-		expect(formatMemStatus({ captured: 3, fetched: 1 })).toBe("[mem 3 33%]");
-		expect(formatMemStatus({ captured: 4, fetched: 3 })).toBe("[mem 4 75%]");
-		expect(formatMemStatus({ captured: 4, fetched: 4 })).toBe("[mem 4 100%]");
+	test("the fetched share counts the captures, not the searches", () => {
+		expect(formatMemStatus({ searched: 9, captured: 3, fetched: 1 })).toBe("[mem 9 1/3]");
+		expect(formatMemStatus({ searched: 9, captured: 3, fetched: 3 })).toBe("[mem 9 3/3]");
+	});
+
+	test("every pattern the gate searched counts, captured or not", () => {
+		const context = gateContext([
+			{ pattern: "one", rawResultHash: "a".repeat(64) },
+			{ pattern: "two" },
+			{ pattern: "three" },
+		]);
+		expect(searchedPatterns([context])).toEqual(["one", "two", "three"]);
+	});
+
+	test("a pattern the gate searched twice is one search", () => {
+		const context = gateContext([{ pattern: "one", rawResultHash: "a".repeat(64) }]);
+		expect(searchedPatterns([context, context])).toEqual(["one"]);
+	});
+
+	test("a context without a text-search record searched nothing", () => {
+		expect(searchedPatterns(["just a memory block, no JSON tail"])).toEqual([]);
+		expect(searchedPatterns([])).toEqual([]);
+	});
+
+	test("an empty pattern is not a search", () => {
+		const context = gateContext([{ pattern: "" }, { pattern: "  " }, { pattern: "one" }]);
+		expect(searchedPatterns([context])).toEqual(["one"]);
+		expect(capturedHashes([context])).toEqual([]);
 	});
 
 	test("only a pattern with a captured raw output counts as captured", () => {
