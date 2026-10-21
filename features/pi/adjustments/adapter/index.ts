@@ -47,7 +47,13 @@ import {
   type PostOutcome,
   splitMailCard,
 } from "./hook-bridge.ts";
-import { capturedHashes, formatMemStatus, isRawSearchFetch, readRawFetchOutcome } from "./mem-status.ts";
+import {
+  capturedHashes,
+  formatMemStatus,
+  isRawSearchFetch,
+  readRawFetchOutcome,
+  searchedPatterns,
+} from "./mem-status.ts";
 import {
   advanceAllowed,
   compactingActive,
@@ -360,17 +366,28 @@ export default async function (pi: ExtensionAPI, busDeps: BusDeps = realBusDeps(
   /** The gate's model-side context, stashed per tool call until that call's result carries
    * it. A blocked call never gets a result, so nothing is stashed for it. */
   const gateContext = new Map<string, string[]>();
-  /** The memory-first gate's counters for this session: the handles it captured, and the
-   * ones the agent fetched back. The footer shows both — a capture nobody fetches is cost
-   * without use. */
-  const memStatus = { captured: new Set<string>(), fetched: new Set<string>() };
-  /** Writes the gate's footer segment; a session with no capture shows no status at all. */
+  /** The memory-first gate's counters for this session: the patterns it searched, the raw
+   * handles it captured for them, and the ones the agent fetched back. The footer shows all
+   * three — a capture nobody fetches is cost without use, and a search the gate answered
+   * without a capture is the gate's work too. */
+  const memStatus = {
+    searched: new Set<string>(),
+    captured: new Set<string>(),
+    fetched: new Set<string>(),
+  };
+  /** Writes the gate's footer segment; a session with no search shows no status at all. */
   const publishMemStatus = (ctx: ExtensionContext): void => {
     try {
-      const captured = memStatus.captured.size;
+      const searched = memStatus.searched.size;
       ctx.ui?.setStatus?.(
         "mem",
-        captured > 0 ? formatMemStatus({ captured, fetched: memStatus.fetched.size }) : undefined,
+        searched > 0
+          ? formatMemStatus({
+              searched,
+              captured: memStatus.captured.size,
+              fetched: memStatus.fetched.size,
+            })
+          : undefined,
       );
     } catch {
       // The footer is cosmetic: never let it break the gate.
@@ -651,8 +668,10 @@ export default async function (pi: ExtensionAPI, busDeps: BusDeps = realBusDeps(
       ctx,
     );
     const resolution = resolve(outcomes, { armed: away.armed(), hasUI: ctx.hasUI });
-    // The memory-first gate's counters: what it captured on this call. The fetch counter
-    // waits for the call to run — a denied or declined retrieval fetched nothing.
+    // The memory-first gate's counters: the patterns it searched for on this call, and the
+    // raw handles it captured for them. The fetch counter waits for the call to run — a
+    // denied or declined retrieval fetched nothing.
+    for (const pattern of searchedPatterns(resolution.context)) memStatus.searched.add(pattern);
     for (const hash of capturedHashes(resolution.context)) memStatus.captured.add(hash);
     publishMemStatus(ctx);
     for (const notice of resolution.notices) ctx.ui.notify(notice, "warning");
@@ -748,6 +767,7 @@ export default async function (pi: ExtensionAPI, busDeps: BusDeps = realBusDeps(
   pi.on("session_start", (_event, ctx) => {
     // The gate's counters are per session: a rebind (/new, /resume, /fork, /clone)
     // re-fires this handler, and the new session must not inherit the old one's numbers.
+    memStatus.searched.clear();
     memStatus.captured.clear();
     memStatus.fetched.clear();
     publishMemStatus(ctx);

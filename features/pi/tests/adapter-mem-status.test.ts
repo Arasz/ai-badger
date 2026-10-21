@@ -1,5 +1,5 @@
 /**
- * The memory-first gate's footer status in pi: `[mem <captured> <fetched>/<captured>%]`.
+ * The memory-first gate's footer status in pi: `[mem <searched> <fetched>/<captured>]`.
  *
  * The gate answers a repo text search with the memory result and keeps the raw grep output
  * alive for a while; the `get-raw-text-search` skill fetches that output. The adapter sees
@@ -52,6 +52,11 @@ function fakeCtx(cwd: string): {
 
 /** The handle the fake gate captured, and the command that fetches it back. */
 const CAPTURED_HASH = "a".repeat(64);
+/** The gate's searched patterns: one the gate captured raw output for, one it did not. */
+const DEFAULT_ENTRIES = [
+	{ pattern: "foo", rawResultHash: CAPTURED_HASH },
+	{ pattern: "bar" },
+];
 const FETCH_COMMAND =
 	`python3 .ai-badger/skills/get-raw-text-search/scripts/get_raw_text_search.py --pattern-hash ${CAPTURED_HASH}`;
 
@@ -73,22 +78,17 @@ describe("the memory gate's footer status in pi", () => {
 
 	/**
 	 * Write a gate that answers every bash call except a raw-result fetch, with the
-	 * gate's context: one captured pattern, and one the gate could not capture.
+	 * gate's context: the searched patterns, and the raw handle of the captured ones.
 	 * `deny` makes it deny the fetch instead — the retrieval never runs.
 	 */
-	function writeGate(deny = false): void {
+	function writeGate(deny = false, entries = DEFAULT_ENTRIES): void {
 		const hooksDir = join(dir, ".ai-badger", "hooks");
 		mkdirSync(hooksDir, { recursive: true });
 		const context = [
 			'Memory context (ai-raccoon memory_search, snippets — query: "foo"):',
 			"  (no memory hits)",
 			"",
-			JSON.stringify({
-				textSearchInput: [
-					{ pattern: "foo", rawResultHash: "a".repeat(64) },
-					{ pattern: "bar" },
-				],
-			}),
+			JSON.stringify({ textSearchInput: entries }),
 		].join("\n");
 		const answer = JSON.stringify({
 			hookSpecificOutput: { hookEventName: "PreToolUse", additionalContext: context },
@@ -151,7 +151,17 @@ describe("the memory gate's footer status in pi", () => {
 
 		await capture(toolCall, toolResult, ctx);
 
-		expect(ctx.statuses.at(-1)).toEqual(["mem", "[mem 1 0%]"]);
+		expect(ctx.statuses.at(-1)).toEqual(["mem", "[mem 2 0/1]"]);
+	});
+
+	test("a search the gate could not capture still shows up in the footer", async () => {
+		writeGate(false, [{ pattern: "bar" }]);
+		const { toolCall, toolResult } = await loadAdapter();
+		const ctx = fakeCtx(dir);
+
+		await capture(toolCall, toolResult, ctx);
+
+		expect(ctx.statuses.at(-1)).toEqual(["mem", "[mem 1 0/0]"]);
 	});
 
 	test("a raw-result fetch is counted, and the footer follows", async () => {
@@ -174,7 +184,7 @@ describe("the memory gate's footer status in pi", () => {
 			ctx,
 		);
 
-		expect(ctx.statuses.at(-1)).toEqual(["mem", "[mem 1 100%]"]);
+		expect(ctx.statuses.at(-1)).toEqual(["mem", "[mem 2 1/1]"]);
 	});
 
 	test("a denied fetch is not counted — the retrieval never ran", async () => {
@@ -189,7 +199,7 @@ describe("the memory gate's footer status in pi", () => {
 		);
 
 		expect(blocked).toMatchObject({ block: true });
-		expect(ctx.statuses.at(-1)).toEqual(["mem", "[mem 1 0%]"]);
+		expect(ctx.statuses.at(-1)).toEqual(["mem", "[mem 2 0/1]"]);
 	});
 
 	test("a pending retrieval is not a fetch yet — the skill retries it", async () => {
@@ -212,7 +222,7 @@ describe("the memory gate's footer status in pi", () => {
 			ctx,
 		);
 
-		expect(ctx.statuses.at(-1)).toEqual(["mem", "[mem 1 0%]"]);
+		expect(ctx.statuses.at(-1)).toEqual(["mem", "[mem 2 0/1]"]);
 	});
 
 	test("reading one handle twice fetched one result", async () => {
@@ -237,7 +247,7 @@ describe("the memory gate's footer status in pi", () => {
 			);
 		}
 
-		expect(ctx.statuses.at(-1)).toEqual(["mem", "[mem 1 100%]"]);
+		expect(ctx.statuses.at(-1)).toEqual(["mem", "[mem 2 1/1]"]);
 	});
 
 	test("a retrieval the gate did not capture is not part of the ratio", async () => {
@@ -260,7 +270,7 @@ describe("the memory gate's footer status in pi", () => {
 			ctx,
 		);
 
-		expect(ctx.statuses.at(-1)).toEqual(["mem", "[mem 1 0%]"]);
+		expect(ctx.statuses.at(-1)).toEqual(["mem", "[mem 2 0/1]"]);
 	});
 
 	test("a new session starts the counters over", async () => {
@@ -282,17 +292,17 @@ describe("the memory gate's footer status in pi", () => {
 			},
 			ctx,
 		);
-		expect(ctx.statuses.at(-1)).toEqual(["mem", "[mem 1 100%]"]);
+		expect(ctx.statuses.at(-1)).toEqual(["mem", "[mem 2 1/1]"]);
 
 		// /new, /resume, /fork and /clone re-fire session_start on the same adapter.
 		await sessionStart({}, ctx);
 		expect(ctx.statuses.at(-1)).toEqual(["mem", undefined]);
 
 		await capture(toolCall, toolResult, ctx);
-		expect(ctx.statuses.at(-1)).toEqual(["mem", "[mem 1 0%]"]);
+		expect(ctx.statuses.at(-1)).toEqual(["mem", "[mem 2 0/1]"]);
 	});
 
-	test("a gate that captured nothing shows no status at all", async () => {
+	test("a gate that searched nothing shows no status at all", async () => {
 		const hooksDir = join(dir, ".ai-badger", "hooks");
 		mkdirSync(hooksDir, { recursive: true });
 		writeFileSync(
