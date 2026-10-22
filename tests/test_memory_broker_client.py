@@ -106,7 +106,7 @@ def test_live_broker_answers_without_spawning_a_proxy(memory_context_env, short_
     assert memory_context_env.fake.runs() == []
     sent = stub.requests[0]
     assert sent["op"] == "call" and sent["method"] == "tools/call"
-    assert sent["params"]["name"] == "memory_search"
+    assert sent["params"]["name"] == "query"
     assert sent["params"]["arguments"]["projectId"] == PROJECT
 
 

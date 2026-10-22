@@ -194,7 +194,7 @@ def test_c7_marker_stays_in_query():
     ("EPIPE ENOENT SIGTERM", {"epipe", "enoent", "sigterm"}),
     ("use the api key for env bus", {"use", "api", "key", "env", "bus"}),
     ("wasn't isn't", set()),
-    ("memory_search", {"memory_search"}),
+    ("query", {"query"}),
     ("café résumé", {"caf", "sum"}),
 ])
 def test_c8_tokenizer(text, expected):
@@ -230,7 +230,7 @@ def test_c12_placeholders():
     mem_only = block_lines([hit()])
     assert "  (no memory hits)" not in mem_only
     assert mem_only.index("  (no code hits)") > mem_only.index(
-        "- code (snippets — to get full content use code_get with the hash):")
+        "- code (snippets — to get full content use get_entry with the hash):")
 
 
 def test_c13_caps_at_five_per_kind():

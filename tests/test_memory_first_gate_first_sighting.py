@@ -89,9 +89,9 @@ def _denied(env, monkeypatch, capsys, command):
     return bool(decision) and decision.get("permissionDecision") == "deny"
 
 
-def _memory_search(env, monkeypatch, query):
+def _query(env, monkeypatch, query):
     _feed(monkeypatch, {"hook_event_name": "PostToolUse", "session_id": "s1",
-                        "cwd": str(env.tmp), "tool_name": "mcp__ai-raccoon__memory_search",
+                        "cwd": str(env.tmp), "tool_name": "mcp__ai-raccoon__query",
                         "tool_input": {"projectId": PROJECT, "query": query}})
     assert env.post.main([]) == 0
 
@@ -254,7 +254,7 @@ def test_already_searched_pattern_does_not_replay_grep(env, monkeypatch, capsys)
     launched = []
     monkeypatch.setattr(env.gate.subprocess, "Popen",
                         lambda *args, **kwargs: launched.append((args, kwargs)))
-    _memory_search(env, monkeypatch, "already-searched-pattern")
+    _query(env, monkeypatch, "already-searched-pattern")
 
     assert _bash(env, monkeypatch, capsys,
                  "grep already-searched-pattern src/file.py") is None
@@ -376,22 +376,22 @@ def test_same_pattern_with_other_flags_and_path_passes(env, monkeypatch, capsys)
     assert _bash(env, monkeypatch, capsys, "grep -rn foo src/ other/") is None
 
 
-def test_agent_memory_search_containing_the_pattern_counts(env, monkeypatch, capsys):
+def test_agent_query_containing_the_pattern_counts(env, monkeypatch, capsys):
     """Mutation: the post hook records nothing but telemetry."""
-    _memory_search(env, monkeypatch, "Where is merge_hooks defined?")
+    _query(env, monkeypatch, "Where is merge_hooks defined?")
 
     assert _bash(env, monkeypatch, capsys, "grep -n merge_hooks f.py") is None
     assert not env.calls
 
 
-def test_memory_search_on_another_topic_unlocks_nothing(env, monkeypatch, capsys):
+def test_query_on_another_topic_unlocks_nothing(env, monkeypatch, capsys):
     """Mutation: restore the session-wide unlock."""
-    _memory_search(env, monkeypatch, "release ritual")
+    _query(env, monkeypatch, "release ritual")
 
     assert _bash(env, monkeypatch, capsys, "grep -n foo f.py") is not None
 
 
-def test_grep_tool_seen_pattern_passes_after_memory_search(env, monkeypatch, capsys):
+def test_grep_tool_seen_pattern_passes_after_query(env, monkeypatch, capsys):
     first = _tool(env, monkeypatch, capsys, "Grep", {"pattern": "fooBar"})
     assert first is not None
 
@@ -446,7 +446,7 @@ def test_pattern_extraction(env):
 
 
 def test_regex_escapes_are_normalized(env, monkeypatch, capsys):
-    _memory_search(env, monkeypatch, "foo.bar and def merge")
+    _query(env, monkeypatch, "foo.bar and def merge")
 
     assert _bash(env, monkeypatch, capsys, "grep 'foo\\.bar' f") is None
     assert _bash(env, monkeypatch, capsys, "grep '^def merge\\b' f") is None
@@ -458,7 +458,7 @@ def test_sed_and_cat_are_never_touched(env, monkeypatch, capsys):
 
 
 # ------------------------------------------------------------------ search unavailable
-def test_no_executable_names_memory_search_then_post_hook_then_passes(
+def test_no_executable_names_query_then_post_hook_then_passes(
         env, monkeypatch, capsys):
     """Owner rule: a search that could not run records nothing; the agent's own does."""
     env.state.reply = None
@@ -471,7 +471,7 @@ def test_no_executable_names_memory_search_then_post_hook_then_passes(
     assert _decision(env, monkeypatch, capsys,
                      "grep -n widgetFactory f.py")["permissionDecision"] == "deny"
 
-    _memory_search(env, monkeypatch, "widgetFactory")
+    _query(env, monkeypatch, "widgetFactory")
 
     assert _bash(env, monkeypatch, capsys, "grep -n widgetFactory f.py") is None
 
@@ -559,7 +559,7 @@ def test_copilot_string_tool_args_on_both_hooks(env, monkeypatch, capsys):
     assert "{" not in decision["permissionDecisionReason"]
 
     _feed(monkeypatch, {"hookEventName": "postToolUse", "sessionId": "c1",
-                        "cwd": str(env.tmp), "toolName": "memory_search",
+                        "cwd": str(env.tmp), "toolName": "query",
                         "toolArgs": json.dumps({"projectId": PROJECT, "query": "gizmo"})})
     assert env.post.main([]) == 0
 
@@ -767,40 +767,40 @@ def test_live_output_upstreams_stay_exempt(env, command):
     assert env.gate.search_patterns("Bash", {"command": command}) is None
 
 
-# ------------------------------------------------------------------ crediting a memory_search
+# ------------------------------------------------------------------ crediting a query
 def _post(env, monkeypatch, payload):
     _feed(monkeypatch, payload)
     assert env.post.main([]) == 0
 
 
-def test_a_memory_search_for_another_project_credits_nothing(env, monkeypatch, capsys):
+def test_a_query_for_another_project_credits_nothing(env, monkeypatch, capsys):
     """Mutation: ignore the call's projectId -> project B's search unlocks A's grep -> red."""
     env.state.reply = None
     _post(env, monkeypatch, {"hook_event_name": "PostToolUse", "cwd": str(env.tmp),
-                             "tool_name": "mcp__ai-raccoon__memory_search",
+                             "tool_name": "mcp__ai-raccoon__query",
                              "tool_input": {"projectId": "other-project", "query": "widgetFactory"}})
 
     assert _denied(env, monkeypatch, capsys, "grep -n widgetFactory f.py")
 
 
-def test_a_memory_search_without_a_project_id_credits_nothing(env, monkeypatch, capsys):
+def test_a_query_without_a_project_id_credits_nothing(env, monkeypatch, capsys):
     """Mutation: treat a missing projectId as a match -> red."""
     env.state.reply = None
     _post(env, monkeypatch, {"hook_event_name": "PostToolUse", "cwd": str(env.tmp),
-                             "tool_name": "mcp__ai-raccoon__memory_search",
+                             "tool_name": "mcp__ai-raccoon__query",
                              "tool_input": {"query": "widgetFactory"}})
 
     assert _denied(env, monkeypatch, capsys, "grep -n widgetFactory f.py")
 
 
 @pytest.mark.parametrize("payload", [
-    {"hookEventName": "postToolUse", "toolName": "memory_search",
+    {"hookEventName": "postToolUse", "toolName": "query",
      "toolArgs": json.dumps({"projectId": PROJECT, "query": "widgetFactory"}),
      "toolResult": {"resultType": "failure", "textResultForLlm": "boom"}},
-    {"hook_event_name": "PostToolUseFailure", "tool_name": "mcp__ai-raccoon__memory_search",
+    {"hook_event_name": "PostToolUseFailure", "tool_name": "mcp__ai-raccoon__query",
      "tool_input": {"projectId": PROJECT, "query": "widgetFactory"}, "error": "boom"},
 ])
-def test_a_failed_memory_search_credits_nothing(env, monkeypatch, capsys, payload):
+def test_a_failed_query_credits_nothing(env, monkeypatch, capsys, payload):
     """Mutation: record the query whatever the result -> a failed search unlocks grep -> red."""
     env.state.reply = None
     _post(env, monkeypatch, dict(payload, cwd=str(env.tmp)))
@@ -808,11 +808,11 @@ def test_a_failed_memory_search_credits_nothing(env, monkeypatch, capsys, payloa
     assert _denied(env, monkeypatch, capsys, "grep -n widgetFactory f.py")
 
 
-def test_a_successful_copilot_memory_search_credits_its_query(env, monkeypatch, capsys):
+def test_a_successful_copilot_query_credits_its_query(env, monkeypatch, capsys):
     """Guards the failure check against rejecting every Copilot result."""
     env.state.reply = None
     _post(env, monkeypatch, {"hookEventName": "postToolUse", "cwd": str(env.tmp),
-                             "toolName": "memory_search",
+                             "toolName": "query",
                              "toolArgs": json.dumps({"projectId": PROJECT, "query": "widgetFactory"}),
                              "toolResult": {"resultType": "success"}})
 

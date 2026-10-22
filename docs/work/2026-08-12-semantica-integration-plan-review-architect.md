@@ -51,7 +51,7 @@ The evidence review confirmed this gap implicitly:
 
 **Fix:**
 - Re-rate Risk #2 to Impact: High.
-- Reword the skill's gotcha: "The graph is session-scoped and ephemeral — there is no import mechanism. `export_graph` produces an archival snapshot only; it cannot be re-loaded into a future session. For durable facts, write to AiRaccoon memory (`memory_write`); use Semantica for session-scoped reasoning and export for audit trails."
+- Reword the skill's gotcha: "The graph is session-scoped and ephemeral — there is no import mechanism. `export_graph` produces an archival snapshot only; it cannot be re-loaded into a future session. For durable facts, write to AiRaccoon memory (`add_memory`); use Semantica for session-scoped reasoning and export for audit trails."
 - Add to the risk register: "No graph import mechanism — exported graphs cannot be re-loaded" (Likelihood: Certain, Impact: Medium).
 - Note this as an explicit non-goal for v0.116.3 in the "Nice to have" section.
 
@@ -153,12 +153,12 @@ The `server` field in tools.json is `"semantica"` — a literal string, not deri
 **Severity:** LOW  
 **Section:** 2.1 (When NOT to Use)
 
-> "A one-off lookup 'is this connected to that?' — use `memory_search` (AiRaccoon)"
+> "A one-off lookup 'is this connected to that?' — use `query` (AiRaccoon)"
 
-AiRaccoon's `memory_search` does semantic recall over indexed documents — it won't answer "is X connected to Y" unless someone previously wrote that relationship fact to memory. The guard implies AiRaccoon can answer relationship questions it can't.
+AiRaccoon's `query` does semantic recall over indexed documents — it won't answer "is X connected to Y" unless someone previously wrote that relationship fact to memory. The guard implies AiRaccoon can answer relationship questions it can't.
 
 **Fix (suggested):**
-> "A one-off lookup where the answer already exists in indexed docs — use `memory_search` (AiRaccoon) first. Don't build graph nodes for trivia or facts you won't query again. The graph is for active reasoning — entity extraction from new text, causal tracing of decisions, or recording structure you'll query later in the session."
+> "A one-off lookup where the answer already exists in indexed docs — use `query` (AiRaccoon) first. Don't build graph nodes for trivia or facts you won't query again. The graph is for active reasoning — entity extraction from new text, causal tracing of decisions, or recording structure you'll query later in the session."
 
 ---
 
@@ -167,7 +167,7 @@ AiRaccoon's `memory_search` does semantic recall over indexed documents — it w
 **Severity:** LOW  
 **Section:** 1.3 (tools.json tags)
 
-`run_reasoning` is tagged `["run", "batch"]`. The `batch` tag is in the `meta` category of `mcp-tags.json` — it describes tools suitable for parallel/bulk dispatch ("non-functional characteristics that affect tool selection strategy"). This is correct: `run_reasoning` processes IF/THEN rules in bulk. The existing ai-raccoon tools.json uses `batch` the same way (e.g., `memory_ingest_file` → `["write", "files", "batch"]`). No fix needed — documenting for completeness.
+`run_reasoning` is tagged `["run", "batch"]`. The `batch` tag is in the `meta` category of `mcp-tags.json` — it describes tools suitable for parallel/bulk dispatch ("non-functional characteristics that affect tool selection strategy"). This is correct: `run_reasoning` processes IF/THEN rules in bulk. The existing ai-raccoon tools.json uses `batch` the same way (e.g., `ingest_file` → `["write", "files", "batch"]`). No fix needed — documenting for completeness.
 
 ---
 

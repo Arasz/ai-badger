@@ -1,6 +1,6 @@
 """Follow-through detection — passive implicit-feedback measurement.
 
-After memory_search: stash {correlationId, sourceFiles, ts}.
+After query: stash {correlationId, sourceFiles, ts}.
 After read_file: check the stash for a path match within a 60 s window.
 Match -> write follow_through_count/files to the search_quality table.
 
@@ -22,8 +22,8 @@ _RECENT_SEARCHES: Dict[str, list] = {}
 FOLLOW_THROUGH_WINDOW = 60  # seconds
 
 
-def _is_memory_search(tool_name: Any) -> bool:
-    """True for any naming spelling of the memory_search tool. Duplicated from ai_badger_hooks."""
+def _is_query(tool_name: Any) -> bool:
+    """True for any naming spelling of the query tool. Duplicated from ai_badger_hooks."""
     if not isinstance(tool_name, str):
         return False
     name = tool_name
@@ -31,7 +31,7 @@ def _is_memory_search(tool_name: Any) -> bool:
         name = name[len("mcp__"):].split("__", 1)[-1]
     if ":" in name:
         name = name.rsplit(":", 1)[-1]
-    return name == "memory_search"
+    return name == "query"
 
 
 def _is_read_file(tool_name: Any) -> bool:
@@ -48,8 +48,8 @@ def _is_read_file(tool_name: Any) -> bool:
 
 def stash_search_sources(tool_name: str, result: str, cwd: str,
                          debug_fn=None) -> None:
-    """After memory_search, stash {correlationId, sourceFiles, timestamp} for follow-through."""
-    if not _is_memory_search(tool_name):
+    """After query, stash {correlationId, sourceFiles, timestamp} for follow-through."""
+    if not _is_query(tool_name):
         return
     try:
         data = json.loads(result) if isinstance(result, str) else result

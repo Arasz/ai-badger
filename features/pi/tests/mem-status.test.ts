@@ -26,8 +26,8 @@ import {
 /** The gate's context: the memory block, then the JSON line it appends. */
 function gateContext(entries: Array<{ pattern: string; rawResultHash?: string }>): string {
 	const block = [
-		'Memory context (ai-raccoon memory_search, snippets — query: "x"):',
-		"- memories (snippets — to get full content use memory_get with the hash):",
+		'Memory context (ai-raccoon query, snippets — query: "x"):',
+		"- memories (snippets — to get full content use get_entry with the hash):",
 		"  (no memory hits)",
 	].join("\n");
 	return `${block}\n\n${JSON.stringify({ textSearchInput: entries })}`;

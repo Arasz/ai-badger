@@ -1,4 +1,5 @@
 """Tests for the memory-follow-through hook (passive implicit-feedback measurement)."""
+# pylint: disable=protected-access,redefined-outer-name  # hook internals + pytest fixture shadowing; see pyproject.toml
 
 from __future__ import annotations
 
@@ -50,7 +51,7 @@ class TestStashSearchSources:
 
     def test_stashes_correlation_id_and_source_files(self, fresh_hook_state, tmp_path):
         hooks, ft = fresh_hook_state
-        hooks._stash_search_sources("memory_search", self.MEMORY_SEARCH_RESULT, str(tmp_path))
+        hooks._stash_search_sources("query", self.MEMORY_SEARCH_RESULT, str(tmp_path))
         assert str(tmp_path) in ft._RECENT_SEARCHES
         entries = ft._RECENT_SEARCHES[str(tmp_path)]
         assert len(entries) == 1
@@ -58,7 +59,7 @@ class TestStashSearchSources:
         assert entries[0]["sourceFiles"] == [
             "/project/docs/adr/0001.md", "/project/src/Program.cs"]
 
-    def test_ignores_non_memory_search_tools(self, fresh_hook_state, tmp_path):
+    def test_ignores_non_query_tools(self, fresh_hook_state, tmp_path):
         hooks, ft = fresh_hook_state
         hooks._stash_search_sources("read_file", self.MEMORY_SEARCH_RESULT, str(tmp_path))
         assert str(tmp_path) not in ft._RECENT_SEARCHES
@@ -66,24 +67,24 @@ class TestStashSearchSources:
     def test_ignores_result_without_correlation_id(self, fresh_hook_state, tmp_path):
         hooks, ft = fresh_hook_state
         result = json.dumps({"meta": {}, "results": [{"sourceFile": "/x.md"}]})
-        hooks._stash_search_sources("memory_search", result, str(tmp_path))
+        hooks._stash_search_sources("query", result, str(tmp_path))
         assert str(tmp_path) not in ft._RECENT_SEARCHES
 
     def test_ignores_result_without_source_files(self, fresh_hook_state, tmp_path):
         hooks, ft = fresh_hook_state
         result = json.dumps({"meta": {"correlationId": "abc"}, "results": [{}]})
-        hooks._stash_search_sources("memory_search", result, str(tmp_path))
+        hooks._stash_search_sources("query", result, str(tmp_path))
         assert str(tmp_path) not in ft._RECENT_SEARCHES
 
     def test_handles_mcp_prefixed_tool_name(self, fresh_hook_state, tmp_path):
         hooks, ft = fresh_hook_state
         hooks._stash_search_sources(
-            "mcp__ai_raccoon__memory_search", self.MEMORY_SEARCH_RESULT, str(tmp_path))
+            "mcp__ai_raccoon__query", self.MEMORY_SEARCH_RESULT, str(tmp_path))
         assert str(tmp_path) in ft._RECENT_SEARCHES
 
     def test_handles_non_json_result(self, fresh_hook_state, tmp_path):
         hooks, ft = fresh_hook_state
-        hooks._stash_search_sources("memory_search", "not json", str(tmp_path))
+        hooks._stash_search_sources("query", "not json", str(tmp_path))
         assert str(tmp_path) not in ft._RECENT_SEARCHES
 
     def test_prunes_old_entries(self, fresh_hook_state, tmp_path):
@@ -91,16 +92,16 @@ class TestStashSearchSources:
         stale = {"correlationId": "stale", "sourceFiles": ["/old.md"],
                  "ts": time.time() - 200}
         ft._RECENT_SEARCHES[str(tmp_path)] = [stale]
-        hooks._stash_search_sources("memory_search", self.MEMORY_SEARCH_RESULT, str(tmp_path))
+        hooks._stash_search_sources("query", self.MEMORY_SEARCH_RESULT, str(tmp_path))
         entries = ft._RECENT_SEARCHES[str(tmp_path)]
         assert len(entries) == 1
         assert entries[0]["correlationId"] == "abc-123"
 
     def test_multiple_searches_accumulate(self, fresh_hook_state, tmp_path):
         hooks, ft = fresh_hook_state
-        hooks._stash_search_sources("memory_search", self.MEMORY_SEARCH_RESULT, str(tmp_path))
+        hooks._stash_search_sources("query", self.MEMORY_SEARCH_RESULT, str(tmp_path))
         hooks._stash_search_sources(
-            "memory_search", json.dumps({
+            "query", json.dumps({
                 "meta": {"correlationId": "def"},
                 "results": [{"sourceFile": "/other.md"}]}), str(tmp_path))
         entries = ft._RECENT_SEARCHES[str(tmp_path)]
@@ -256,7 +257,7 @@ class TestMemoryGradeHook:
             self.mgh.sys.stdin = old
 
     def _stash_payload(self, corr_id, source_file):
-        return {"tool_name": "memory_search", "result": json.dumps({
+        return {"tool_name": "query", "result": json.dumps({
             "meta": {"correlationId": corr_id},
             "results": [{"sourceFile": source_file}]})}
 
@@ -264,7 +265,7 @@ class TestMemoryGradeHook:
         self.searches_file.parent.mkdir(parents=True, exist_ok=True)
         self.searches_file.write_text(json.dumps({"recent": entries}), encoding="utf-8")
 
-    def test_memory_search_appends_store_row_and_leaves_no_legacy_file(self, hook_env):
+    def test_query_appends_store_row_and_leaves_no_legacy_file(self, hook_env):
         assert self._run(self._stash_payload("abc-123", "/p/a.md")) == 0
 
         store = self.mgh.open_store()

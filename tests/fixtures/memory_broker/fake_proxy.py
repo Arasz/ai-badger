@@ -24,7 +24,7 @@ def send(obj):
 
 
 def reply_for(msg_id, query):
-    """A memory_search reply whose single hit echoes the query."""
+    """A query reply whose single hit echoes the query."""
     payload = {"data": {"results": [{"hash": "h-" + query, "path": "/echo/" + query,
                                      "snippet": "echo " + query, "ranking": 1}], "code": []}}
     return {"jsonrpc": "2.0", "id": msg_id,

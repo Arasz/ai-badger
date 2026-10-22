@@ -1,7 +1,7 @@
 """Shared memory-first gate module: tool matchers, session markers, deny builders.
 
 The gate blocks repo text-search tools (grep/find/search_files) until the session has
-consulted AiRaccoon memory; once a memory_search ran, text search passes. Memory-first,
+consulted AiRaccoon memory; once a query ran, text search passes. Memory-first,
 never memory-only. All logic is pure functions plus marker-file IO, mirroring
 memory_grade.py — a hook built on it must never raise.
 """
@@ -39,7 +39,7 @@ def test_hermes_builtin_search_tools_are_text_search(gate):
 def test_hermes_builtin_non_search_tools_are_not(gate):
     assert not gate.is_text_search("read_file", {"path": "a.cs"})
     assert not gate.is_text_search("write_file", {"path": "a.cs"})
-    assert not gate.is_text_search("memory_search", {"query": "q"})
+    assert not gate.is_text_search("query", {"query": "q"})
 
 
 def test_hermes_terminal_first_token_decides(gate):
@@ -216,7 +216,7 @@ def test_hermes_decision_shape(gate):
     decision = gate.build_decision("hermes", "search_files", {}, "s1",
                                    cwd="/repos/ai-raccoon")
     assert decision["action"] == "block"
-    assert "memory_search" in decision["message"]
+    assert "query" in decision["message"]
     assert "ai-raccoon" in decision["message"]
 
 
@@ -225,13 +225,13 @@ def test_claude_decision_shape(gate):
     out = decision["hookSpecificOutput"]
     assert out["hookEventName"] == "PreToolUse"
     assert out["permissionDecision"] == "deny"
-    assert "memory_search" in out["permissionDecisionReason"]
+    assert "query" in out["permissionDecisionReason"]
 
 
 def test_copilot_decision_shape(gate):
     decision = gate.build_decision("copilot", "grep", {}, "s1", cwd="/repos/ai-raccoon")
     assert decision["permissionDecision"] == "deny"
-    assert "memory_search" in decision["permissionDecisionReason"]
+    assert "query" in decision["permissionDecisionReason"]
 
 
 def test_unknown_host_fails_open(gate):

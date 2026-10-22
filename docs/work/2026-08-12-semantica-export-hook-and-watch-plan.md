@@ -11,7 +11,7 @@ As established in ADR-0019, Semantica's in-memory graph process is session-scope
 
 1. **Seeded Graph File**: Seed an initial `.ai-raccoon/semantica-graph.json` during project scaffolding.
 2. **Export Hook**: A python hook script `export_semantica_graph.py` triggered on session stop / pre-commit / post-tool that executes `export_graph(format="json")` via Semantica stdio or client, writing the JSON snapshot to `.ai-raccoon/semantica-graph.json`.
-3. **AiRaccoon Watch Registration**: Register `.ai-raccoon/semantica-graph.json` with `memory_watch_add`, triggering automatic FTS5 and vector re-indexing into AiRaccoon's persistent `memory.db`.
+3. **AiRaccoon Watch Registration**: Register `.ai-raccoon/semantica-graph.json` with `add_watch`, triggering automatic FTS5 and vector re-indexing into AiRaccoon's persistent `memory.db`.
 4. **Tool Allocation**:
    - **Natural Language & Decisions**: Option 2 (Agent-Guided Extraction via `add_entity` & `add_relationship`).
    - **Code Structure**: `code-review-graph` MCP tools (`semantic_search_nodes_tool`, `find_callers`, `find_dependents`).
@@ -33,7 +33,7 @@ As established in ADR-0019, Semantica's in-memory graph process is session-scope
 
 ### Work Package C: AiRaccoon Watch Integration
 - Add automatic watch registration for `.ai-raccoon/semantica-graph.json` in `skills/ai-raccoon-memory/`.
-- Ensure AiRaccoon's `memory_watch_add` adds `.ai-raccoon/semantica-graph.json` to `watches.json`.
+- Ensure AiRaccoon's `add_watch` adds `.ai-raccoon/semantica-graph.json` to `watches.json`.
 
 ### Work Package D: TDD Test Suite (`tests/test_semantica_export_hook.py`)
 - Test seed file existence and valid JSON schema.

@@ -53,7 +53,7 @@ The hook is wired by default on Claude, Copilot and Hermes CLI
 `AI_BADGER_MEMORY_CONTEXT` and `AI_BADGER_MEMORY_CONTEXT_PIPELINE` are both unset.
 
 The hook also fires on harness-injected turns. A subagent hand-back produced a
-`Memory context (ai-raccoon memory_search …)` block whose query was the subagent's report text.
+`Memory context (ai-raccoon query …)` block whose query was the subagent's report text.
 Under F1, a turn like that is sent to the planner too. Whether a planner call actually went out
 on that turn is INFERRED: the hook logs failures, not successes.
 
@@ -103,7 +103,7 @@ Code subagent therefore cannot be routed to OpenRouter (INFERRED from
 | feed-badger `open_pr.py:228,240-245` | generalized files to the **public** `Arasz/ai-badger` | on demand | credential scan only |
 | Playwright MCP (`features/common/stack-mcp.json:38`) | `npx @playwright/mcp@latest` from npm, then any site browsed | declared when `npx` exists | `config.mcp.decline` |
 | Hermes MCP | messages to chat platforms | declared when `hermes` exists | `config.mcp.decline` |
-| ai-raccoon `memory_sync` | memory snapshots to configured cloud storage | off unless configured | ai-raccoon config |
+| ai-raccoon `sync_to_cloud` | memory snapshots to configured cloud storage | off unless configured | ai-raccoon config |
 
 Three more points:
 - The remote `openrouter` MCP (`mcp.openrouter.ai`) is **not** shipped. It appears in this repo's

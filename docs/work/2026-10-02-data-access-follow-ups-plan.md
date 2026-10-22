@@ -38,7 +38,7 @@ vendored archify skill is Node `.mjs`. pi-badger-integration is TypeScript. Test
   single-search hook mode run on the machine, and embeddings use its bundled local model
   (`ai-raccoon model embedding set local`), so it is not a third-party
   surface. Tasks use it freely, locked projects included, and T8 does not audit it. Only an
-  explicitly configured `memory_sync` cloud target leaves the machine, and that stays opt-in.
+  explicitly configured `sync_to_cloud` cloud target leaves the machine, and that stays opt-in.
 - One egress predicate. Extend `egress_allowed` and `project_locked` in
   `features/common/skills/ai-raccoon-memory/scripts/openrouter_client.py`, and re-copy them to
   `features/common/skills/task-decomposition/scripts/openrouter_client.py`, re-applying only the

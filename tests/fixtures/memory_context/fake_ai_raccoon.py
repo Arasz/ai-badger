@@ -82,7 +82,7 @@ def text_result(msg_id, payload, is_error=False):
 
 
 def hits_reply(msg_id, hits):
-    """A memory_search reply carrying *hits* ({results, code}) under data."""
+    """A query reply carrying *hits* ({results, code}) under data."""
     return text_result(msg_id, json.dumps({"data": hits, "meta": {}}))
 
 

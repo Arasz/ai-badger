@@ -20,7 +20,7 @@ Every user prompt on Claude Code, Copilot CLI and Hermes CLI sessions is a chanc
 model's context from this project's ai-raccoon memory bank before the model answers — the same job
 pi's `mem-based-rag` and `query-pipeline` extensions already do for pi sessions. ai-badger has no
 per-prompt memory hook of its own; porting one raises two questions this ADR answers: how the hook
-reaches ai-raccoon at all, and whether one `memory_search` call per prompt is enough or whether it
+reaches ai-raccoon at all, and whether one `query` call per prompt is enough or whether it
 is worth planning several.
 
 **Why not talk to ai-raccoon directly.** ai-raccoon's own transport ADR
@@ -77,7 +77,7 @@ the payload it receives, not on a single hard-coded format.
    No `--transport stdio`, no shell, no arguments. Resolution is `PATH` first (`shutil.which`), then
    `~/.dotnet/tools/ai-raccoon` if executable, else nothing is spawned. The hook speaks newline-
    delimited JSON-RPC to the child's stdin/stdout: an `initialize` handshake, then one
-   `tools/call memory_search` per planned (or single) query, over that one session — never a new
+   `tools/call query` per planned (or single) query, over that one session — never a new
    process per query.
 2. **One wall-clock `Budget` bounds the whole run**; every stage (session open, each search, the
    planner call, each Jev batch) draws a bounded child of it. A single-search run gets 5 s on

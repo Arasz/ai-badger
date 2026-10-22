@@ -161,9 +161,9 @@ def test_skill_explains_local_extraction_options():
 
 
 def test_skill_explains_export_hook_and_airaccoon_watch_pattern():
-    """Body explains exporting graph to JSON file, seeding it, and watching via memory_watch_add."""
+    """Body explains exporting graph to JSON file, seeding it, and watching via add_watch."""
     text = _skill_text()
-    assert "memory_watch_add" in text or "watch" in text.lower()
+    assert "add_watch" in text or "watch" in text.lower()
     assert "export" in text.lower()
     assert "json" in text.lower()
     assert "AiRaccoon" in text or "ai-raccoon" in text
@@ -174,7 +174,7 @@ def test_skill_explains_semantica_directory_watch():
     text = _skill_text()
     assert ".semantica/" in text
     assert "directory" in text.lower()
-    assert "memory_watch_add" in text
+    assert "add_watch" in text
     assert ".ai-raccoon/semantica-graph.json" not in text
 
 

@@ -95,4 +95,4 @@ From `~/.hermes/plugins/ai-badger/`, `_bootstrap_lib` (`ai_badger_hooks.py:49-15
 3. **Follow-up (non-blocking):** amend ADR-0007 Shape D and the `ai_badger_hooks.py` docstring (F-03, F-04).
 4. **Optional:** ship `debug_log.py` into the plugin dir so the call-behaviorist instrument works in Hermes (F-05); defensive `json.loads` for string `function_args` (F-06).
 
-Core fix verified live by the gate (plugin discovered/enabled, organic `memory_search` line with `host=hermes` + `sessionId` — the first organic line in the quality log). No blockers.
+Core fix verified live by the gate (plugin discovered/enabled, organic `query` line with `host=hermes` + `sessionId` — the first organic line in the quality log). No blockers.

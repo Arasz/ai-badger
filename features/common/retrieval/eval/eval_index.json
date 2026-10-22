@@ -791,14 +791,14 @@
       "name": "ai-raccoon",
       "status": "unknown",
       "tools": {
-        "memory_write": {
+        "add_memory": {
           "tags": [
             "write"
           ],
           "intent": "Persist a durable, project-scoped fact with its source path — one fact per entry, never raw chatter.",
           "origin": "catalog"
         },
-        "memory_search": {
+        "query": {
           "tags": [
             "search",
             "semantic"
@@ -806,28 +806,28 @@
           "intent": "Search project/shared memory (scope=all, project, or shared) with 2-3 formulations before web or code search.",
           "origin": "catalog"
         },
-        "memory_list": {
+        "get_index": {
           "tags": [
             "read"
           ],
           "intent": "List entries in a project's memory bank, optionally filtered.",
           "origin": "catalog"
         },
-        "memory_stats": {
+        "get_store_statistics": {
           "tags": [
             "read"
           ],
           "intent": "Report bank size and entry counts for a project.",
           "origin": "catalog"
         },
-        "memory_share": {
+        "share_memory": {
           "tags": [
             "write"
           ],
           "intent": "Promote a durable, cross-project entry to the shared tier — curated and never swept.",
           "origin": "catalog"
         },
-        "memory_delete": {
+        "delete_entry": {
           "tags": [
             "write",
             "unsafe"
@@ -835,7 +835,7 @@
           "intent": "Delete a specific memory entry by id.",
           "origin": "catalog"
         },
-        "memory_delete_context": {
+        "delete_context": {
           "tags": [
             "write",
             "unsafe"
@@ -843,7 +843,7 @@
           "intent": "Delete entries by context; requires full access mode.",
           "origin": "catalog"
         },
-        "memory_ingest_file": {
+        "ingest_file": {
           "tags": [
             "write",
             "files",
@@ -852,7 +852,7 @@
           "intent": "Bulk-load a file's contents into project memory as entries.",
           "origin": "catalog"
         },
-        "memory_ingest_directory": {
+        "ingest_directory": {
           "tags": [
             "write",
             "files",
@@ -861,7 +861,7 @@
           "intent": "Bulk-load every supported file under a directory into project memory.",
           "origin": "catalog"
         },
-        "memory_embed_pending": {
+        "embed_deferred_entries": {
           "tags": [
             "run",
             "batch",
@@ -870,28 +870,28 @@
           "intent": "Embed pending entries; omit the limit argument to process all.",
           "origin": "catalog"
         },
-        "memory_workspace_begin": {
+        "initialize_workspace": {
           "tags": [
             "write"
           ],
           "intent": "Start an isolated workspace outbox for in-progress notes.",
           "origin": "catalog"
         },
-        "memory_workspace_status": {
+        "get_workspace_status": {
           "tags": [
             "read"
           ],
           "intent": "List what the active workspace outbox holds.",
           "origin": "catalog"
         },
-        "memory_workspace_consolidate": {
+        "close_workspace": {
           "tags": [
             "write"
           ],
-          "intent": "Finish a workspace: keep durable facts, promote cross-project ones with memory_share, drop the rest.",
+          "intent": "Finish a workspace: keep durable facts, promote cross-project ones with share_memory, drop the rest.",
           "origin": "catalog"
         },
-        "memory_workspace_discard": {
+        "discard_workspace": {
           "tags": [
             "write",
             "unsafe"
@@ -899,7 +899,7 @@
           "intent": "Discard an active workspace and its outbox without consolidating.",
           "origin": "catalog"
         },
-        "memory_sweep": {
+        "trigger_memory_cleanup": {
           "tags": [
             "write",
             "batch"
@@ -907,14 +907,14 @@
           "intent": "Remove old, low-rated project entries; shared entries are exempt.",
           "origin": "catalog"
         },
-        "memory_sync": {
+        "sync_to_cloud": {
           "tags": [
             "run"
           ],
           "intent": "Exchange memory snapshots with cloud storage when configured.",
           "origin": "catalog"
         },
-        "memory_watch_add": {
+        "add_watch": {
           "tags": [
             "write",
             "files"
@@ -922,14 +922,14 @@
           "intent": "Register an absolute path to mirror into memory; the initial scan runs in the background.",
           "origin": "catalog"
         },
-        "memory_watch_status": {
+        "get_watch_status": {
           "tags": [
             "read"
           ],
           "intent": "Report watch state (scanning/healthy/retrying/stopped) for a project; empty when none.",
           "origin": "catalog"
         },
-        "memory_watch_remove": {
+        "remove_watch": {
           "tags": [
             "write",
             "files"

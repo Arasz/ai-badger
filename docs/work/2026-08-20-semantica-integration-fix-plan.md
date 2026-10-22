@@ -24,7 +24,7 @@ E4. **ai-badger hook bug B3 (proven live):** `autosave_export` wrote an error pa
     `{"error": "...", "metadata": {...}}`. Root cause: `extract_graph_json` unwraps the Hermes
     `{"result": "<json>"}` envelope and checks `error` only on the OUTER dict; an inner
     `{"error": ...}` passes through as a valid graph dict.
-E5. No `.semantica/` watch: `memory_watch_status` → only `.ai-badger/mcp-tools.json`
+E5. No `.semantica/` watch: `get_watch_status` → only `.ai-badger/mcp-tools.json`
     (Scanning) and `docs` (Healthy). The old `.ai-raccoon/semantica-graph.json` (Aug 13,
     empty) was never watched either.
 E6. Stale project copies (ai-raccoon): installed `semantica-knowledge-graph` skill still the
@@ -90,7 +90,7 @@ Tests (RED first):
 
 ### U5 — after merge (ai-raccoon repo)
 - `den-refresh` in ai-raccoon (updates installed skills/hooks/HERMES.md).
-- Register the `.semantica/` directory watch via `memory_watch_add`; gitignore `.semantica/`;
+- Register the `.semantica/` directory watch via `add_watch`; gitignore `.semantica/`;
   delete the error dump file created by today's live test.
 - User-level Hermes update via welcome-ai-badger / `tooling/sync_plugin_skills.py` so the
   plugin at `~/.hermes/plugins/ai-badger/` carries U1/U2.

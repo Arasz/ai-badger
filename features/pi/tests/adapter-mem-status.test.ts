@@ -85,7 +85,7 @@ describe("the memory gate's footer status in pi", () => {
 		const hooksDir = join(dir, ".ai-badger", "hooks");
 		mkdirSync(hooksDir, { recursive: true });
 		const context = [
-			'Memory context (ai-raccoon memory_search, snippets — query: "foo"):',
+			'Memory context (ai-raccoon query, snippets — query: "foo"):',
 			"  (no memory hits)",
 			"",
 			JSON.stringify({ textSearchInput: entries }),

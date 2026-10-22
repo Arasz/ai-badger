@@ -250,7 +250,7 @@ def test_every_claude_hooks_json_entry_names_its_script(root):
 
 # ------------------------------------------------------------ memory-first gate wiring
 GATE_SCRIPT = "memory_first_gate_hook.py"
-MEMORY_SEARCH_TOOL = "mcp__ai-raccoon__memory_search"
+QUERY_TOOL = "mcp__ai-raccoon__query"
 
 
 def _hooks_json(root):
@@ -270,11 +270,11 @@ def test_hooks_json_pre_tool_use_wires_the_gate(root):
 
 
 def test_hooks_json_post_tool_use_keeps_the_folded_recorder(root):
-    """The consulted marker is recorded by the existing memory_search entry — the gate
+    """The consulted marker is recorded by the existing query entry — the gate
     must not add a second entry that select_hooks' endswith filter cannot match. The entry is
     found by the name Claude delivers for the MCP tool, not by its matcher's spelling."""
     entries = [e for e in _hooks_json(root)["hooks"]["PostToolUse"]
-               if claude_matches(e.get("matcher"), MEMORY_SEARCH_TOOL)]
+               if claude_matches(e.get("matcher"), QUERY_TOOL)]
     assert len(entries) == 1
     commands = [h["command"] for e in entries for h in e["hooks"]]
     assert len(commands) == 2
@@ -303,7 +303,7 @@ def test_scaffold_wiring_puts_the_gate_into_settings(tmp_path, load_script, root
            for h in e["hooks"] if GATE_SCRIPT in h["command"]]
     assert len(pre) == 1, pre
     assert "${CLAUDE_PROJECT_DIR}" in pre[0]  # guarded command, not a plugin-root path
-    # The recorder is folded into the memory_search PostToolUse entry.
+    # The recorder is folded into the query PostToolUse entry.
     post = [h["command"] for e in settings["hooks"]["PostToolUse"]
             for h in e["hooks"] if "memory_first_gate_post_hook.py" in h["command"]]
     assert len(post) == 1, post
@@ -312,7 +312,7 @@ def test_scaffold_wiring_puts_the_gate_into_settings(tmp_path, load_script, root
 # ------------------------------------------------------------ one script, several matchers
 GRADE = ('python3 "${CLAUDE_PROJECT_DIR}/.ai-badger/skills/ai-raccoon-memory/scripts/'
          'memory_grade_hook.py"')
-MCP_MATCHER = "^(mcp__.+__)?memory_search$"
+MCP_MATCHER = "^(mcp__.+__)?query$"
 
 
 def _entry(matcher, command=GRADE):
@@ -348,7 +348,7 @@ def test_merge_is_idempotent_for_a_script_under_two_matchers(load_script, root):
 def test_merge_replaces_a_stale_matcher_for_a_rewired_script(load_script, root):
     """A re-scaffold that changes a script's matcher leaves no registration under the old one."""
     wiring = _load(load_script, root, "hook_wiring")
-    existing = {"PostToolUse": [_entry("memory_search"), _entry("Read|ReadFile")]}
+    existing = {"PostToolUse": [_entry("query"), _entry("Read|ReadFile")]}
 
     wiring.merge_hooks(existing, {"PostToolUse": [_entry(MCP_MATCHER), _entry("Read|ReadFile")]})
 
@@ -521,7 +521,7 @@ def test_pi_still_reads_test_economy_from_generated_post_tool_use(tmp_path, load
 
 
 def test_scaffold_wires_memory_grade_for_mcp_search_and_read(tmp_path, load_script, root):
-    """End-to-end: the grade hook reaches settings.json for memory_search AND for Read."""
+    """End-to-end: the grade hook reaches settings.json for query AND for Read."""
     target = tmp_path / "proj"
     _skill_scripts(target, "ai-raccoon-memory", "memory_first_gate_post_hook.py",
                    "memory_grade_hook.py")
@@ -533,7 +533,7 @@ def test_scaffold_wires_memory_grade_for_mcp_search_and_read(tmp_path, load_scri
     hooks.wire()
 
     settings = json.loads((target / ".claude" / "settings.json").read_text(encoding="utf-8"))
-    for tool in (MEMORY_SEARCH_TOOL, "Read"):
+    for tool in (QUERY_TOOL, "Read"):
         fired = [h["command"] for e in settings["hooks"]["PostToolUse"]
                  if claude_matches(e.get("matcher"), tool) for h in e["hooks"]]
         assert any("memory_grade_hook.py" in c for c in fired), tool

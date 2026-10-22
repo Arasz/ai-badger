@@ -275,7 +275,7 @@ def test_copilot_pre_tool_use_wires_the_gate(tmp_path, load_script, root):
     assert len(gate) == 1, gate
     assert gate[0]["matcher"] == "grep|rg|Glob|bash", gate
     assert _script_name(gate[0]["bash"]) == "memory_first_gate_hook.py", gate[0]["bash"]
-    # The folded recorder is the existing postToolUse memory_search entry.
+    # The folded recorder is the existing postToolUse query entry.
     recorders = [h for h in hooks["hooks"]["postToolUse"]
                  if "memory_first_gate_post_hook.py" in h.get("bash", "")]
     assert len(recorders) == 1, recorders

@@ -1,6 +1,6 @@
 # Research lane C — bus follow-ups evidence record (2026-09-01)
 
-Method: read-only evidence record. No tests executed, no mutation applied — every finding is read from source at the cited path:line in this worktree unless marked HYPOTHESIS. Gate discovery: `commands.test` = `python3 -m pytest -q` (source: .ai-badger/config.json); no stack QA persona beyond qa.md is scaffolded. Out of scope: production-code quality/security judgement, plan-writing, decisions. Paths are worktree-relative; absolute where the file lives in the main checkout. The memory-first gate hook could not be satisfied (memory_search is not in this session's toolset); repo text search proceeded under that exception.
+Method: read-only evidence record. No tests executed, no mutation applied — every finding is read from source at the cited path:line in this worktree unless marked HYPOTHESIS. Gate discovery: `commands.test` = `python3 -m pytest -q` (source: .ai-badger/config.json); no stack QA persona beyond qa.md is scaffolded. Out of scope: production-code quality/security judgement, plan-writing, decisions. Paths are worktree-relative; absolute where the file lives in the main checkout. The memory-first gate hook could not be satisfied (query is not in this session's toolset); repo text search proceeded under that exception.
 
 ## 1. pi bridge mechanics — what deferring start-spawn to before_agent_start changes
 

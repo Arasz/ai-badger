@@ -57,7 +57,7 @@
     ],
     "PostToolUse": [
       {
-        "matcher": "^(mcp__.+__)?memory_search$",
+        "matcher": "^(mcp__.+__)?query$",
         "hooks": [
           {
             "type": "command",

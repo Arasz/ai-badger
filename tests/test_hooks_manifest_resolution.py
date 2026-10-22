@@ -244,7 +244,7 @@ def test_v4_a_command_wired_twice_under_different_matchers_is_not_ambiguous(tmp_
     ])
     cmd = 'python3 "${CLAUDE_PLUGIN_ROOT}/features/demo/hooks/memory_grade_hook.py"'
     _write_json(tmp_path / "features/demo/hooks/hooks.json", {"hooks": {"PostToolUse": [
-        {"matcher": "memory_search", "hooks": [{"type": "command", "command": cmd}]},
+        {"matcher": "query", "hooks": [{"type": "command", "command": cmd}]},
         {"matcher": "Read|ReadFile", "hooks": [{"type": "command", "command": cmd}]},
     ]}})
     _touch_scripts(tmp_path, [cmd])

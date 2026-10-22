@@ -22,8 +22,8 @@ Base: `main` at `6a3d9e5`, worktree `.ai-badger/worktrees/full-project-review`.
 
 ### O-1 — The project's own memory bank is empty, and watching was never enabled (CONFIRMED, high)
 
-`memory_stats` for `projectId: ai-badger` returned `entries=0, pending=0`. `memory_watch_status`
-returned an empty watch list. `memory_watch_add` on `/Users/arasz/RiderProjects/ai-badger/docs`
+`get_store_statistics` for `projectId: ai-badger` returned `entries=0, pending=0`. `get_watch_status`
+returned an empty watch list. `add_watch` on `/Users/arasz/RiderProjects/ai-badger/docs`
 failed with `watching-disabled: Watching is disabled for project 'ai-badger'` — the one-time CLI
 setup (`ai-raccoon watch scope add`, `ai-raccoon watch enable`) was never run here. Sibling
 projects in the same bank (`ai-raccoon`, `hermes-default`, `jsaa`) do hold contexts, so the
@@ -40,7 +40,7 @@ its newest subsystem. It also means the seven panel experts, all instructed to s
 first, will get zero hits; their fallback behaviour is itself a useful observation.
 
 **Fix:** enable watching and seed the bank. The enable step is a user-run CLI action.
-**Gate:** `memory_stats` reports a non-zero entry count and `memory_watch_status` reports a
+**Gate:** `get_store_statistics` reports a non-zero entry count and `get_watch_status` reports a
 healthy watch on `docs/`.
 
 ### O-2 — The commit-time gate chain does run inside a worktree (CONFIRMED, informational)

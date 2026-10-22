@@ -59,7 +59,7 @@ def test_post_tool_observer_skips_non_export_tools(hooks, export_module, tmp_pat
     """A non-export tool must not create the .semantica/ directory."""
     monkeypatch.chdir(tmp_path)
     hooks.post_tool_observer(
-        function_name="memory_search",
+        function_name="query",
         result='{"results": []}',
         session_id="sess-42",
     )

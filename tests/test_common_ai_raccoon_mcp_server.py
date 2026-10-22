@@ -13,36 +13,36 @@ HERMES = "hermes"
 CODE_REVIEW_GRAPH = "code-review-graph"
 
 AI_RACCOON_TOOLS = {
-    "memory_write",
-    "memory_search",
-    "memory_list",
-    "memory_stats",
-    "memory_share",
-    "memory_delete",
-    "memory_delete_context",
-    "memory_ingest_file",
-    "memory_ingest_directory",
-    "memory_embed_pending",
-    "memory_workspace_begin",
-    "memory_workspace_status",
-    "memory_workspace_consolidate",
-    "memory_workspace_discard",
-    "memory_sweep",
-    "memory_sync",
-    "memory_watch_add",
-    "memory_watch_status",
-    "memory_watch_remove",
-    "memory_get",
-    "code_get",
-    "memory_record_followthrough",
-    "memory_record_grade",
-    "memory_share_extract",
-    "memory_promotion_list",
-    "memory_promotion_discard",
-    "memory_set_ttl",
-    "memory_performance",
-    "project_id_get",
-    "project_id_token_get",
+    "add_memory",
+    "query",
+    "get_index",
+    "get_store_statistics",
+    "share_memory",
+    "delete_entry",
+    "delete_context",
+    "ingest_file",
+    "ingest_directory",
+    "embed_deferred_entries",
+    "initialize_workspace",
+    "get_workspace_status",
+    "close_workspace",
+    "discard_workspace",
+    "trigger_memory_cleanup",
+    "sync_to_cloud",
+    "add_watch",
+    "get_watch_status",
+    "remove_watch",
+    "get_entry",
+    "get_entry",
+    "set_memory_usage_record",
+    "set_query_result_grade",
+    "trigger_memory_sharing",
+    "get_memories_sharing_ranking",
+    "delete_memory_from_ranking",
+    "set_memory_ttl",
+    "get_engine_statistics",
+    "get_project_id",
+    "save_project_id_token",
 }
 
 
@@ -332,10 +332,10 @@ def test_ai_raccoon_memory_skill_watch_ritual_names_semantica_dir(root):
     skill_md = root / "features" / "common" / "skills" / "ai-raccoon-memory" / "SKILL.md"
     body = skill_md.read_text(encoding="utf-8")
     assert ".semantica/" in body
-    assert "memory_watch_add" in body
+    assert "add_watch" in body
 
 
 def test_ai_raccoon_memory_skill_watch_ritual_detects_missing_semantica_dir():
     """A watch ritual that never names .semantica/ is detected as wrong."""
-    body = "## 1. Watch-on-docs ritual\n\nmemory_watch_add(projectId, <abs path to docs>)\n"
+    body = "## 1. Watch-on-docs ritual\n\nadd_watch(projectId, <abs path to docs>)\n"
     assert ".semantica/" not in body

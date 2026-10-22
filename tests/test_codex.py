@@ -378,7 +378,7 @@ def test_memory_first_gate_post_hook_credits_codex_mcp_search(load_script, monke
                         lambda project, args, failed: seen.update(
                             project=project, args=args, failed=failed))
     monkeypatch.setattr('sys.stdin', __import__('io').StringIO(json.dumps({
-        'hook_event_name': 'PostToolUse', 'tool_name': 'mcp__ai_raccoon__memory_search',
+        'hook_event_name': 'PostToolUse', 'tool_name': 'mcp__ai_raccoon__query',
         'tool_input': {'query': 'memory first gate'}, 'session_id': 'turn-1',
         'cwd': '/repo'})))
 
@@ -397,7 +397,7 @@ def test_project_post_hook_uses_codex_adjustment_adapter(load_script, tmp_path):
     shared.write_text('pass')
     hooks_file = hooks_dir / 'hooks.json'
     hooks_file.write_text(json.dumps({'hooks': {'PostToolUse': [{
-        'matcher': '^(mcp__.+__)?memory_search$', 'hooks': [{
+        'matcher': '^(mcp__.+__)?query$', 'hooks': [{
             'type': 'command', 'command': f'python3 "${{CLAUDE_PLUGIN_ROOT}}/features/common/skills/{shared.relative_to(target_dir / "skills")}"'
         }]}]}}))
 
@@ -406,7 +406,7 @@ def test_project_post_hook_uses_codex_adjustment_adapter(load_script, tmp_path):
     adapter = hooks_dir / 'codex_memory_first_gate_post_hook.py'
     assert adapter.is_file()
     registered = json.loads((tmp_path / '.codex/hooks.json').read_text())['hooks']['PostToolUse'][0]
-    assert registered['matcher'] == '^(mcp__.+__)?memory_search$'
+    assert registered['matcher'] == '^(mcp__.+__)?query$'
     assert 'hooks/codex_memory_first_gate_post_hook.py' in registered['hooks'][0]['command']
     assert str(shared) in registered['hooks'][0]['command']
 
@@ -425,7 +425,7 @@ def test_codex_memory_credit_adapter_filters_failed_tool_response(
         'import json, os, sys\n'
         'from pathlib import Path\n'
         'Path(os.environ["OBSERVED"]).write_text(sys.stdin.read())\n')
-    payload = {'hook_event_name': 'PostToolUse', 'tool_name': 'mcp__ai_raccoon__memory_search',
+    payload = {'hook_event_name': 'PostToolUse', 'tool_name': 'mcp__ai_raccoon__query',
                'tool_input': {'query': 'needle'}, 'tool_response': response}
     monkeypatch.setenv('OBSERVED', str(observed))
     monkeypatch.setattr('sys.stdin', io.StringIO(json.dumps(payload)))

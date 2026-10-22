@@ -141,8 +141,8 @@ export function commandsForTool(
   opts?: { mcpSuffix?: boolean },
 ): string[] {
   // An mcp_-prefixed name is additionally matched by its trailing segments, so a shipped
-  // matcher like `memory_search` also fires for the MCP spellings hosts deliver (pi:
-  // `mcp__ai_raccoon__memory_search`, Claude: `mcp__ai-raccoon__memory_search`). Each tail
+  // matcher like `query` also fires for the MCP spellings hosts deliver (pi:
+  // `mcp__ai_raccoon__query`, Claude: `mcp__ai-raccoon__query`). Each tail
   // is compared whole, so an exact name never matches a substring.
   const candidates = opts?.mcpSuffix ? matcherCandidates(toolName) : [toolName];
   return commands

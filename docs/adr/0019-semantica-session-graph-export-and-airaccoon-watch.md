@@ -25,14 +25,14 @@ We adopt three structural decisions to govern Semantica's lifecycle, extraction 
 ### 2. Lifecycle & Persistence: Per-session export under `.semantica/` + directory watch
 To prevent data loss without hand-rolled graph import logic:
 1. **Export auto-saves per session**: On the agent's `export_graph(format="json")` call, the Hermes export hook writes each result to `.semantica/<session>-<timestamp>.json` — per-session and timestamped.
-2. **Directory watch (one-time per project)**: The ai-raccoon-memory skill registers a one-time directory watch on `.semantica/` via `memory_watch_add(projectId, <absolute path to .semantica>)`; re-adding is a no-op.
+2. **Directory watch (one-time per project)**: The ai-raccoon-memory skill registers a one-time directory watch on `.semantica/` via `add_watch(projectId, <absolute path to .semantica>)`; re-adding is a no-op.
 3. **Automatic Synchronization**: AiRaccoon ingests every new `.semantica/` file, parses the JSON node/edge structure, and indexes it into AiRaccoon's persistent SQLite memory bank (`memory.db`).
 
 **Rationale (corrected 2026-08-18):** the per-session timestamped filename exists to prevent session/subagent collisions and keep a durable per-session archive — NOT because the watcher misses overwrites. AiRaccoon's watcher re-ingests on change (content-hash mismatch), so the earlier "creation-triggered only" claim was disproved by MoE review. N-snapshot accumulation is an accepted non-goal. `.semantica/` is consumer-local staging and must be gitignored; the durable record lives in ai-raccoon memory, not the repo.
 
 ### 3. Structural JSON Ingestion in AiRaccoon
 - **Ingestion Capabilities**: AiRaccoon natively parses JSON files into structured key-value chunks, indexing node names, entity types, relationship source/target pairs, and decision outcomes into `memory_chunks` and FTS5 (`nodes_fts`).
-- **Cross-Session Structural Recall**: In future sessions (even when Semantica's process starts empty), `memory_search` in AiRaccoon retrieves both textual decision rationale and exact structural graph relations from the indexed JSON snapshot.
+- **Cross-Session Structural Recall**: In future sessions (even when Semantica's process starts empty), `query` in AiRaccoon retrieves both textual decision rationale and exact structural graph relations from the indexed JSON snapshot.
 
 ## Consequences
 

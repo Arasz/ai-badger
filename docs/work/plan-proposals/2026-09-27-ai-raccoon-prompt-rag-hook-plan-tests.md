@@ -84,7 +84,7 @@ Paths are repo-relative. Grades: READ (opened the file), MEASURED (ran it), INFE
 Proof is test I4 in P6. I recommend **against** an in-script `PI_SESSION_ID` guard, because a Claude session launched from inside a pi shell inherits that variable and would go silent for the wrong reason (INFERRED). See Risk R6.
 
 **Mode.** I recommend no expanded mode and no mode env var:
-- Expanded mode adds one `memory_get`/`code_get` per hit on top of a search already measured at 1.2–1.7 s (research S2).
+- Expanded mode adds one `get_entry`/`get_entry` per hit on top of a search already measured at 1.2–1.7 s (research S2).
 - It adds four test rows (pi `:149-160`, `:240-246`, `:291-302`).
 - The model can already fetch full content itself with the hashes the default block prints.
 
@@ -193,14 +193,14 @@ Row format is **behaviour | failure mode targeted | mutation that turns it red**
 | C17 | `"the and for are you can"` → 0 [pi :104] | Noise set incomplete | Remove `"the"` |
 | C18 | `"use the api key for env bus"` → 5 [pi :105] | Short signal words treated as noise | Add `"api"` to the noise set |
 | C19 | `"wasn't isn't"` → 0. The contraction stubs `wasn`/`isn` are in the set. `len(NOISE_WORDS) == 35` (`rag-core.ts:92-97`). | The port "fixes" the 4-char members out of a "3char" set | Delete `"wasn"` |
-| C20 | `"memory_search tool"` → `{memory_search, tool}`. Underscore stays inside a token (the split class is `[^a-z0-9_]`). | Tokenizer drift from pi | Split on `[^a-z0-9]+` |
+| C20 | `"query tool"` → `{query, tool}`. Underscore stays inside a token (the split class is `[^a-z0-9_]`). | Tokenizer drift from pi | Split on `[^a-z0-9]+` |
 | C21 | `"café résumé"` → `{caf, sum}`. Non-ASCII letters act as separators, the same as JS `[^a-z0-9_]`. | Python `\w` is Unicode-aware, so a `\W` regex would diverge from pi | Use `re.split(r"\W+")` |
 
 **Hit shaping and block formatting.** The golden strings are copied byte-for-byte from `rag-core.ts:412-435`.
 
 | # | Behaviour | Failure mode | Mutation → red |
 |---|---|---|---|
-| C22 | **Golden block**: header `Memory context (ai-raccoon memory_search, snippets — query: "...")`, the 2 trust lines, both section labels, `[m1] shared/x.md (rank 1) :: first memory snippet`, `[c1] src/a.ts:10-20 (rank 1) :: some code`, and the footer, all compared with `==` against the whole string [pi :116] | Any wording drift | Change one character of the header |
+| C22 | **Golden block**: header `Memory context (ai-raccoon query, snippets — query: "...")`, the 2 trust lines, both section labels, `[m1] shared/x.md (rank 1) :: first memory snippet`, `[c1] src/a.ts:10-20 (rank 1) :: some code`, and the footer, all compared with `==` against the whole string [pi :116] | Any wording drift | Change one character of the header |
 | C23 | The trust header has all four phrases and contains neither `"you must fetch"` nor `"always fetch"` [pi :228] | Hardened or softened wording regresses | Replace "Fetch full content only if needed" |
 | C24 | Empty mem and empty code render `(no memory hits)` and `(no code hits)` [pi :126]. **Intersection:** mem present with code empty gives `(no code hits)` only under the code heading. | Empty section vanishes, or the label lands in the wrong section | Emit a single "(no hits)" line |
 | C25 | 7 mem + 7 code: `[m5]` and `[c5]` present, `[m6]` and `[c6]` absent [pi :132] | Cap missing or wrong | Cap 5 → 6 |
@@ -242,7 +242,7 @@ The pi case count ported is 26 of 43, plus 3 inverted (C7). That matches researc
 
 | # | Behaviour | Failure mode | Mutation → red |
 |---|---|---|---|
-| T12 | A POST to `/mcp` has headers `Content-Type: application/json`, `Accept: application/json, text/event-stream` and the token. The body **equals** `{"jsonrpc":"2.0","id":<int>,"method":"tools/call","params":{"name":"memory_search","arguments":{"projectId","sessionId","query","limit":5,"scope":"project","kind":"both"}}}`. | Dropping `scope` leaks cross-project hits (S5); dropping `sessionId` gives isError | Remove `scope`; `limit` → 8 |
+| T12 | A POST to `/mcp` has headers `Content-Type: application/json`, `Accept: application/json, text/event-stream` and the token. The body **equals** `{"jsonrpc":"2.0","id":<int>,"method":"tools/call","params":{"name":"query","arguments":{"projectId","sessionId","query","limit":5,"scope":"project","kind":"both"}}}`. | Dropping `scope` leaks cross-project hits (S5); dropping `sessionId` gives isError | Remove `scope`; `limit` → 8 |
 | T13 | Exactly one request per search, and no `initialize` | Latency doubled (research T7: stateless) | Add an initialize round-trip |
 | T14 | An SSE reply `event: message\ndata: {json}\n\n` parses to results and code | Parse failure means permanent silence | Parse the body as JSON |
 | T15 | SSE with `\r\n` line endings, and a `data:` payload split over two `data:` lines (joined with `\n` per the SSE spec), both parse | Fragile framing | `split("\n")` only; take the first `data:` |

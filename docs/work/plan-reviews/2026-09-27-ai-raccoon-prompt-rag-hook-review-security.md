@@ -103,7 +103,7 @@ MUST: 3. SHOULD: 6. NOTE: 7.
     through `oneLine`.
 - **Failure scenario:**
   1. A memory hit's `path`/`sourceFile` contains `\n`. Examples: an ingested file under a watched
-     docs directory whose name contains a newline (legal on macOS and Linux), or a `memory_write`
+     docs directory whose name contains a newline (legal on macOS and Linux), or a `add_memory`
      with a crafted path.
   2. The injected text then gets new lines outside the `[mN]` line, such as a fake `- code …`
      heading followed by instructions.
