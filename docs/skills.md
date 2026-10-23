@@ -1,10 +1,10 @@
 # Skills
 
-This page catalogs 50 skills — everything under `features/common/skills/` and
+This page catalogs 51 skills — everything under `features/common/skills/` and
 `features/claude/skills/`.
-49 live under `features/common/skills/` and split by the `scope:` each declares in its own
+50 live under `features/common/skills/` and split by the `scope:` each declares in its own
 `SKILL.md` frontmatter ([ADR-0018](adr/0018-where-the-skill-routing-declaration-lives.md)):
-**47 are `default`** and arrive in every scaffolded project without being asked for, and
+**48 are `default`** and arrive in every scaffolded project without being asked for, and
 **2 are `optIn`** — the sqlite pair, which stays out of the default set because it is specific
 to a SQLite-backed project ([ADR-0029](adr/0029-sqlite-skills-stay-opt-in.md)). Everything else
 moved to `default` in 0.169.0 ([ADR-0028](adr/0028-all-catalog-skills-ship-by-default.md)); a
@@ -14,7 +14,7 @@ opt-in pair. The last one,
 ([ADR-0010](adr/0010-stack-local-skill-discovery.md)) and therefore **claude-only**: it does not
 reach a Copilot or Hermes project.
 
-**These 50 are not the whole tree.** `features/*/skills/*/SKILL.md` matches **56** files:
+**These 51 are not the whole tree.** `features/*/skills/*/SKILL.md` matches **57** files:
 the 50 above plus 6 more that belong to a single stack and arrive only with it — the
 `dotnet-workload` gateway under
 `features/dotnet/skills/`, 2 under `features/hermes/skills/`, 1 under `features/mcp/skills/`, 1 under `features/ai-raccoon/skills/` and 1 under `features/github/skills/`.
@@ -114,6 +114,7 @@ names it (the sqlite pair today), **claude-only** when the stack decides.
 | [multi-agent-communication](#multi-agent-communication) | Coordinate parallel sessions in one project — announce work, PRs, review requests and merges on the project bus; ack once, never reply to an ack | default | by name |
 | [git-work](#git-work) | Recover push failures, triage red CI, and run the PR lifecycle outside a tracked task | default | by name |
 | [create-task-spec](#create-task-spec) | Interrogate an idea into a Gherkin specification plus a manifest `task` consumes | default | by name |
+| [decision-record](#decision-record) | Record a feature or behaviour-change decision before implementation, in the project's own ADR log or spec framework — a linked pair when it keeps both | default | by name (or from `task`) |
 | [owner-gate-review](#owner-gate-review) | Turn a document's open decisions into a per-decision review form | default | by name |
 | [differential-feature-refactor](#differential-feature-refactor) | Reconcile a drifted feature against its ratified design before refactoring | default | by name |
 | [design-tests](#design-tests) | Design and write tests to a fail-under-a-plausible-bug standard, target named or not | default | by name |
@@ -366,6 +367,24 @@ Reasoning and prior-art comparison: [`references/why-elicitation.md`](../feature
 
 **When to use it.** "spec this out", "create a task spec", "turn this idea into requirements",
 "what exactly should we build" — before planning anything too big to describe in one sentence.
+
+### decision-record
+
+[`SKILL.md`](../features/common/skills/decision-record/SKILL.md)
+
+Writes a decision down where the project already keeps decisions. `scripts/detect_formats.py`
+reads the tree: an ADR log (found by a numbered record in an `adr`/`decisions` folder, or declared by
+`.adr-dir` or `.log4brains.yml`), an OpenSpec, Spec Kit or Kiro spec folder, and which of
+`openspec`, `specify`, `adr` and `log4brains` are on PATH. The tree picks the format. A CLI only
+decides whether the record is written through it. With both an ADR log and a spec framework, the
+spec change carries the requirements and the ADR carries the rationale, each linking to the
+other. With neither, the record is a MADR 4 minimal file in `docs/decisions/`. The `task` loop
+runs it as the `decision record` step, between plan review and implementation, and the
+`record-decisions` invariant states the rule. Research:
+[`docs/work/2026-10-23-decision-record-formats.md`](work/2026-10-23-decision-record-formats.md).
+
+**When to use it.** "record this decision", "write an ADR", "open a spec change", or any change
+that adds a feature or meaningfully changes how something works, before the first line of code.
 
 ### owner-gate-review
 

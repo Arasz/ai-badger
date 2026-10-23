@@ -4,7 +4,7 @@ Agent-instruction framework distributed through a Claude Code plugin and native 
 
 > Domain: Developer tooling: agent instruction catalogs and repo scaffolding.
 > Stacks: python, js, github, claude, hermes, pi, ts, node, changelog, codex
-> Scaffolded by ai-badger 0.214.0. Source of truth for this file: `.ai-badger/copilot-instructions.md`.
+> Scaffolded by ai-badger 0.215.0. Source of truth for this file: `.ai-badger/copilot-instructions.md`.
 
 ## Commands
 
@@ -140,6 +140,7 @@ Each rule's full text is `.ai-badger/invariants/<name>.md`.
 - **Done means proven** (`proof-of-done`) — Every unit of planned work carries its acceptance criteria and the gate that checks them, named before the work starts.
 - **A check you have not seen fail is not a check** (`prove-the-check-fails`) — Put the defect a gate, test or acceptance criterion exists to catch in front of it, watch it go red, take the defect away and watch it go green — a check that has only ever passed is indistinguishable from one whose comparison can produce a single answer that looks like success.
 - **Reasoning scaffolding minimization** (`reasoning-scaffolding-minimization`) — Avoid step-by-step CoT plans on modern reasoning models unless the task is genuine symbolic reasoning; state the goal and constraints instead of narrating the process.
+- **Record the decision before you build it** (`record-decisions`) — Every change that adds a feature or meaningfully changes how something works gets a decision record before implementation starts, written with the `decision-record` skill in the format this project already keeps: its ADR log, its spec framework, or both as a linked pair.
 - **Screaming architecture** (`screaming-architecture`) — Organize folders and modules by domain/business concept, not by generic technical bucket.
 - **Small commits, early draft PR** (`small-commits-early-draft-pr`) — Commit one coherent work package at a time and push often.
 - **Route state transitions through a state machine** (`state-transitions-through-a-machine`) — Where a domain object has explicit states, make the declared transitions the only way it moves between them, and record what triggered each move.

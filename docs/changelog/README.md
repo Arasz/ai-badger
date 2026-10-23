@@ -19,6 +19,7 @@ When cutting a release:
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
+| 0.215.0 | [decisions are recorded before they are built, in the project's own format](0.215.0-decision-record.md) |
 | 0.214.0 | [the framework speaks the ai-raccoon 2.0.0 tool names](0.214.0-ai-raccoon-2.0.0-tool-names.md) |
 | 0.213.0 | [ai-raccoon 2.0.0 MCP tool rename](0.213.0-ai-raccoon-2.0.0-rename.md) · [rtk is out of ai-badger](0.213.0-remove-rtk.md) |
 | 0.212.1 | [The memory gate's footer share is a percentage again](0.212.1-memory-gate-footer-share-percent.md) |
