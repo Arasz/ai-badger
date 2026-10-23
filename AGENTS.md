@@ -6,7 +6,7 @@ Agent-instruction framework distributed through a Claude Code plugin and native 
 
 > Domain: Developer tooling: agent instruction catalogs and repo scaffolding.
 > Stacks: python, js, github, claude, hermes, pi, ts, node, changelog, codex
-> Scaffolded by ai-badger 0.216.0. Source of truth for this file: `.ai-badger/AGENTS.md`.
+> Scaffolded by ai-badger 0.217.0. Source of truth for this file: `.ai-badger/AGENTS.md`.
 
 ## Commands
 
@@ -118,6 +118,7 @@ No project `.mcp.json` (worktree sessions) → use the CLI twin `task_graph_cli.
 
 Each rule's full text is `.ai-badger/invariants/<name>.md`.
 
+- **Write to the user in Simplified Technical English** (`simplified-technical-english`) — When you write a response, a report, a status update, a question or a hand-back to the user, use the `simplified-technical-english` skill.
 - **Announce parallel work** (`announce-parallel-work`) — When another agent session shares the project, announce started work, opened PRs, review requests and merges on the project bus — read `multi-agent-communication` when parallel work is active.
 - **Diagrams default to Archify** (`archify-diagrams`) — Author architecture, workflow, sequence, data-flow and lifecycle diagrams with the `archify` skill when it is installed.
 - **Ask if a simpler shape would do** (`ask-if-simpler`) — Before calling any design or change finished, ask whether it is over-engineered and what the simpler version would look like.

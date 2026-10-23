@@ -1,10 +1,10 @@
 # Skills
 
-This page catalogs 52 skills — everything under `features/common/skills/` and
+This page catalogs 53 skills — everything under `features/common/skills/` and
 `features/claude/skills/`.
-51 live under `features/common/skills/` and split by the `scope:` each declares in its own
+52 live under `features/common/skills/` and split by the `scope:` each declares in its own
 `SKILL.md` frontmatter ([ADR-0018](adr/0018-where-the-skill-routing-declaration-lives.md)):
-**49 are `default`** and arrive in every scaffolded project without being asked for, and
+**50 are `default`** and arrive in every scaffolded project without being asked for, and
 **2 are `optIn`** — the sqlite pair, which stays out of the default set because it is specific
 to a SQLite-backed project ([ADR-0029](adr/0029-sqlite-skills-stay-opt-in.md)). Everything else
 moved to `default` in 0.169.0 ([ADR-0028](adr/0028-all-catalog-skills-ship-by-default.md)); a
@@ -14,8 +14,8 @@ opt-in pair. The last one,
 ([ADR-0010](adr/0010-stack-local-skill-discovery.md)) and therefore **claude-only**: it does not
 reach a Copilot or Hermes project.
 
-**These 52 are not the whole tree.** `features/*/skills/*/SKILL.md` matches **58** files:
-the 51 above plus 6 more that belong to a single stack and arrive only with it — the
+**These 53 are not the whole tree.** `features/*/skills/*/SKILL.md` matches **59** files:
+the 52 above plus 6 more that belong to a single stack and arrive only with it — the
 `dotnet-workload` gateway under
 `features/dotnet/skills/`, 2 under `features/hermes/skills/`, 1 under `features/mcp/skills/`, 1 under `features/ai-raccoon/skills/` and 1 under `features/github/skills/`.
 Those 6 have no row below and are documented by their own `SKILL.md`. Derive the number rather
@@ -103,6 +103,7 @@ names it (the sqlite pair today), **claude-only** when the stack decides.
 | [welcome-ai-badger](#welcome-ai-badger) | Scaffold `.ai-badger/` into a repo for the first time | default | by name |
 | [den-refresh](#den-refresh) | Pull framework updates into an already-scaffolded repo | default | by name |
 | [feed-badger](#feed-badger) | Contribute project-agnostic improvements back to the catalog | default | by name |
+| [simplified-technical-english](#simplified-technical-english) | Write responses and reports to the user by the ASD-STE100 writing rules | default | by name (the first invariant points to it) |
 | [humanizer](#humanizer) | Strip AI writing artifacts, apply research-grounded humanization levers, and adopt a natural voice | default | by name |
 | [archify](#archify) | Author architecture, workflow, sequence, data-flow and lifecycle diagrams as validated standalone HTML, with Mermaid as the fallback | default | by name |
 | [task](#task) | Run one backlog task end to end with model delegation | default | by name (`/task <id>`) |
@@ -219,6 +220,16 @@ credential-shaped literals and — if clean — opens a **draft** PR (`git` bran
 
 **When to use it.** Something learned in this repo — a new skill, persona, invariant,
 instruction, or fix — is project-agnostic and worth contributing back.
+
+### simplified-technical-english
+
+[`SKILL.md`](../features/common/skills/simplified-technical-english/SKILL.md)
+
+**What it is.** The ASD-STE100 Simplified Technical English writing rules, adapted to messages from an agent to the user.
+
+**What it does.** Gives a message shape (result, warnings, evidence, decisions, next step), a procedure shape with each warning above its step, and one rule for each of the nine STE sections. Code, commands, paths, identifiers and quoted error text stay unchanged. The `simplified-technical-english` invariant, first in every agent file, tells agents to use it.
+
+**When to use it.** Writing a response, a report, a status update, a question or a hand-back to the user.
 
 ### humanizer
 
