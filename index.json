@@ -1,6 +1,6 @@
 {
   "$schema": "./schemas/index.schema.json",
-  "frameworkVersion": "0.214.0",
+  "frameworkVersion": "0.215.0",
   "stacks": {
     "ai-raccoon": {
       "skills": [
@@ -464,6 +464,11 @@
           "scope": "default"
         },
         {
+          "name": "simplified-technical-english",
+          "path": "features/common/skills/simplified-technical-english",
+          "scope": "default"
+        },
+        {
           "name": "spec-driven-refactoring",
           "path": "features/common/skills/spec-driven-refactoring",
           "scope": "default"
@@ -631,6 +636,10 @@
         {
           "name": "screaming-architecture",
           "path": "features/common/invariants/screaming-architecture.md"
+        },
+        {
+          "name": "simplified-technical-english",
+          "path": "features/common/invariants/simplified-technical-english.md"
         },
         {
           "name": "small-commits-early-draft-pr",
