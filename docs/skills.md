@@ -1,10 +1,10 @@
 # Skills
 
-This page catalogs 50 skills — everything under `features/common/skills/` and
+This page catalogs 51 skills — everything under `features/common/skills/` and
 `features/claude/skills/`.
-49 live under `features/common/skills/` and split by the `scope:` each declares in its own
+50 live under `features/common/skills/` and split by the `scope:` each declares in its own
 `SKILL.md` frontmatter ([ADR-0018](adr/0018-where-the-skill-routing-declaration-lives.md)):
-**47 are `default`** and arrive in every scaffolded project without being asked for, and
+**48 are `default`** and arrive in every scaffolded project without being asked for, and
 **2 are `optIn`** — the sqlite pair, which stays out of the default set because it is specific
 to a SQLite-backed project ([ADR-0029](adr/0029-sqlite-skills-stay-opt-in.md)). Everything else
 moved to `default` in 0.169.0 ([ADR-0028](adr/0028-all-catalog-skills-ship-by-default.md)); a
@@ -14,7 +14,7 @@ opt-in pair. The last one,
 ([ADR-0010](adr/0010-stack-local-skill-discovery.md)) and therefore **claude-only**: it does not
 reach a Copilot or Hermes project.
 
-**These 50 are not the whole tree.** `features/*/skills/*/SKILL.md` matches **56** files:
+**These 51 are not the whole tree.** `features/*/skills/*/SKILL.md` matches **57** files:
 the 50 above plus 6 more that belong to a single stack and arrive only with it — the
 `dotnet-workload` gateway under
 `features/dotnet/skills/`, 2 under `features/hermes/skills/`, 1 under `features/mcp/skills/`, 1 under `features/ai-raccoon/skills/` and 1 under `features/github/skills/`.
@@ -107,6 +107,7 @@ names it (the sqlite pair today), **claude-only** when the stack decides.
 | [archify](#archify) | Author architecture, workflow, sequence, data-flow and lifecycle diagrams as validated standalone HTML, with Mermaid as the fallback | default | by name |
 | [task](#task) | Run one backlog task end to end with model delegation | default | by name (`/task <id>`) |
 | [task-decomposition](#task-decomposition) | Turn a researched brief into the `step` DAG the task pipeline executes | default | by name (or from `task`) |
+| [change](#change) | Make an ad-hoc, untracked small change — plan, plan review, test-first implementation, diff review — by the main agent alone | default | by name |
 | [quick-task](#quick-task) | Ship a one-sentence, one-surface change as a single commit on a branch merged via PR with auto-merge — minimal plan, touched-surface tests, no review wait | default | by name |
 | [status-report](#status-report) | Answer "where are we?" mid-task — current task, checklist progress, next, delegation status | default | by name |
 | [qa](#qa) | Run a grounded Q&A session against a context and save the summary to docs | default | by name (`qa {context}`) |
@@ -322,6 +323,23 @@ With neither available it falls back to a hand-written plan file under
 
 **When to use it.** After analyze, when planning starts: "decompose this", "split this into
 steps", "turn the research into a plan".
+
+### change
+
+[`SKILL.md`](../features/common/skills/change/SKILL.md)
+
+**What it is.** The smallest lane, for an edit with no issue or task behind it: fix a unit test,
+refactor a method, a rename, a config tweak. It keeps the core of `task` at the size of the
+change, and the main agent runs it alone, with no delegation.
+
+**What it does.** Four phases in order: a four-line plan (goal, files, the proof test, and an
+impact sweep that searches docs, README, and the repo's VERSION and changelog rules); a review
+of that plan; test-first implementation, with the proof test seen failing before the fix; and a
+diff review that reads every hunk against the plan. Any change that outgrows one surface, needs
+a design decision, or needs another agent's review escalates to `task`.
+
+**When to use it.** Any small, distinct, ad-hoc change, including one requested with "no
+ceremony": that request limits how long each phase is, not which phases run.
 
 ### quick-task
 
