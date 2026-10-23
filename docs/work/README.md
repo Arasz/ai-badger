@@ -213,3 +213,4 @@ the first plain-markdown record here.
 | `2026-10-20-model-registry-free-fallback-research.md` | Research record for the OpenRouter 402 in delegated lanes: the traced path from a persona to the child's `--model`, the measured account balance (-0.199 USD), the corrections to the earlier reading, and the candidate designs for a free member or a free-fallback resolution. |
 | `2026-10-21-limited-env-research.md` | Research and evidence for instruction-only limited-env scaffolding, including the hook and memory procedure boundaries. |
 | `2026-10-21-limited-env-writer-audit.md` | Inventory of ai-badger hook writers, ownership markers, cleanup behavior, and external sources outside project stack control. |
+| `2026-10-23-decision-record-formats.md` | Research for the `decision-record` skill: how ADR variants (MADR, adr-tools, log4brains), OpenSpec, Spec Kit and Kiro are detected, and why a project carrying both an ADR log and a spec framework records a linked pair. |

@@ -1,6 +1,6 @@
 {
   "$schema": "./schemas/index.schema.json",
-  "frameworkVersion": "0.214.0",
+  "frameworkVersion": "0.215.0",
   "stacks": {
     "ai-raccoon": {
       "skills": [
@@ -319,6 +319,11 @@
           "scope": "default"
         },
         {
+          "name": "decision-record",
+          "path": "features/common/skills/decision-record",
+          "scope": "default"
+        },
+        {
           "name": "den-refresh",
           "path": "features/common/skills/den-refresh",
           "scope": "default"
@@ -627,6 +632,10 @@
         {
           "name": "reasoning-scaffolding-minimization",
           "path": "features/common/invariants/reasoning-scaffolding-minimization.md"
+        },
+        {
+          "name": "record-decisions",
+          "path": "features/common/invariants/record-decisions.md"
         },
         {
           "name": "screaming-architecture",

@@ -618,3 +618,19 @@ class TestTrackerLibImportPath:
         text = (ROOT / SCRIPT).read_text(encoding="utf-8")
 
         assert 'parents[2] / "task" / "scripts"' in text
+
+
+# ---------------------------------------------------------------- the loop line
+
+
+class TestTheLoopLineMatchesTheTaskSkill:
+    def test_the_printed_loop_is_the_task_skills_low_effort_loop(self, load_script, tmp_path,
+                                                                capsys):
+        """The status report restates the task loop; a step added to one must reach the other."""
+        root = Path(__file__).resolve().parents[1]
+        skill = (root / "features/common/skills/task/SKILL.md").read_text(encoding="utf-8")
+        section = skill.split("### Low-effort loop", 1)[1].split("###", 1)[0]
+        expected = " ".join(section.split()).replace(" → ", " > ")
+        _run(load_script, tmp_path)
+        [line] = [l for l in capsys.readouterr().out.splitlines() if l.startswith("loop: ")]
+        assert line == f"loop: {expected}"
