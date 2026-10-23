@@ -1,6 +1,6 @@
 {
   "$schema": "./schemas/index.schema.json",
-  "frameworkVersion": "0.215.0",
+  "frameworkVersion": "0.216.0",
   "stacks": {
     "ai-raccoon": {
       "skills": [
@@ -286,6 +286,11 @@
         {
           "name": "call-behaviorist",
           "path": "features/common/skills/call-behaviorist",
+          "scope": "default"
+        },
+        {
+          "name": "change",
+          "path": "features/common/skills/change",
           "scope": "default"
         },
         {
