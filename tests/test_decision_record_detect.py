@@ -128,3 +128,100 @@ class TestTheCommandLine:
         out = subprocess.run([sys.executable, str(SCRIPT), str(tmp_path), "--json"],
                              capture_output=True, text=True, check=True).stdout
         assert json.loads(out)["adr"][0]["dir"] == "docs/adr"
+
+
+class TestReviewFindings:
+    def test_an_adr_dir_outside_the_project_is_refused_with_a_warning(self, tmp_path):
+        root = tmp_path / "repo"
+        write(tmp_path, "out/0001-a.md")
+        write(root, ".adr-dir", "../out\n")
+        result = detect(root, which=nothing_installed)
+        assert result["adr"] == []
+        assert any(".adr-dir" in w for w in result["warnings"])
+
+    def test_an_absolute_adr_dir_inside_the_project_is_made_relative(self, tmp_path):
+        write(tmp_path, "arch/0001-a.md")
+        write(tmp_path, ".adr-dir", f"{tmp_path.resolve() / 'arch'}\n")
+        [log] = detect(tmp_path, which=nothing_installed)["adr"]
+        assert log["dir"] == "arch"
+
+    def test_an_unreadable_marker_is_a_warning_not_a_crash(self, tmp_path):
+        _test_write(tmp_path / ".adr-dir", b"\xff\xfe\x00bad")
+        result = detect(tmp_path, which=nothing_installed)
+        assert result["warnings"]
+
+    def test_a_dated_log_reports_no_next_number(self, tmp_path):
+        write(tmp_path, ".log4brains.yml", "project:\n  adrFolder: ./docs/arch\n")
+        write(tmp_path, "docs/arch/20240101-use-x.md")
+        write(tmp_path, "docs/arch/20240315-use-y.md")
+        [log] = detect(tmp_path, which=nothing_installed)["adr"]
+        assert log["naming"] == "date"
+        assert log["next"] is None
+
+    def test_a_dashed_date_record_is_not_read_as_number_2024(self, tmp_path):
+        write(tmp_path, "docs/adr/0001-a.md")
+        write(tmp_path, "docs/adr/2024-01-01-b.md")
+        [log] = detect(tmp_path, which=nothing_installed)["adr"]
+        assert log["naming"] == "date"
+        assert log["next"] is None
+
+    def test_a_sequenced_log_says_so(self, tmp_path):
+        write(tmp_path, "docs/adr/0001-a.md")
+        [log] = detect(tmp_path, which=nothing_installed)["adr"]
+        assert log["naming"] == "sequence"
+
+    def test_a_symlinked_log_is_found(self, tmp_path):
+        root = tmp_path / "repo"
+        write(tmp_path, "elsewhere/adr/0001-a.md")
+        (root / "docs").mkdir(parents=True)
+        (root / "docs/adr").symlink_to(tmp_path / "elsewhere/adr", target_is_directory=True)
+        assert [log["dir"] for log in detect(root, which=nothing_installed)["adr"]] == ["docs/adr"]
+
+    def test_a_symlink_loop_terminates(self, tmp_path):
+        write(tmp_path, "docs/adr/0001-a.md")
+        (tmp_path / "docs/loop").symlink_to(tmp_path / "docs", target_is_directory=True)
+        assert len(detect(tmp_path, which=nothing_installed)["adr"]) == 1
+
+    def test_a_declared_path_is_normalised_before_dedup(self, tmp_path):
+        write(tmp_path, ".adr-dir", "./doc/../doc/adr\n")
+        write(tmp_path, "doc/adr/0001-a.md")
+        [log] = detect(tmp_path, which=nothing_installed)["adr"]
+        assert log["dir"] == "doc/adr"
+
+    def test_a_github_folder_log_is_found_but_framework_state_is_not(self, tmp_path):
+        write(tmp_path, ".github/decisions/0001-a.md")
+        write(tmp_path, ".ai-badger/worktrees/x/docs/adr/0001-copy.md")
+        dirs = [log["dir"] for log in detect(tmp_path, which=nothing_installed)["adr"]]
+        assert dirs == [".github/decisions"]
+
+    def test_a_log_below_the_depth_limit_is_not_searched(self, tmp_path):
+        write(tmp_path, "a/b/c/d/adr/0001-deep.md")
+        assert detect(tmp_path, which=nothing_installed)["adr"] == []
+
+    def test_doc_adr_without_a_marker_is_adr_tools(self, tmp_path):
+        write(tmp_path, "doc/adr/0001-a.md")
+        [log] = detect(tmp_path, which=nothing_installed)["adr"]
+        assert log["tool"] == "adr-tools"
+
+    def test_openspec_is_detected_from_its_specs_folder_alone(self, tmp_path):
+        (tmp_path / "openspec/specs").mkdir(parents=True)
+        assert detect(tmp_path, which=nothing_installed)["specs"] == [
+            {"framework": "openspec", "dir": "openspec"}]
+
+    def test_files_that_only_look_numbered_are_not_records(self, tmp_path):
+        write(tmp_path, "docs/adr/1-notes.md")
+        write(tmp_path, "docs/adr/0001-a.txt")
+        assert detect(tmp_path, which=nothing_installed)["adr"] == []
+
+    def test_a_declared_folder_that_does_not_exist_yet_is_still_the_log(self, tmp_path):
+        write(tmp_path, ".adr-dir", "architecture/records\n")
+        [log] = detect(tmp_path, which=nothing_installed)["adr"]
+        assert log["dir"] == "architecture/records"
+        assert log["count"] == 0
+
+    def test_text_output_names_the_log_and_its_next_number(self, tmp_path):
+        write(tmp_path, "docs/adr/0001-a.md")
+        out = subprocess.run([sys.executable, str(SCRIPT), str(tmp_path)],
+                             capture_output=True, text=True, check=True).stdout
+        assert "mode: adr" in out
+        assert "adr: docs/adr (unknown, 1 records, next 0002)" in out

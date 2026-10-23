@@ -61,8 +61,11 @@ Adding the rule as an invariant takes this repo's `CLAUDE.md` from 35 invariants
 
 ## Confirmation
 
-`tests/test_decision_record_detect.py` pins detection. Five mutations were each seen to turn it red
-(numbered-record check, next number, CLI-as-adoption, vendored-folder skip, declared-log dedup).
+`tests/test_decision_record_detect.py` pins detection (30 tests). Fifteen mutations were each seen to
+turn it red. The first five were written with the change. The other ten came from an independent
+review that had found them surviving: depth limit, `doc/adr` tool inference, OpenSpec from
+`openspec/specs` alone, the record regex, symlinked logs, `.github` search, date-named logs,
+`.adr-dir` escaping the project, path normalisation, and the text output.
 `tests/test_status_report.py::TestTheLoopLineMatchesTheTaskSkill` pins the loop twin.
 `tests/test_constraint_count_lint.py` pins the cap at 36. This record was itself written by
 following the skill: `detect_formats.py .` reported `mode: adr`, `docs/adr`, next `0047`.

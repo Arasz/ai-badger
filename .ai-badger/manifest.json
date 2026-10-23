@@ -1,7 +1,7 @@
 {
   "$schema": "./schemas/manifest.schema.json",
   "frameworkVersion": "0.215.0",
-  "frameworkCommit": "a9fa995a8098d59940dc9ec0ff5e464b55c24e1c",
+  "frameworkCommit": "67c53a15694243f48e4b659d003e5c26f30efe91",
   "frameworkDirty": true,
   "frameworkRoot": ".",
   "generatedAt": null,
@@ -801,12 +801,12 @@
       "source": "features/common/skills/decision-record",
       "target": ".ai-badger/skills/decision-record",
       "frameworkVersion": "0.215.0",
-      "hash": "58bf295f5115b7ae28f0ffaf720b0cc9efa4d6cebf19eaedc727528fc02844fd",
+      "hash": "da1d50a65bbb71bcce3186401565dc89e6555ea006a88b4268dd1eb2e11d2a3d",
       "dirMeta": {
         "file_count": 3,
         "dir_count": 2
       },
-      "sourceHash": "58bf295f5115b7ae28f0ffaf720b0cc9efa4d6cebf19eaedc727528fc02844fd",
+      "sourceHash": "da1d50a65bbb71bcce3186401565dc89e6555ea006a88b4268dd1eb2e11d2a3d",
       "sourceMeta": {
         "file_count": 3,
         "dir_count": 2

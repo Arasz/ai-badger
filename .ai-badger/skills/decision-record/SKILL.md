@@ -47,9 +47,16 @@ than re-litigating the decision later.
 python3 .ai-badger/skills/decision-record/scripts/detect_formats.py . --json
 ```
 
-The script reports `mode` (`adr`, `spec`, `combination` or `none`), each ADR log (`dir`, `tool`,
-`count`, `next` number, `newest` record, `index` file), each spec framework (`openspec`,
-`spec-kit`, `kiro`) and which CLIs are on PATH (`openspec`, `specify`, `adr`, `log4brains`).
+The script reports:
+
+- `mode`: `adr`, `spec`, `combination` or `none`
+- each ADR log: `dir`, `tool`, `naming` (`sequence` or `date`), `count`, the `next` number
+  (`null` for a date-named log), the `newest` record and the `index` file
+- each spec framework: `openspec`, `spec-kit` or `kiro`, with the folder that marked it
+- which CLIs are on PATH: `openspec`, `specify`, `adr`, `log4brains`
+- `warnings`: a marker it could not read, or one that points outside the project. Report each
+  warning to the person. Never write to a path a warning names.
+
 The list of recognised markers lives in the script. Read it there; do not restate it.
 
 **An installed CLI is not adoption.** A CLI decides *how* to write into a format the tree already
@@ -61,14 +68,19 @@ consequences and leave the choice to the people who own the repo.
 
 ### `adr` — an ADR log exists
 
-1. Before you take the number, fetch and check `next` against `origin/<default-branch>`. A concurrent PR may have
-   taken it.
-2. Copy the shape of the `newest` record: headings, status line, metadata block, date format, and
+1. **More than one log** (a monorepo, or a log4brains config with package folders): write to the
+   log that owns the code being changed. That is the one whose folder shares the longest path
+   with it. Use the root log for a cross-cutting decision.
+2. **Sequence-named:** before you take the `next` number, fetch and check it against
+   `origin/<default-branch>`. A concurrent PR may have taken it. **Date-named** (`next` is `null`):
+   name the file with today's date in the log's own date form (`20261023-` or `2026-10-23-`).
+3. Copy the shape of the `newest` record: headings, status line, metadata block, date format, and
    how it cites superseded records. The log's own convention beats any template.
-3. With `tool: adr-tools` and `adr` on PATH, create the file with `adr new <title>`
-   (`adr new -s <N> <title>` to supersede), then fill it in. Otherwise write the file by hand as
-   `<next>-<kebab-title>.md`.
-4. If the log has an `index`, add the row in that index's format in the same change.
+4. With `tool: adr-tools` and `adr` on PATH, create the file with `adr new <title>`
+   (`adr new -s <N> <title>` to supersede), then fill it in. With `tool: log4brains` and
+   `log4brains` on PATH, use `log4brains adr new`. Otherwise write the file by hand as
+   `<next or date>-<kebab-title>.md`.
+5. If the log has an `index`, add the row in that index's format in the same change.
 
 ### `spec` — a spec framework exists
 
@@ -80,7 +92,7 @@ consequences and leave the choice to the people who own the repo.
   Finish with `openspec validate <kebab-name>` and fix whatever it refuses. A change with no
   requirement delta sets `skip_specs: true` in its `.openspec.yaml`. If `openspec/` exists but
   the CLI does not, mirror an existing change folder by hand and state that it went unvalidated.
-- **Spec Kit.** Write in the feature's `specs/<NNN-slug>/`. Requirements go in `spec.md` and the decision
+- **Spec Kit** (reported by its `.specify/` state folder). Write in the feature's `specs/<NNN-slug>/`, not in `.specify/`. Requirements go in `spec.md` and the decision
   in `plan.md` (or `research.md` when the folder has one). Use the `/speckit-*` commands if the host exposes them.
 - **Kiro.** Write in `.kiro/specs/<slug>/`. Requirements go in `requirements.md` and the decision in `design.md`.
 
