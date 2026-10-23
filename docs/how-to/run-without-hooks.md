@@ -83,8 +83,9 @@ reminder the Stop hook would have used to block the turn prints as `BLOCK: <reas
 or malformed `hooks.json`, no commands registered for the event, or a command that failed or
 timed out.
 
-A subagent must not check in: it would read the parent session's mail. `checkin` refuses when
-`CLAUDE_CODE_CHILD_SESSION` is set.
+A subagent must not check in: it would read the parent session's mail. Run
+`checkin --subagent` to skip check-in explicitly. `CLAUDE_CODE_CHILD_SESSION` can be inherited
+by a new top-level session, so the script does not use that variable alone to identify a subagent.
 
 ## What limited mode cannot replace
 

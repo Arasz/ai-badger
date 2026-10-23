@@ -105,14 +105,55 @@ def test_failing_command_reported_and_later_runs(tmp_path):
     assert "AFTER-FAIL" in res.stdout
 
 
-def test_child_session_runs_nothing(tmp_path):
+def test_explicit_subagent_runs_nothing(tmp_path):
+    marker = tmp_path / "ran"
+    write_hooks(tmp_path, [f"touch {marker}"])
+    res = run(tmp_path, "checkin", "--subagent", "--root", str(tmp_path))
+    assert res.returncode == 0
+    assert not marker.exists()
+    assert "NOT checked in" in res.stderr
+
+
+def test_inherited_child_session_marker_does_not_skip_top_level_checkin(tmp_path):
     marker = tmp_path / "ran"
     write_hooks(tmp_path, [f"touch {marker}"])
     res = run(tmp_path, "checkin", "--root", str(tmp_path),
               env_extra={"CLAUDE_CODE_CHILD_SESSION": "1"})
     assert res.returncode == 0
-    assert not marker.exists()
-    assert "NOT checked in" in res.stderr
+    assert marker.exists()
+
+
+def test_windows_hook_command_uses_configured_git_bash():
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("limited_mode_under_test", SCRIPT)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    command = 'if [ -f "${CLAUDE_PROJECT_DIR}/marker" ]; then echo ok; fi'
+    args, shell = module.command_invocation(
+        command, windows=True,
+        env={"CLAUDE_CODE_GIT_BASH_PATH": r"C:\Program Files\Git\bin\bash.exe"})
+    assert args == [r"C:\Program Files\Git\bin\bash.exe", "-c", command]
+    assert shell is False
+
+
+def test_run_command_passes_windows_invocation_without_shell(tmp_path, monkeypatch):
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("limited_mode_under_test", SCRIPT)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    command = 'if [ -f "${CLAUDE_PROJECT_DIR}/marker" ]; then echo ok; fi'
+    calls = {}
+
+    def fake_run(invocation, **kwargs):
+        calls["invocation"] = invocation
+        calls["shell"] = kwargs["shell"]
+        return subprocess.CompletedProcess(invocation, 0, stdout="", stderr="")
+
+    monkeypatch.setattr(module, "command_invocation",
+                        lambda value, env=None: (["bash", "-c", value], False))
+    monkeypatch.setattr(module.subprocess, "run", fake_run)
+    assert module.run_command(command, "payload", tmp_path, {})
+    assert calls == {"invocation": ["bash", "-c", command], "shell": False}
 
 
 def test_on_twice_one_block(tmp_path):
