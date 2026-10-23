@@ -1,7 +1,7 @@
 {
   "$schema": "./schemas/manifest.schema.json",
   "frameworkVersion": "0.215.0",
-  "frameworkCommit": "a9fa995a8098d59940dc9ec0ff5e464b55c24e1c",
+  "frameworkCommit": "aa1eb2a46e597c8bf2fb4aeb9629ea2119534992",
   "frameworkDirty": true,
   "frameworkRoot": ".",
   "generatedAt": null,
@@ -1011,12 +1011,12 @@
       "source": "features/common/skills/maintain-agent-instructions",
       "target": ".ai-badger/skills/maintain-agent-instructions",
       "frameworkVersion": "0.215.0",
-      "hash": "a8da96f1358f1dc32b37fb41643262351f9cd2bcde2526613a4425a7f69b3bd9",
+      "hash": "77c6bffca8125dba04201522c23bf6d8166f0f98e806ae3e46ca7aa8c4b7746b",
       "dirMeta": {
         "file_count": 7,
         "dir_count": 2
       },
-      "sourceHash": "a8da96f1358f1dc32b37fb41643262351f9cd2bcde2526613a4425a7f69b3bd9",
+      "sourceHash": "77c6bffca8125dba04201522c23bf6d8166f0f98e806ae3e46ca7aa8c4b7746b",
       "sourceMeta": {
         "file_count": 7,
         "dir_count": 2

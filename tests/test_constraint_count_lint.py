@@ -2,7 +2,7 @@
 
 Rule 8B: long negative instruction lists are brittle.  This script counts bullet
 points under the 'Non-negotiable invariants' section and warns when the count
-exceeds a configurable threshold (default 35).
+exceeds a configurable threshold (default 36).
 """
 from __future__ import annotations
 
@@ -194,7 +194,7 @@ def test_cli_exits_zero_when_under_threshold(tmp_path):
     assert "5" in done.stdout
 
 
-def test_cli_exits_one_when_over_threshold(tmp_path):
+def test_cli_exits_zero_at_the_default_threshold(tmp_path):
     path = _write_instruction_file(
         tmp_path,
         INVARIANTS_TEMPLATE.format(bullets=_make_bullets(36)),
@@ -202,9 +202,20 @@ def test_cli_exits_one_when_over_threshold(tmp_path):
 
     done = _run(str(path))
 
+    assert done.returncode == 0, done.stdout + done.stderr
+
+
+def test_cli_exits_one_when_over_threshold(tmp_path):
+    path = _write_instruction_file(
+        tmp_path,
+        INVARIANTS_TEMPLATE.format(bullets=_make_bullets(37)),
+    )
+
+    done = _run(str(path))
+
     assert done.returncode == 1
+    assert "37" in done.stdout
     assert "36" in done.stdout
-    assert "35" in done.stdout
 
 
 def test_cli_accepts_custom_threshold(tmp_path):
