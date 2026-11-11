@@ -19,7 +19,7 @@ When cutting a release:
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
-| 0.217.2 | [decision recording in the ai-raccoon manual checklist](0.217.2-ai-raccoon-checklist-decision-items.md) |
+| 0.217.2 | [decision recording in the ai-raccoon checklist and its CLI fallback](0.217.2-ai-raccoon-checklist-decision-items.md) |
 | 0.217.1 | [limited-mode check-in works on Windows](0.217.1-limited-mode-windows-checkin.md) |
 | 0.217.0 | [agents write to the user in Simplified Technical English](0.217.0-simplified-technical-english.md) |
 | 0.216.0 | [change: the smallest lane, still planned, tested and reviewed](0.216.0-change-skill.md) |

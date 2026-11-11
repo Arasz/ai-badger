@@ -1,7 +1,7 @@
 {
   "$schema": "./schemas/manifest.schema.json",
   "frameworkVersion": "0.217.2",
-  "frameworkCommit": "9b454ec797d2cf166b99af305afac05e404549c3",
+  "frameworkCommit": "db6d7c5b8c58fa6c7be55f7fb358c67fc5ab19ef",
   "frameworkDirty": true,
   "frameworkRoot": ".",
   "generatedAt": null,
@@ -1816,7 +1816,7 @@
       "target": "CLAUDE.md",
       "frameworkVersion": "0.217.2",
       "hash": "4b4678f01ec73ad239bc1fbc9f904f59edd466b1adfc65a0cd8f662240e58353",
-      "outputHash": "1b607037764837d2f72e89d91da8726881db35992816c07b3c5a33ae7524a938",
+      "outputHash": "448445de0869c555bb2bb2cca637789d5cbdea620c02c8ad7eac8304438768d6",
       "seedOnce": false
     },
     {
@@ -1827,7 +1827,7 @@
       "target": ".github/copilot-instructions.md",
       "frameworkVersion": "0.217.2",
       "hash": "4b4678f01ec73ad239bc1fbc9f904f59edd466b1adfc65a0cd8f662240e58353",
-      "outputHash": "1301fe51710e6ac1d12af1ad6433b8bd085e5f3aef890c1d0226fc3c87b537eb",
+      "outputHash": "c29248077bac53dbec4f3ea9f1d76b42918160324ba36c2a60f164204379b924",
       "seedOnce": false
     },
     {
@@ -1838,7 +1838,7 @@
       "target": "HERMES.md",
       "frameworkVersion": "0.217.2",
       "hash": "3c1f2816845f16ad527e3d85002ad310b6b291f8383f88ce0018fef9871026f0",
-      "outputHash": "5ec5765b9423059362909def25a49690b6f26acc4ccaf0f6aafcb2219e287832",
+      "outputHash": "1c287f8f67c1027bea3e2fcfb19be616360981a10bb398e906f16cf861c3033e",
       "seedOnce": false
     },
     {
@@ -1849,7 +1849,7 @@
       "target": "AGENTS.override.md",
       "frameworkVersion": "0.217.2",
       "hash": "371d107d906553aecb682a4882d08fc9f9942bec62909443a5345692ef303a14",
-      "outputHash": "8f8eadeccbeea56bf85c8b1c0dc09006eb7b8ab2aa8b13ecfc0af4f4a93a64ca",
+      "outputHash": "60d9e170397cf6de6e645dca3a6de88457e903943e13f46b762d5ae28f6ce9da",
       "seedOnce": false
     },
     {
@@ -1860,7 +1860,7 @@
       "target": "AGENTS.md",
       "frameworkVersion": "0.217.2",
       "hash": "121ca4fb7fe205d9a0bb7c054d9ccb4ef51144ff4cf5b84c4a2dbfcadd0f6021",
-      "outputHash": "642211c5609504d7c48e093c58d46be5ba1a302239d50be6127b3f622e257eff",
+      "outputHash": "94a45f7c5fa7b520cdb3cdcd6c973b89bd2b2fffacd93ba5b3331b2c2e739e82",
       "seedOnce": false
     },
     {

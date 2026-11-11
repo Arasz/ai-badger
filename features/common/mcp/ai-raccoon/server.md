@@ -11,3 +11,10 @@ Every call passes projectId. Plain writes land in committed project memory; acti
 isolate in-progress notes and consolidate on finish; `share_memory` promotes durable cross-project
 facts. Keep the docs directory searchable: check `get_watch_status`, then `add_watch`
 (projectId + absolute path) when no watch exists.
+
+Record project decisions with `register_decision_task`, then `record_decision`. Through
+ai-raccoon 2.6.0 the decision tools commit on the server, but Claude Code rejects their reply:
+the output schema marks null fields as required. When a decision tool returns that schema
+error, do not retry. Check the write with `ai-raccoon decisions query --project-id <id>`, and use
+`ai-raccoon decisions task register | record | get | query | export | preview` instead. These
+commands go through the same server and the same project gate.
