@@ -1,7 +1,7 @@
 {
   "$schema": "./schemas/manifest.schema.json",
   "frameworkVersion": "0.218.0",
-  "frameworkCommit": "fe36fbe165474c22f2a2093cd90a01361c997f3b",
+  "frameworkCommit": "95e5aea27bef724a7bc921c2e46980c8b42ef18f",
   "frameworkDirty": true,
   "frameworkRoot": ".",
   "generatedAt": null,
@@ -14,7 +14,7 @@
   ],
   "skillScope": "default",
   "pluginScope": "default",
-  "configHash": "1be6aca3e9ada39291c2947bbcd107ab57c3c2c039b483af97e65e08042265d1",
+  "configHash": "0d3fc5bb13cc768417f966780d9234487853c221e4223fdaf773618fa08e7a4b",
   "generatedConfig": [
     {
       "path": ".claude/settings.json",
@@ -1592,12 +1592,12 @@
       "source": "features/common/skills/task-decomposition",
       "target": ".ai-badger/skills/task-decomposition",
       "frameworkVersion": "0.218.0",
-      "hash": "fbf14a507796533d0b4b296fddf18909f20f3a5d321e16a4765009fb1e8325e6",
+      "hash": "5c9e475fec1d890c9b45d6fe0f130dec50d629a2aceb8eef381370b8a4a83f35",
       "dirMeta": {
         "file_count": 12,
         "dir_count": 2
       },
-      "sourceHash": "fbf14a507796533d0b4b296fddf18909f20f3a5d321e16a4765009fb1e8325e6",
+      "sourceHash": "5c9e475fec1d890c9b45d6fe0f130dec50d629a2aceb8eef381370b8a4a83f35",
       "sourceMeta": {
         "file_count": 12,
         "dir_count": 2
@@ -1795,7 +1795,7 @@
       "target": "CLAUDE.md",
       "frameworkVersion": "0.218.0",
       "hash": "4b4678f01ec73ad239bc1fbc9f904f59edd466b1adfc65a0cd8f662240e58353",
-      "outputHash": "4cb3e1e0c96da1c7077f7a0f45e8dbf481505a9a3cc73c51ed9dfcda3691d332",
+      "outputHash": "b088d704ed85aa134bd92ae630c93e9f13b84d5f085e43afc616964d04619603",
       "seedOnce": false
     },
     {
@@ -1806,7 +1806,7 @@
       "target": ".github/copilot-instructions.md",
       "frameworkVersion": "0.218.0",
       "hash": "4b4678f01ec73ad239bc1fbc9f904f59edd466b1adfc65a0cd8f662240e58353",
-      "outputHash": "3578304d2ccb4d62756f7356c81305d8e42a887bb639b4757603b44b25cbc1b2",
+      "outputHash": "e68136b9af3d250b4a42647bebead05ae264fff3dcb59342de43a81bd9b4abda",
       "seedOnce": false
     },
     {
@@ -1817,7 +1817,7 @@
       "target": "HERMES.md",
       "frameworkVersion": "0.218.0",
       "hash": "3c1f2816845f16ad527e3d85002ad310b6b291f8383f88ce0018fef9871026f0",
-      "outputHash": "17982598b92c4759b31cc876308c4a2f1bc641eb898f6e67f027008b022ddccc",
+      "outputHash": "9a4819a25aa4245e2e436077990bee8a2761f31c8528df75cc83019c100f0965",
       "seedOnce": false
     },
     {
@@ -1828,7 +1828,7 @@
       "target": "AGENTS.override.md",
       "frameworkVersion": "0.218.0",
       "hash": "371d107d906553aecb682a4882d08fc9f9942bec62909443a5345692ef303a14",
-      "outputHash": "2e21e85fb3a1c837f1355742c18e71a4c2a304cbd15d1a9d098a9332aad49814",
+      "outputHash": "1bc16f74969f463d970001ec5c46162b00d63aaedd902e9e5ef9baac9cb40894",
       "seedOnce": false
     },
     {
@@ -1839,7 +1839,7 @@
       "target": "AGENTS.md",
       "frameworkVersion": "0.218.0",
       "hash": "121ca4fb7fe205d9a0bb7c054d9ccb4ef51144ff4cf5b84c4a2dbfcadd0f6021",
-      "outputHash": "419e04e35d7add7af76697ecf26fe21265bcd3924b907594fe830835a20b2a14",
+      "outputHash": "9dc246e6d848d7854715a1d195661c002dda962a4ff9329608a815b3f0c05f54",
       "seedOnce": false
     },
     {
