@@ -1,10 +1,10 @@
 # ai-badger
 
-Agent-instruction framework distributed through a Claude Code plugin and native repository scaffolds for Claude Code, Copilot, Hermes, pi and Codex. Python 3.10+ scripts (detect/scaffold/validate/index_build/drift) materialize a per-repo .ai-badger/ scaffold from a features/{stack|common}/{feature} catalog. engine/requirements.txt declares runtime dependencies plus one optional wrapper guard: jsonschema (required; validation refuses rather than silently passing), pyyaml (optional, guarded, and degrades to a printed note), and pydantic (required; the task-plan model and its schema generator); tomli supplies TOML parsing on Python 3.10; semantica is needed only by the optional wrapper. The task-graph plan server/CLI are PEP 723 scripts launched via `uv run --script`, so the consumer-side prerequisite is uv (it fetches pydantic>=2.12,<3 into its cache on first launch, with no pip install and no project-venv pollution). The plan DAG layer is stdlib graphlib; networkx is deliberately not used. Two .mjs helper scripts under skills/maintain-agent-instructions/.
+Agent-instruction framework distributed through a Claude Code plugin and native repository scaffolds for Claude Code, Copilot, Hermes, pi and Codex. Python 3.10+ scripts (detect/scaffold/validate/index_build/drift) materialize a per-repo .ai-badger/ scaffold from a features/{stack|common}/{feature} catalog. engine/requirements.txt declares the runtime dependencies: jsonschema (required; validation refuses rather than silently passing), pyyaml (optional, guarded, and degrades to a printed note), and pydantic (required; the task-plan model and its schema generator); tomli supplies TOML parsing on Python 3.10. The task-graph plan server/CLI are PEP 723 scripts launched via `uv run --script`, so the consumer-side prerequisite is uv (it fetches pydantic>=2.12,<3 into its cache on first launch, with no pip install and no project-venv pollution). The plan DAG layer is stdlib graphlib; networkx is deliberately not used. Two .mjs helper scripts under skills/maintain-agent-instructions/.
 
 > Domain: Developer tooling: agent instruction catalogs and repo scaffolding.
 > Stacks: python, js, github, claude, hermes, pi, ts, node, changelog, codex
-> Scaffolded by ai-badger 0.217.3. Source of truth for this file: `.ai-badger/AGENTS.override.md`.
+> Scaffolded by ai-badger 0.218.0. Source of truth for this file: `.ai-badger/AGENTS.override.md`.
 
 ## Commands
 
@@ -81,17 +81,6 @@ facts. Keep the docs directory searchable: check `get_watch_status`, then `add_w
 (projectId + absolute path) when no watch exists.
 
 Decision tools before 2.6.1 commit but Claude Code rejects the reply (null fields marked required): do not retry — verify and continue with `ai-raccoon decisions task register|record|get|query|export|preview`.
-
-<!-- semantica MCP tools -->
-## MCP Tools: semantica
-
-Semantica is the project knowledge graph. It complements AiRaccoon: AiRaccoon answers
-"what do we know?"; Semantica answers "how are things connected?" and "why was this
-decision made?".
-
-Start with `get_graph_summary` for orientation. Record architectural decisions with
-`record_decision`. Drill into specifics with `query_decisions`, `find_precedents`, or
-`get_causal_chain`. Each tool's own description covers the rest.
 
 <!-- Playwright MCP tools -->
 ## MCP Tools: playwright

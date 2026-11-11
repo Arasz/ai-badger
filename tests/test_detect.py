@@ -583,7 +583,7 @@ def test_detect_commands_dotnet_setdefault_does_not_override_package_json(tmp_pa
 # ------------------------------------------------------------- smart .venv tool-only detection
 def test_detect_stacks_suppresses_python_when_venv_contains_only_mcp_tool_packages(tmp_path, load_script, root):
     """A .venv created in a non-Python project (e.g. .NET) solely for MCP tools like code-review-graph
-    or semantica must not falsely trigger python stack detection when no user Python manifest exists."""
+    must not falsely trigger python stack detection when no user Python manifest exists."""
     detect = load_script("features/common/skills/welcome-ai-badger/scripts/detect.py")
     index = detect.bl.read_index(root)
 

@@ -37,7 +37,6 @@ SHARED_SKILL_MODULES = (
     ("commit-reminder", "impact_estimator.py"),
     ("test-economy", "suite_economy.py"),
     ("ai-raccoon-memory", "memory_first_gate.py"),
-    ("semantica-knowledge-graph", "export_semantica_graph.py"),
     ("git-work", "git_internals_guard.py"),
     ("git-work", "shell_parser.py"),  # git_internals_guard.py lexes Bash through it
     ("ai-raccoon-memory", "memory_context.py"),
@@ -48,8 +47,9 @@ SHARED_SKILL_MODULES = (
 
 # Modules the framework used to ship but no longer does; every adjust run must delete
 # stale copies from both destinations (the memory-grade file-logging feature, removed
-# 2026-08-11, is the first member).
-REMOVED_MODULES = ("memory_grade.py",)
+# 2026-08-11, is the first member; the knowledge-graph export module, removed with its
+# MCP server, the second).
+REMOVED_MODULES = ("memory_grade.py", "export_semantica_graph.py")
 
 # The BM25 MCP matcher (docs/adr/0012): tokenizer, scoring, gate and document
 # construction live here, not in ai_badger_hooks.py, so they need their own copy

@@ -113,6 +113,15 @@ Only when detection found nothing, write a MADR 4 minimal record at the reported
 (`docs/decisions/0001-<kebab-title>.md`) from `references/madr-minimal.md`. That is MADR's
 documented default location, and plain Markdown needs no tool.
 
+### Also in ai-raccoon (optional)
+
+After the record above is written, also call `record_decision` in ai-raccoon when available
+(the server is connected, or the `ai-raccoon decisions` CLI is installed). Pass the same title,
+scenario, outcome and reasoning, and cite the record's path in `sources`. The project's own
+record stays the primary one (ADR-0047). The ai-raccoon copy only makes the decision searchable
+by task. The `ai-raccoon-memory` skill gives the ids, the order and the recovery rule. When
+ai-raccoon is not available, skip this step.
+
 ## Step 3 — Content and status
 
 - Write the record **before implementation**, with the status the log uses for an open decision

@@ -172,8 +172,7 @@ python3 -m pip install -r "$AI_BADGER/engine/requirements.txt"
 ```
 
 The file installs the runtime dependencies (`jsonschema` required, `pyyaml` optional and
-guarded, `pydantic` required for the task-plan model, and `tomli` for TOML on Python 3.10) plus `semantica`, needed only by the
-optional Semantica wrapper. Skipping this is the single most common failure — see
+guarded, `pydantic` required for the task-plan model, and `tomli` for TOML on Python 3.10). Skipping this is the single most common failure — see
 [Troubleshooting](#7-troubleshooting).
 
 The `task-graph` plan server and CLI are PEP 723 scripts launched with `uv run --script`, so

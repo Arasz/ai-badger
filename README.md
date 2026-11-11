@@ -94,10 +94,10 @@ Two figures from this repo's own history, each with the conditions it was measur
 
 ## What's new
 
+- [0.218.0](docs/changelog/0.218.0-ai-raccoon-decision-records.md): ai-raccoon decision
+  records replace the knowledge-graph MCP server; remove its old entries by hand.
 - [0.201.0](docs/changelog/0.201.0-discover-reads-claude-code-init.md): `mcp-index --discover`
   reads tool names from Claude Code's init event.
-- [0.200.2](docs/changelog/0.200.2-semantica-catalog-current-tools.md): the semantica catalog
-  covers the tools semantica 0.6.8 serves.
 - [0.200.1](docs/changelog/0.200.1-synced-plugins-and-catalog-refresh.md): `--discover` finds
   plugins synced from claude.ai.
 

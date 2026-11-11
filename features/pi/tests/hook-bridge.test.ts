@@ -701,14 +701,8 @@ describe("the shipped PostToolUse matchers fire on the MCP names pi delivers", (
     }
   });
 
-  test.skipIf(!present)("export_graph fires the semantica autosave", () => {
-    expect(fired("mcp_semantica_export_graph")).toContain("semantica_export_autosave_hook.py");
-    expect(fired("mcp__semantica__export_graph")).toContain("semantica_export_autosave_hook.py");
-  });
-
   test.skipIf(!present)("a longer tool name from the same server fires nothing", () => {
     expect(fired("mcp_ai-raccoon_query_extra")).toBe("");
-    expect(fired("mcp_semantica_export_graph_v2")).toBe("");
   });
 });
 
@@ -721,7 +715,6 @@ describe("matchers follow Claude's documented semantics, judged by the shared Py
 
   const matchers: Array<string | undefined> = [
     "^(mcp__.+__|.+-)?query$",
-    "^(mcp__.+__|.+-)?export_graph$",
     "Read|ReadFile",
     "*",
     "",
@@ -735,8 +728,6 @@ describe("matchers follow Claude's documented semantics, judged by the shared Py
   const tools: Array<[string, string]> = [
     ["mcp__ai-raccoon__query", "mcp_ai-raccoon_query"],
     ["mcp__ai-raccoon__query_extra", "mcp_ai-raccoon_query_extra"],
-    ["mcp__semantica__export_graph", "mcp_semantica_export_graph"],
-    ["mcp__semantica__export_graph_v2", "mcp_semantica_export_graph_v2"],
     ["Read", "read"],
     ["Write", "write"],
     ["MultiEdit", "edit"],

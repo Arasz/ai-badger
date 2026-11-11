@@ -17,7 +17,6 @@ from hook_matcher_rules import claude_is_exact, claude_matches, copilot_matches
 MCP_TARGETS = [
     ("memory_first_gate_post_hook.py", "ai-raccoon", "query"),
     ("memory_grade_hook.py", "ai-raccoon", "query"),
-    ("semantica_export_autosave_hook.py", "semantica", "export_graph"),
 ]
 
 CLAUDE_TOOLS = {"Agent", "Bash", "Edit", "Glob", "Grep", "MultiEdit", "NotebookEdit", "Read",

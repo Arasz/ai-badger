@@ -8,7 +8,7 @@ CLI are PEP 723 scripts started with `uv run --script` (see `features/common/sta
 consumers need `uv`, which fetches `pydantic` on first launch. Install the requirements:
 
 ```bash
-python3 -m pip install -r engine/requirements.txt   # jsonschema, pyyaml, pydantic, tomli (+ optional semantica)
+python3 -m pip install -r engine/requirements.txt   # jsonschema, pyyaml, pydantic, tomli
 ```
 
 `$AI_BADGER` below is this repo's root (the directory containing `index.json`, `schemas/`,

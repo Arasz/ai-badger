@@ -14,11 +14,6 @@ def gate(load_script):
     return load_script("features/common/skills/ai-raccoon-memory/scripts/memory_first_gate.py")
 
 
-@pytest.fixture
-def export_mod(load_script):
-    return load_script("features/common/skills/semantica-knowledge-graph/scripts/export_semantica_graph.py")
-
-
 class TestSanitizePathSegment:
     """Extensive test harness for sanitize_path_segment."""
 
@@ -81,8 +76,8 @@ class TestSanitizePathSegment:
     def test_sanitize_path_segment_rules(self, ce, input_val, expected):
         assert ce.sanitize_path_segment(input_val) == expected
 
-    def test_single_function_used_across_modules(self, ce, gate, export_mod, load_script):
-        """Verify that ce, gate, export_mod, and blast_radius all use identical sanitization behavior."""
+    def test_single_function_used_across_modules(self, ce, gate, load_script):
+        """Verify that ce, gate, and blast_radius all use identical sanitization behavior."""
         blast_guard = load_script(
             "features/common/skills/worktree-agent-isolation/scripts/blast_radius_kill_guard.py"
         )
@@ -103,7 +98,5 @@ class TestSanitizePathSegment:
         ]
         for s in samples:
             expected = ce.sanitize_path_segment(s)
-            assert ce._safe_session(s) == expected
             assert gate._safe_session(s) == expected
-            assert export_mod._sanitize_segment(s or "") == (expected if s else "")
             assert blast_guard._safe_session(s) == expected

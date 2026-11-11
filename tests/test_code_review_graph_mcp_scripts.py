@@ -142,8 +142,8 @@ def test_the_venv_is_built_with_the_interpreter_that_was_chosen(tmp_path, load_s
     """ensure_venv must build with py_exe, not with whatever is running (L9-4).
 
     It printed py_exe and then called venv.EnvBuilder(), which uses the running
-    interpreter — so any interpreter selection upstream was decorative. The semantica
-    installer (`subprocess.run([py_exe, "-m", "venv", ...])`) does this correctly.
+    interpreter — so any interpreter selection upstream was decorative. The fix runs
+    `subprocess.run([py_exe, "-m", "venv", ...])`.
     """
     install = load_script("features/common/mcp/code-review-graph/scripts/install.py")
     recorded = []

@@ -170,7 +170,7 @@ Structural properties that predate those waves:
   only (`.github/workflows/pylint.yml`).
 - The runtime dependency surface is deliberately tiny and declared in `engine/requirements.txt`:
   **`jsonschema`, `pyyaml` and `pydantic`**, plus `tomli` on Python 3.10 (3.11+ has `tomllib`),
-  plus `semantica` for the optional MCP wrapper. Everything else is Python 3.10+ stdlib. Their
+  Everything else is Python 3.10+ stdlib. Their
   imports differ on purpose: `jsonschema` and `pydantic` are required, and the `ImportError` is
   never swallowed, because a guarded import would let validation silently pass when the package
   is absent (`jsonschema` is imported lazily, inside the validation functions, so entry points

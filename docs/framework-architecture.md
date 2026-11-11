@@ -196,19 +196,18 @@ into every agent file, its prerequisite and its install command. `welcome-ai-bad
 | Server | What it does |
 |---|---|
 | [**code-review-graph**](https://github.com/tirth8205/code-review-graph) | Local-first code intelligence graph for MCP. Builds a persistent map of your codebase so AI coding tools read only what matters, used for code review, impact analysis, and architecture exploration. |
-| [**ai-raccoon**](https://github.com/Arasz/ai-raccoon) | Memory server: semantic search, durable-fact writes, workspaces, docs watching. Declared only when `ai-raccoon` is on PATH, and user-scoped: the operator registers it once, in a user-global config, so no project file carries it ([ADR-0044](adr/0044-project-scope-decision-for-an-mcp-server.md)). |
-| [**semantica**](https://github.com/semantica-agi/semantica) | Graph-native knowledge infrastructure: entity extraction, decisions with W3C PROV-O provenance, causal chains. Declared only when `semantica-mcp` is on PATH. |
+| [**ai-raccoon**](https://github.com/Arasz/ai-raccoon) | Memory server: semantic search, durable-fact writes, decision records, workspaces, docs watching. Declared only when `ai-raccoon` is on PATH, and user-scoped: the operator registers it once, in a user-global config, so no project file carries it ([ADR-0044](adr/0044-project-scope-decision-for-an-mcp-server.md)). |
 | [**playwright**](https://playwright.dev/docs/getting-started-mcp) | Browser automation over MCP: accessibility snapshots, element refs, network inspection. Declared only when `npx` is available, since it launches through `npx -y`. |
 | [**hermes**](https://hermes-agent.nousresearch.com/docs/user-guide/features/mcp#running-hermes-as-an-mcp-server) | Hermes Agent's stdio MCP bridge: list conversations, read history, poll live events, send messages, manage approvals. Declared only when `hermes` is on PATH. |
 | **task-graph** | The decomposed task plan as a DAG of steps with status, acceptance criteria and evidence, persisted in the project's `tracking.db`. Launched through `uv`. |
 
-`features/common/mcp/` holds ai-raccoon, code-review-graph, hermes, playwright, semantica and
+`features/common/mcp/` holds ai-raccoon, code-review-graph, hermes, playwright and
 task-graph. `aspire` is catalogued in `features/aspire/mcp/` and is the Aspire CLI's own
 `aspire agent mcp` surface, so it is described but never launched by ai-badger.
 `features/common/stack-mcp.json` says which servers the `common` stack wants and which of them are
 written into `.mcp.json` during scaffold
 ([ADR-0014](adr/0014-mcp-support-is-configuration-not-retrieval.md)). Availability is per server:
-`hermes`, `ai-raccoon`, `semantica` and `playwright` each depend on their own launcher being
+`hermes`, `ai-raccoon` and `playwright` each depend on their own launcher being
 present, while `code-review-graph` and `task-graph` carry no availability condition. A server
 can also carry a `scope`: `project` (the default) means ai-badger writes its launch config into
 the project files it owns, `user` means the operator registers it in a user-global config and
@@ -252,7 +251,7 @@ ai-badger/
       data/model-groups.json     # A persona's model: lane mapped to a real model id
       skills-source.json         # External skill sources
       skills.json                # External skills to install
-      mcp/                       # MCP server catalog (code-review-graph, ai-raccoon, semantica, ...)
+      mcp/                       # MCP server catalog (code-review-graph, ai-raccoon, ...)
       tools/                     # External CLI catalog, one meta.json each
       mcp-tags.json              # The closed tag vocabulary an MCP tool must draw from
       stack-mcp.json             # Which MCP servers this stack wants, and how to launch them
@@ -594,7 +593,7 @@ flowchart TB
     end
     SKILLSDIR["features/common/skills/\ndefault + optIn, per each SKILL.md's own scope\nsee skills.md for the roster"]
     AGENTS["features/{claude|copilot|hermes|pi|codex}/\nscaffolding.json · adjustments/ · templates/"]
-    MCPCAT["features/*/mcp/ + stack-mcp.json\ncommon: code-review-graph · hermes · ai-raccoon · task-graph · semantica · playwright\naspire stack: aspire"]
+    MCPCAT["features/*/mcp/ + stack-mcp.json\ncommon: code-review-graph · hermes · ai-raccoon · task-graph · playwright\naspire stack: aspire"]
     MKT[".claude-plugin/marketplace.json\n+ installable plugin"]
   end
   IDXbuild["index_build.py"] -->|scans features/| IDX

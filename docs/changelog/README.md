@@ -19,6 +19,7 @@ When cutting a release:
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
+| 0.218.0 | [ai-raccoon decision records replace Semantica](0.218.0-ai-raccoon-decision-records.md) |
 | 0.217.3 | [the ai-raccoon MCP section fits its line budget again](0.217.3-ai-raccoon-mcp-section-line-budget.md) |
 | 0.217.2 | [decision recording in the ai-raccoon checklist and its CLI fallback](0.217.2-ai-raccoon-checklist-decision-items.md) |
 | 0.217.1 | [limited-mode check-in works on Windows](0.217.1-limited-mode-windows-checkin.md) |

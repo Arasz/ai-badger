@@ -1,7 +1,7 @@
 """Red tests for the session-store families + D10 migration spec (P2.0) — the contract
 P2.1a/b implement.
 
-Extends the USER DB with the seven session-store families (plan rev 2, store inventory):
+Extends the USER DB with the six session-store families (plan rev 2, store inventory):
 
     memory_first         (session_id TEXT PRIMARY KEY, payload TEXT NOT NULL,
                           denials INTEGER NOT NULL DEFAULT 0, updated_at TEXT NOT NULL)
@@ -10,12 +10,6 @@ Extends the USER DB with the seven session-store families (plan rev 2, store inv
                            0 bytes); <uuid>.denials sidecars hold a bare integer count.
                            Both facts about a session land in ONE row: consulted in payload,
                            the denial count in the denials counter column.
-    semantica_nudge      (session_id TEXT PRIMARY KEY, payload TEXT NOT NULL,
-                          updated_at TEXT NOT NULL)
-                         — ~/.ai-badger/semantica-nudge/<uuid> entries are EMPTY files (711
-                           on this machine; the plan's "711 dirs" is wrong — they are flat
-                           files, no subdirectories exist). Presence = nudge shown; payload
-                           pins {"shown": true}.
     dispatch_lanes       (lane_id TEXT PRIMARY KEY, entries TEXT NOT NULL,
                           updated_at TEXT NOT NULL)
                          — ~/.ai-badger/dispatch-lanes/<uuid> files are NOT JSON: lines of
@@ -69,7 +63,6 @@ Test map:
                                                    test_session_family_legacy_paths_follow_user_root_env
   3. D10 import specs ........................... test_memory_first_import_marks_consulted_and_counts_denials,
                                                    test_memory_first_import_is_idempotent_on_session_id,
-                                                   test_semantica_nudge_import_keys_sessions_and_is_idempotent,
                                                    test_dispatch_lanes_import_keeps_entry_lines,
                                                    test_dirty_sweeps_natural_key_is_the_legacy_hash,
                                                    test_blast_radius_denials_key_is_the_filename_stem,
@@ -135,17 +128,16 @@ def test_open_user_creates_session_family_tables(tmp_path, monkeypatch):
             row[0]
             for row in store.conn.execute("SELECT name FROM sqlite_master WHERE type='table'")
         }
-        for table in ("memory_first", "semantica_nudge", "dispatch_lanes", "dirty_sweeps",
+        for table in ("memory_first", "dispatch_lanes", "dirty_sweeps",
                       "blast_radius_denials", "hook_audit", "hook_state"):
             assert table in have, f"session family table {table} missing from the user DB"
         columns = {
             table: [row[1] for row in store.conn.execute(f"PRAGMA table_info({table})")]
-            for table in ("memory_first", "semantica_nudge", "dispatch_lanes",
+            for table in ("memory_first", "dispatch_lanes",
                           "dirty_sweeps", "blast_radius_denials", "hook_audit", "hook_state")
         }
         assert columns["memory_first"] == [
             "session_id", "payload", "denials", "updated_at"]
-        assert columns["semantica_nudge"] == ["session_id", "payload", "updated_at"]
         assert columns["dispatch_lanes"] == ["lane_id", "entries", "updated_at"]
         assert columns["dirty_sweeps"] == ["key", "value", "updated_at"]
         assert columns["blast_radius_denials"] == ["key", "denials", "updated_at"]
@@ -209,11 +201,10 @@ def test_memory_first_table_carries_denials_counter(tmp_path, monkeypatch):
 
 
 def test_session_families_registered_in_user_families():
-    """USER_FAMILIES carries the five user-DB session-store families, correct tables."""
+    """USER_FAMILIES carries the four user-DB session-store families, correct tables."""
     families = badger_store.USER_FAMILIES
     expected = {
         "memory_first": "memory_first",
-        "semantica_nudge": "semantica_nudge",
         "dispatch_lanes": "dispatch_lanes",
         "dirty_sweeps": "dirty_sweeps",
         "blast_radius_denials": "blast_radius_denials",
@@ -243,7 +234,7 @@ def test_audit_families_own_the_hook_tables_and_follow_the_debug_dir(tmp_path, m
 
 def test_session_family_legacy_paths_follow_user_root_env(tmp_path, monkeypatch):
     """Every session-family legacy path resolves under AI_BADGER_USER_ROOT at call time:
-    memory-first/, semantica-nudge/, dispatch-lanes/, blast-radius-guard/ directories and
+    memory-first/, dispatch-lanes/, blast-radius-guard/ directories and
     the dirty-sweep pattern's parent (the user root itself)."""
     root = _user_env(tmp_path, monkeypatch)
     families = badger_store.USER_FAMILIES
@@ -251,7 +242,6 @@ def test_session_family_legacy_paths_follow_user_root_env(tmp_path, monkeypatch)
     paths = {name: families[name].legacy_path() for name in families
              if families[name].legacy_path is not None}
     assert paths["memory_first"] == root / "memory-first"
-    assert paths["semantica_nudge"] == root / "semantica-nudge"
     assert paths["dispatch_lanes"] == root / "dispatch-lanes"
     assert paths["dirty_sweeps"].parent == root
     assert paths["blast_radius_denials"] == root / "blast-radius-guard"
@@ -310,29 +300,6 @@ def test_memory_first_import_is_idempotent_on_session_id(tmp_path, monkeypatch):
         after = store.conn.execute("SELECT count(*) FROM memory_first").fetchone()[0]
         assert before == 2, "first import should have landed 2 session rows"
         assert after == before, "re-import duplicated rows (natural key not enforced)"
-    finally:
-        store.close()
-
-
-def test_semantica_nudge_import_keys_sessions_and_is_idempotent(tmp_path, monkeypatch):
-    """711 empty <uuid> files in the real dir: each becomes one session row, payload
-    {"shown": true}; a re-import adds nothing."""
-    root = _user_env(tmp_path, monkeypatch)
-    d = root / "semantica-nudge"
-    d.mkdir(parents=True)
-    for uuid in (_SESSION, _SESSION2):
-        (d / uuid).write_bytes(b"")
-    store = _open_user()
-    try:
-        store.migrate("semantica_nudge")
-        store.migrate("semantica_nudge")  # idempotency: second import is a no-op
-        rows = {
-            row[0]: json.loads(row[1])
-            for row in store.conn.execute(
-                "SELECT session_id, payload FROM semantica_nudge")
-        }
-        assert set(rows) == {_SESSION, _SESSION2}
-        assert rows[_SESSION] == {"shown": True}
     finally:
         store.close()
 
@@ -1014,7 +981,7 @@ def _seed_sweep_legacy(family) -> Path:
         if family.legacy_kind == "stem_denials":
             path = path / "01a04e01.ba748e8f973fc5f04f2b4ca5b9dbf308.denials"
         else:
-            path = path / "01a04e01-18b7-7f42-88c6-19e68738589d"  # marker / nudge / lane
+            path = path / "01a04e01-18b7-7f42-88c6-19e68738589d"  # marker / lane
         path.parent.mkdir(parents=True, exist_ok=True)  # the legacy DIRECTORY itself
         path.write_text("1750000000.0 toolu_01" if family.legacy_kind == "lanes"
                         else ("1" if family.legacy_kind == "stem_denials" else ""),

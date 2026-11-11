@@ -34,6 +34,10 @@ HISTORY = (
     THIS,
 )
 SOURCE_ROOTS = ("features/", "engine/", "tooling/", "tests/")
+# A cleanup list must name the file it deletes; only that exact literal is exempt in that file.
+TOMBSTONES = {
+    "features/hermes/adjustments/adjust_hooks.py": '"export_semantica_graph.py"',
+}
 
 
 def _tracked() -> list[str]:
@@ -55,6 +59,8 @@ def _offenders(paths) -> list[str]:
             text = (ROOT / path).read_text(encoding="utf-8")
         except (OSError, UnicodeDecodeError):
             continue
+        if path in TOMBSTONES:
+            text = text.replace(TOMBSTONES[path], "", 1)
         if PATTERN.search(text):
             found.append(path)
     return found
