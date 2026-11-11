@@ -47,7 +47,7 @@ STAMPED = frozenset({"created_at", "updated_at", "started_at", "completed_at"})
 LAUNCH_HEADER = (
     "# /// script\n"
     '# requires-python = ">=3.10"\n'
-    '# dependencies = ["pydantic>=2.12,<3"]\n'
+    '# dependencies = ["pydantic>=2.14.3,<3"]\n'
     "# ///"
 )
 
