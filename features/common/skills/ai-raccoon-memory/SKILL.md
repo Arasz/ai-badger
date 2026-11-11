@@ -248,7 +248,7 @@ record_decision {"projectId": "<id>", "taskId": "aib-example", "sessionId": "<se
 **When the reply is rejected.** In ai-raccoon 2.6.0 and earlier, the decision tools commit the
 write, but a host that validates the tool output schema (Claude Code is the one known host) can
 reject the reply (null fields marked required). Do not retry. Check the write with
-`ai-raccoon decisions query --project-id <id>`. If a retry is necessary, send the same sessionId and the same requestId,
+`ai-raccoon decisions preview --project-id <id> --task-id <taskId>`. If a retry is necessary, send the same sessionId and the same requestId,
 so the server replays the first result. Where MCP is not available (pi), the CLI
 `ai-raccoon decisions task register | record | get | query | export | preview` is the primary path.
 

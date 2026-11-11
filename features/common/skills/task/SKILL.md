@@ -315,9 +315,9 @@ Exit: merged, state updated, tracking closed.
 4. Close tracking: `python3 .ai-badger/skills/task/scripts/task_tracker.py finish <taskId>`. This
    also removes the task's worktree — **unless it still holds work that exists nowhere else** (see
    `references/tracking-visibility.md` when it refuses).
-5. **Reflect.** Check AiRaccoon memory and the session history. Run `query_decisions` with the taskId to confirm
-   the pre-implementation decision exists; never record it again. Call `transition_decision` to
-   accepted if the outcome held, else `supersede_decision`. Write durable facts: `add_memory`.
+5. **Reflect.** Check AiRaccoon memory and the session history. Run `query_decisions` with `selector.taskIds` set to
+   the taskId to confirm the pre-implementation decision exists; never record it again. Call
+   `transition_decision` to accepted if the outcome held, else to rejected. Write durable facts: `add_memory`.
    Promote high-value entries to shared.
 6. Ask the user to grade the skill 0–5: `python3 .ai-badger/skills/task/scripts/task_tracker.py grade <taskId> <0-5>`
    (skip/leave unset if autonomous).
@@ -363,6 +363,6 @@ machine-run gates that close the task.
 - [ ] Task-ID derived per the `{repo-alias}-{key}` formula and is unique
 - [ ] Task `loop` (low or high) was determined before implementation began
 - [ ] High-effort tasks ran QA test quality & coverage step
-- [ ] `reflect` ran `query_decisions`, then `transition_decision` or `supersede_decision`
+- [ ] `reflect` ran `query_decisions` for the task, then `transition_decision`
 - [ ] `finish` left no worktree with unmerged or uncommitted work — `keptBecause` empty or resolved
 - [ ] Token cost reported and compact/fresh-session advice given (or the auto-continue condition held)

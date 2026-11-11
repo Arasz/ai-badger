@@ -1,7 +1,7 @@
 {
   "$schema": "./schemas/manifest.schema.json",
   "frameworkVersion": "0.218.0",
-  "frameworkCommit": "95e5aea27bef724a7bc921c2e46980c8b42ef18f",
+  "frameworkCommit": "57548e5611a9d3e66ea68d64c90635570d8d260b",
   "frameworkDirty": true,
   "frameworkRoot": ".",
   "generatedAt": null,
@@ -580,12 +580,12 @@
       "source": "features/common/skills/ai-raccoon-memory",
       "target": ".ai-badger/skills/ai-raccoon-memory",
       "frameworkVersion": "0.218.0",
-      "hash": "753c4df3891e0998a1252ffcecc2df32d3a12d920b39e62aaf8a5a1b9af8a66a",
+      "hash": "b224cc824b93f2d8eeeda5075238578f278b8fcdbb9c64a27be7294a7672fd4e",
       "dirMeta": {
         "file_count": 13,
         "dir_count": 1
       },
-      "sourceHash": "753c4df3891e0998a1252ffcecc2df32d3a12d920b39e62aaf8a5a1b9af8a66a",
+      "sourceHash": "b224cc824b93f2d8eeeda5075238578f278b8fcdbb9c64a27be7294a7672fd4e",
       "sourceMeta": {
         "file_count": 13,
         "dir_count": 1
@@ -832,12 +832,12 @@
       "source": "features/common/skills/decision-record",
       "target": ".ai-badger/skills/decision-record",
       "frameworkVersion": "0.218.0",
-      "hash": "c2cbf55936b33854149dbda2eb84397918498160df1c306211f3f6f1a420a3c4",
+      "hash": "2e290fe459c754dc083034aecd619d7ad8028bf36becea8489827dd42feda3d0",
       "dirMeta": {
         "file_count": 3,
         "dir_count": 2
       },
-      "sourceHash": "c2cbf55936b33854149dbda2eb84397918498160df1c306211f3f6f1a420a3c4",
+      "sourceHash": "2e290fe459c754dc083034aecd619d7ad8028bf36becea8489827dd42feda3d0",
       "sourceMeta": {
         "file_count": 3,
         "dir_count": 2
@@ -1463,12 +1463,12 @@
       "source": "features/common/skills/task",
       "target": ".ai-badger/skills/task",
       "frameworkVersion": "0.218.0",
-      "hash": "341f34250b42e3c5c6d20cc06fd1777c0dc3d8401871468dd93f7a3f679d5fa3",
+      "hash": "106e5c98c9b2bf4fd23dca400eec87fe313d530a680d616982095c17536b8013",
       "dirMeta": {
         "file_count": 21,
         "dir_count": 2
       },
-      "sourceHash": "341f34250b42e3c5c6d20cc06fd1777c0dc3d8401871468dd93f7a3f679d5fa3",
+      "sourceHash": "106e5c98c9b2bf4fd23dca400eec87fe313d530a680d616982095c17536b8013",
       "sourceMeta": {
         "file_count": 21,
         "dir_count": 2

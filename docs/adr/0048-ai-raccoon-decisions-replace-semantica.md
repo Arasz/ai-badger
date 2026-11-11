@@ -27,12 +27,14 @@ tools. Every write takes a `requestId`, and a resend with the same id replays th
 
 1. ai-badger drops semantica: the MCP catalog entry, the `semantica-knowledge-graph` skill, the
    export autosave hook, the seed template, the prompt nudge and its `semantica_nudge` store
-   family, the Hermes shared module, and the `semantica` entry in `engine/requirements.txt`.
+   family, the Hermes shared module (now listed in `REMOVED_MODULES`, so installs delete their stale
+   copies), and the `semantica` entry in `engine/requirements.txt`.
 2. Decision recording points at ai-raccoon. Guidance lives in the existing ai-raccoon catalog entry
    and the `ai-raccoon-memory` skill. The `decision-record` skill gains an optional step to also
    record the decision in ai-raccoon. The project's own format (ADR-0047) stays the primary record.
-3. No nudge replaces the deleted one. The ai-raccoon section in every generated agent file already
-   tells agents to record decisions.
+3. No nudge replaces the deleted one. The `record-decisions` invariant and the `decision-record`
+   skill carry the instruction to record a decision; the ai-raccoon copy is an optional step there.
+   The ai-raccoon section in the generated agent files only names the decision CLI fallback.
 
 ## Alternatives
 
