@@ -177,7 +177,7 @@ optional Semantica wrapper. Skipping this is the single most common failure — 
 [Troubleshooting](#7-troubleshooting).
 
 The `task-graph` plan server and CLI are PEP 723 scripts launched with `uv run --script`, so
-they need **`uv`** on PATH rather than these packages; uv fetches `pydantic>=2.12,<3` into its
+they need **`uv`** on PATH rather than these packages; uv fetches `pydantic>=2.14.3,<3` into its
 cache on first launch. The plan DAG layer is stdlib `graphlib`.
 
 ### Step 1 — detect
