@@ -152,3 +152,53 @@ def test_update_does_not_resurrect_a_removed_tool(tmp_path, load_script):
 
     entry = _source(_read_index(tmp_path), CATALOG_SERVER)["tools"]["query_graph_tool"]
     assert entry["status"] == "removed"
+
+
+def test_update_retires_a_catalog_seed_the_catalog_no_longer_lists(tmp_path, load_script):
+    """A seed's only evidence is the catalog: once the catalog drops the name, so does the index.
+
+    ai-raccoon 2.0 renamed every tool; a names-only listing kept the 1.x seeds active forever.
+    """
+    stale = {"tags": ["write"], "intent": "A pre-rename tool name.", "origin": "catalog"}
+    _write_index(tmp_path, {"version": "0.1.0", "generated_at": "2026-01-01T00:00:00Z",
+                            "sources": [{"name": CATALOG_SERVER, "status": "unknown",
+                                         "tools": {"a_name_the_catalog_dropped": dict(stale)}}]})
+    mod = load_script(SCRIPT)
+    assert mod.main(["update", "--target", str(tmp_path), "--from-json",
+                     _names_only(CATALOG_SERVER)]) == 0
+
+    tools = _source(_read_index(tmp_path), CATALOG_SERVER)["tools"]
+    assert tools["a_name_the_catalog_dropped"]["status"] == "removed"
+    assert "status" not in tools["query_graph_tool"], "a name the catalog lists stays active"
+
+
+def test_update_keeps_a_manual_tool_the_catalog_does_not_list(tmp_path, load_script):
+    """A manual entry may name a tool the catalog never covered; only a live listing retires it."""
+    manual = {"tags": ["read"], "intent": "Curated by hand, unknown to the catalog.",
+              "origin": "manual"}
+    _write_index(tmp_path, {"version": "0.1.0", "generated_at": "2026-01-01T00:00:00Z",
+                            "sources": [{"name": CATALOG_SERVER, "status": "unknown",
+                                         "tools": {"a_hand_added_tool": dict(manual)}}]})
+    mod = load_script(SCRIPT)
+    assert mod.main(["update", "--target", str(tmp_path), "--from-json",
+                     _names_only(CATALOG_SERVER)]) == 0
+
+    assert _source(_read_index(tmp_path), CATALOG_SERVER)["tools"]["a_hand_added_tool"] == manual
+
+
+def test_update_keeps_a_seed_a_partial_listing_still_names(tmp_path, load_script):
+    """A partial host listing that names the tool is live evidence; the catalog cannot overrule it."""
+    seeded = {"tags": ["read"], "intent": "Listed by the host, not by the catalog.",
+              "origin": "catalog"}
+    _write_index(tmp_path, {"version": "0.1.0", "generated_at": "2026-01-01T00:00:00Z",
+                            "sources": [{"name": CATALOG_SERVER, "status": "ok",
+                                         "tools": {"a_listed_tool": dict(seeded)}}]})
+    listing = json.dumps({"servers": [
+        {"name": CATALOG_SERVER, "enabled": True, "tools_partial": True,
+         "tools": [{"name": "a_listed_tool", "description": "Listed."}]},
+    ]})
+    mod = load_script(SCRIPT)
+    assert mod.main(["update", "--target", str(tmp_path), "--from-json", listing]) == 0
+
+    tool = _source(_read_index(tmp_path), CATALOG_SERVER)["tools"]["a_listed_tool"]
+    assert "status" not in tool

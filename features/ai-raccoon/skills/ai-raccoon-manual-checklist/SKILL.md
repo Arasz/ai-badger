@@ -133,18 +133,28 @@ Derived per run from the product, not from this list. The headings below are the
 the pass; the specific steps under each come from what step 2 found and from what is actually
 registered in the build in front of you.
 
-- **Build and install** — Release build, pack, force-update the global tool, and `--version`
-  matches the derived version.
+- **Build and install** — Release pack, install to an isolated tool path (or update the global
+  tool when requested), and verify `--version` matches the derived version.
+- **Upgrade backup** — before migrating a bank, take a consistent read-only SQLite snapshot,
+  verify its integrity and digest, and preserve it outside the scratch roots. 2.1.0 upgrades
+  to v22 and cannot be opened by 2.0.x.
 - **Server lifecycle** — the server starts and `--restart` cycles the one it finds, both on a
   non-default port.
 - **Write path** — a write stores and returns a hash; a rejected write says so, with a reason,
   rather than returning a fabricated entry. A note that cites a source file numbers its chunks in
   text order, so its opening reports `chunkIndex` 0.
-- **Read path** — search returns the written entry, get returns its content by hash, and a
+- **Read path** — search returns the written entry, typed get returns its content by hash, and a
   `file#section` anchor resolves its exact chunk. Keyword search finds an identifier that sits
   where a chunk boundary would fall, and a term longer than a whole chunk. A pasted query of
   thousands of characters returns in seconds on a bank of real scale, because its keyword terms
   are capped.
+- **Typed entries** — exercise every Memory/File/Code query selection and default, explicit
+  lookup without corpus fallback, writer declarations, re-ingestion, legacy migration and
+  quality history. Check both native vector modalities; use a separate oracle experiment for
+  minority recall rather than inferring it from table definitions.
+- **Memory TTL** — setting and clearing accepts Memory and refuses File. Historical explicit
+  File TTLs remain eligible for cleanup. Transcript sync and File TTL normalization need
+  their own instrument; record an automated substitution when cloud transport is unavailable.
 - **Embedding** — a memory row the engine refuses is split from its batch and abandoned after
   three attempts. `scripts/poison-embedding-stub.py` is an engine that refuses one marker.
 - **Noise filtering** — each *registered* write-path policy rejects what it claims to, and the
@@ -160,7 +170,12 @@ registered in the build in front of you.
   twice; stale versions, illegal transitions and read-only mode are refused; an unlinked edge stays
   in history; graph bounds truncate with a reason; an MCP export over 1 MiB is refused while the
   CLI streams it; a Semantica export imports through a blocking preview and replays as a no-op.
-- **Full MCP surface** — every derived tool and prompt is reachable.
+  Every decision tool reply matches its declared output schema.
+- **Reserved shared target** — a shared watch publishes its documents to the right scopes, the
+  reserved `shared` name cannot be registered as an ordinary project, and every tool declared
+  ordinary-project-only refuses the shared target before any side effect.
+- **Full MCP surface** — every derived tool and prompt is reachable, and every pre-2.0 tool name
+  refuses with `unknown-tool` and names its replacement.
 - **Observability** — emitted event ids resolve against the logging event-id reference.
 
 Anchor each item to the decision record that defines the behaviour, so a step whose ADR was
