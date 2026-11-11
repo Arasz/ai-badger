@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import re
 import sys
 from conftest import _test_write
 
@@ -11,6 +12,22 @@ AI_RACCOON_COMMAND = "ai-raccoon"  # zero-arg stdio launch — no args!
 AI_RACCOON_AVAILABILITY = {"command": "ai-raccoon"}
 HERMES = "hermes"
 CODE_REVIEW_GRAPH = "code-review-graph"
+
+DECISION_TOOLS = {
+    "register_decision_task",
+    "record_decision",
+    "amend_decision",
+    "transition_decision",
+    "supersede_decision",
+    "link_decisions",
+    "unlink_decisions",
+    "get_decision",
+    "query_decisions",
+    "find_decision_precedents",
+    "get_decision_graph",
+    "export_decisions",
+    "preview_decisions",
+}
 
 AI_RACCOON_TOOLS = {
     "add_memory",
@@ -33,7 +50,6 @@ AI_RACCOON_TOOLS = {
     "get_watch_status",
     "remove_watch",
     "get_entry",
-    "get_entry",
     "set_memory_usage_record",
     "set_query_result_grade",
     "trigger_memory_sharing",
@@ -43,7 +59,7 @@ AI_RACCOON_TOOLS = {
     "get_engine_statistics",
     "get_project_id",
     "save_project_id_token",
-}
+} | DECISION_TOOLS
 
 
 def _config() -> dict:
@@ -327,15 +343,85 @@ def test_ai_raccoon_memory_skill_is_indexed(root, load_script):
     assert (skill / "SKILL.md").is_file()
 
 
-def test_ai_raccoon_memory_skill_watch_ritual_names_semantica_dir(root):
-    """The watch-on-docs ritual also watches the .semantica/ directory."""
-    skill_md = root / "features" / "common" / "skills" / "ai-raccoon-memory" / "SKILL.md"
-    body = skill_md.read_text(encoding="utf-8")
-    assert ".semantica/" in body
-    assert "add_watch" in body
+def _decisions_section(root) -> str:
+    """The ai-raccoon-memory skill's '## Decisions' section, up to the next level-2 heading."""
+    body = (root / "features" / "common" / "skills" / "ai-raccoon-memory" / "SKILL.md").read_text(
+        encoding="utf-8")
+    match = re.search(r"^## (?:\d+\. )?Decisions\b.*?(?=^## |\Z)", body, re.M | re.S)
+    assert match, "ai-raccoon-memory SKILL.md has no '## Decisions' section"
+    return match.group(0)
 
 
-def test_ai_raccoon_memory_skill_watch_ritual_detects_missing_semantica_dir():
-    """A watch ritual that never names .semantica/ is detected as wrong."""
-    body = "## 1. Watch-on-docs ritual\n\nadd_watch(projectId, <abs path to docs>)\n"
-    assert ".semantica/" not in body
+def _raccoon_tools(root) -> list[dict]:
+    path = root / "features" / "common" / "mcp" / AI_RACCOON / "tools.json"
+    return json.loads(path.read_text(encoding="utf-8"))["tools"]
+
+
+def test_decisions_tools_json_lists_exactly_the_thirteen_decision_tools(root):
+    """The catalog's decision tools are exactly the thirteen ai-raccoon serves."""
+    names = {tool["name"] for tool in _raccoon_tools(root)}
+
+    assert "add_memory" in names
+    assert {name for name in names if "decision" in name} == DECISION_TOOLS
+
+
+def test_decisions_each_decision_tool_carries_tags_and_intent(root):
+    """Every decision tool has a curated intent and at least one tag for the recommender."""
+    by_name = {tool["name"]: tool for tool in _raccoon_tools(root)}
+
+    missing = sorted(DECISION_TOOLS - set(by_name))
+    assert not missing, f"decision tools absent from tools.json: {missing}"
+    for name in sorted(DECISION_TOOLS):
+        assert by_name[name].get("intent", "").strip(), name
+        assert by_name[name].get("tags"), name
+
+
+def test_decisions_tools_json_lists_each_tool_once(root):
+    """No tool name is declared twice; a duplicate hides behind any set comparison."""
+    names = [tool["name"] for tool in _raccoon_tools(root)]
+
+    assert len(names) > len(DECISION_TOOLS)
+    assert sorted(name for name in set(names) if names.count(name) > 1) == []
+
+
+def test_decisions_meta_description_mentions_decisions(root):
+    """The catalog description tells a reader the server also keeps decisions."""
+    meta = json.loads((root / "features" / "common" / "mcp" / AI_RACCOON / "meta.json")
+                      .read_text(encoding="utf-8"))
+
+    assert "decision" in meta["description"].lower()
+
+
+def test_decisions_skill_section_names_where_each_id_comes_from(root):
+    """taskId from the /task tracker, the session's sessionId, a fresh UUID requestId."""
+    section = _decisions_section(root)
+
+    assert "taskId" in section and "/task" in section
+    assert "sessionId" in section
+    assert "requestId" in section and "UUID" in section
+
+
+def test_decisions_skill_section_registers_the_task_before_recording(root):
+    """register_decision_task is introduced before record_decision; query_decisions reads back."""
+    section = _decisions_section(root)
+
+    assert "register_decision_task" in section and "record_decision" in section
+    assert section.index("register_decision_task") < section.index("record_decision")
+    assert "query_decisions" in section
+
+
+def test_decisions_skill_section_carries_the_recovery_rule(root):
+    """On a rejected reply: do not retry, verify with the CLI, reuse the same requestId."""
+    section = _decisions_section(root)
+
+    assert "do not retry" in section.lower()
+    assert "ai-raccoon decisions" in section
+    assert "same requestId" in section
+
+
+def test_decisions_skill_section_has_a_worked_example_with_every_id(root):
+    """One fenced example passes projectId, taskId, sessionId and requestId together."""
+    blocks = re.findall(r"```.*?```", _decisions_section(root), re.S)
+
+    assert any(all(key in block for key in ("projectId", "taskId", "sessionId", "requestId"))
+               for block in blocks), "no worked example carries all four ids"
