@@ -50,6 +50,8 @@ tools. Every write takes a `requestId`, and a resend with the same id replays th
 - Through ai-raccoon 2.6.0 the decision tools commit on the server, but Claude Code rejects the
   reply because the output schema marks null fields as required. The guidance says: do not retry;
   verify with `ai-raccoon decisions query`; use the CLI. A retry must reuse the same `requestId`.
+  ai-raccoon 2.6.1 (Arasz/ai-raccoon#932) makes the replies match the schema; the upgrade notes
+  recommend it, and the fallback text stays bounded to 2.6.0 and earlier.
 - The scaffold merges MCP servers, permission rules and hooks additively. A re-scaffold does not
   remove the semantica entries from `.claude/settings.json`, `.mcp.json`, `.github/mcp.json` or
   `.pi/mcp.json`, nor the export hook entry in `.claude/settings.json`, nor a Hermes operator's
