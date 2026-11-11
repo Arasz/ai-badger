@@ -94,7 +94,7 @@ def get_venv_crg(venv_dir: Path) -> Path:
 def ensure_venv(target_dir: Path, py_exe: str) -> Path:
     """Ensure .venv exists in target_dir, creating it with py_exe if missing.
 
-    Built via `py_exe -m venv`, the same as the semantica installer (L9-4):
+    Built via `py_exe -m venv` (L9-4):
     `venv.EnvBuilder` always creates the venv with the *running* interpreter, so it silently
     ignored whatever `find_suitable_python()` chose whenever the two differed.
     """
@@ -157,7 +157,7 @@ def main(argv: list[str] | None = None) -> int:
             print(
                 f"ERROR: {crg_exe} was installed but cannot serve. code-review-graph "
                 "requires mcp<2; if this environment also holds a package that pulls "
-                "mcp>=2 (semantica, for one), fastmcp breaks and the MCP server will "
+                "mcp>=2, fastmcp breaks and the MCP server will "
                 "not connect. Give code-review-graph an environment of its own — "
                 "`uv tool install code-review-graph`.",
                 file=sys.stderr,

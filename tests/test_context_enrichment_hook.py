@@ -68,7 +68,6 @@ def hook(load_script):
 def real_context_enrichment(hook, load_script, monkeypatch, tmp_path):
     """Inject the real shared module, as the retrieval adjustment would copy beside the hook."""
     module = load_script("features/common/retrieval/context_enrichment.py")
-    # P2.1a: nudge presence is a store row — hook-path writes land in a scratch user root.
     monkeypatch.setenv(badger_store.USER_ROOT_ENV, str(tmp_path / "user-root"))
     monkeypatch.setitem(sys.modules, hook.CONTEXT_ENRICHMENT_MODULE_NAME, module)
     return module
@@ -279,176 +278,21 @@ class TestNeverBlocksAndNeverInterceptsTheTool:
         assert keys == {"hookEventName", "additionalContext"}
 
 
-class TestSemanticaNudge:
-    """Once-per-session Semantica guidance nudge (issue #418)."""
+def test_source_empty_prompt_with_index_emits_nothing(
+        hook, tmp_path, monkeypatch, capsys, real_context_enrichment):
+    """An index but no prompt: nothing is injected and exactly one no_prompt skip is logged."""
+    dl = hook.debug_log
+    _enable(dl, tmp_path, monkeypatch)
+    project = tmp_path / "proj"
+    _write_index(project, _sample_index())
 
-    def _index_with_semantica(self) -> dict:
-        return {
-            "sources": [
-                {
-                    "name": "semantica",
-                    "tools": {
-                        "record_decision": {
-                            "tags": ["decision", "graph"],
-                            "intent": "Record a decision into the Semantica knowledge graph",
-                        },
-                        "export_graph": {
-                            "tags": ["export", "graph"],
-                            "intent": "Export the Semantica knowledge graph",
-                        },
-                    },
-                },
-                {
-                    "name": "rider",
-                    "tools": {
-                        "build_solution": {
-                            "tags": ["build", "dotnet"],
-                            "intent": "Compile the solution and return build errors",
-                        },
-                    },
-                },
-            ]
-        }
+    rc = _run_main(hook, monkeypatch, {"prompt": "", "cwd": str(project)})
 
-    def test_first_prompt_with_semantica_emits_nudge(
-        self, hook, tmp_path, monkeypatch, capsys, real_context_enrichment
-    ):
-        project = tmp_path / "proj"
-        _write_index(project, self._index_with_semantica())
-
-        rc = _run_main(hook, monkeypatch, {
-            "prompt": "hello world",
-            "cwd": str(project),
-            "session_id": "claude-sess-1",
-        })
-
-        assert rc == 0
-        out = json.loads(capsys.readouterr().out)
-        assert out["hookSpecificOutput"]["hookEventName"] == "UserPromptSubmit"
-        context = out["hookSpecificOutput"]["additionalContext"]
-        assert "[ai-badger] Semantica is configured:" in context
-        assert "record_decision" in context and "export_graph" not in context
-
-    def test_copilot_spelling_session_id_emits_nudge(
-        self, hook, tmp_path, monkeypatch, capsys, real_context_enrichment
-    ):
-        project = tmp_path / "proj"
-        _write_index(project, self._index_with_semantica())
-
-        rc = _run_main(hook, monkeypatch, {
-            "prompt": "hello world",
-            "cwd": str(project),
-            "sessionId": "copilot-sess-2",
-        })
-
-        assert rc == 0
-        out = json.loads(capsys.readouterr().out)
-        assert "[ai-badger] Semantica is configured:" in out["hookSpecificOutput"]["additionalContext"]
-
-    def test_second_prompt_in_same_session_skips_nudge(
-        self, hook, tmp_path, monkeypatch, capsys, real_context_enrichment
-    ):
-        project = tmp_path / "proj"
-        _write_index(project, self._index_with_semantica())
-
-        # First prompt: emits nudge
-        _run_main(hook, monkeypatch, {
-            "prompt": "hello turn 1",
-            "cwd": str(project),
-            "session_id": "sess-3",
-        })
-        out1 = json.loads(capsys.readouterr().out)
-        assert "[ai-badger] Semantica is configured:" in out1["hookSpecificOutput"]["additionalContext"]
-
-        # Second prompt in same session with no tool match: emits nothing
-        _run_main(hook, monkeypatch, {
-            "prompt": "hello turn 2",
-            "cwd": str(project),
-            "session_id": "sess-3",
-        })
-        assert capsys.readouterr().out == ""
-
-        # Different session: emits nudge again
-        _run_main(hook, monkeypatch, {
-            "prompt": "hello turn 1 new session",
-            "cwd": str(project),
-            "session_id": "sess-4",
-        })
-        out3 = json.loads(capsys.readouterr().out)
-        assert "[ai-badger] Semantica is configured:" in out3["hookSpecificOutput"]["additionalContext"]
-
-    def test_prompt_with_tool_match_and_nudge_emits_both_separated_by_newline(
-        self, hook, tmp_path, monkeypatch, capsys, real_context_enrichment
-    ):
-        project = tmp_path / "proj"
-        _write_index(project, self._index_with_semantica())
-
-        _run_main(hook, monkeypatch, {
-            "prompt": "build the solution",
-            "cwd": str(project),
-            "session_id": "sess-both",
-        })
-
-        out = json.loads(capsys.readouterr().out)
-        context = out["hookSpecificOutput"]["additionalContext"]
-        assert "[ai-badger] Semantica is configured:" in context
-        assert "[ai-badger] Relevant MCP tools:" in context
-        assert "rider:build_solution" in context
-        # Both parts are separated by newline
-        lines = context.strip().split("\n")
-        assert len(lines) == 2
-        assert lines[0].startswith("[ai-badger] Semantica is configured:")
-        assert lines[1].startswith("[ai-badger] Relevant MCP tools:")
-
-    def test_empty_prompt_with_semantica_indexed_emits_nudge(
-        self, hook, tmp_path, monkeypatch, capsys, real_context_enrichment
-    ):
-        project = tmp_path / "proj"
-        _write_index(project, self._index_with_semantica())
-
-        _run_main(hook, monkeypatch, {
-            "cwd": str(project),
-            "session_id": "sess-empty-prompt",
-        })
-
-        out = json.loads(capsys.readouterr().out)
-        assert "[ai-badger] Semantica is configured:" in out["hookSpecificOutput"]["additionalContext"]
-
-    def test_non_semantica_index_never_emits_nudge(
-        self, hook, tmp_path, monkeypatch, capsys, real_context_enrichment
-    ):
-        project = tmp_path / "proj"
-        _write_index(project, _sample_index())  # rider only, no semantica
-
-        _run_main(hook, monkeypatch, {
-            "prompt": "hello",
-            "cwd": str(project),
-            "session_id": "sess-no-semantica",
-        })
-
-        assert capsys.readouterr().out == ""
-
-    def test_nudge_only_on_empty_prompt_does_not_log_skip(
-        self, hook, tmp_path, monkeypatch, capsys, real_context_enrichment
-    ):
-        """When prompt is empty but nudge fires, telemetry must not log 'skip'."""
-        dl = hook.debug_log
-        _enable(dl, tmp_path, monkeypatch)
-        project = tmp_path / "proj"
-        _write_index(project, self._index_with_semantica())
-
-        _run_main(hook, monkeypatch, {
-            "cwd": str(project),
-            "session_id": "sess-nudge-only",
-        })
-
-        out = json.loads(capsys.readouterr().out)
-        assert "[ai-badger] Semantica is configured:" in out["hookSpecificOutput"]["additionalContext"]
-        # No "skip" event with reason="no_prompt" should have been logged
-        records = _retrieval_records(dl)
-        skip_records = [r for r in records if r.get(dl.KEY_EVENT) == "skip"
-                        and r.get("reason") == "no_prompt"]
-        assert not skip_records, f"unexpected skip records: {skip_records}"
+    assert rc == 0
+    assert capsys.readouterr().out == ""
+    skips = [r for r in _records(dl)
+             if r.get(dl.KEY_EVENT) == "skip" and r.get("reason") == "no_prompt"]
+    assert len(skips) == 1, skips
 
 
 INJECTED_ROWS = json.loads((ROOT / "tests/fixtures/memory_context/injected_turns.json")

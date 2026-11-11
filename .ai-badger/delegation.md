@@ -1,6 +1,6 @@
 # Delegation map — ai-badger
 
-> Scaffolded by ai-badger 0.217.4. Regenerated on every scaffold; do not edit.
+> Scaffolded by ai-badger 0.218.0. Regenerated on every scaffold; do not edit.
 
 ## Stacks
 
@@ -79,5 +79,4 @@ prescriptive persona descriptions are appropriate.
 - `code-review-graph` — This project has a knowledge graph
 - `hermes` — Read operations use Hermes's session store and work without a running gateway; sending messages needs the gateway and its platform adapters
 - `playwright` — Browser automation over accessibility snapshots: browser_navigate, then browser_snapshot for element refs, then browser_click/browser_type on those refs
-- `semantica` — Semantica is the project knowledge graph
 - `task-graph` — task-graph owns the decomposed task plan — a DAG of steps carrying status, acceptance criteria and evidence, persisted beside the task tracker in the project's tracking.db

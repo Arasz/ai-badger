@@ -1,8 +1,9 @@
 # ADR-0019 — Semantica session-scoped graph export, AiRaccoon watch bridge, and extraction strategy
 
 **Date:** 2026-08-12  
-**Status:** Accepted (amended 2026-08-18)  
+**Status:** Superseded (2026-11-11, 0.218.0) by [ADR-0048](0048-ai-raccoon-decisions-replace-semantica.md)  
 **Author:** Rafał Araszkiewicz (Arasz) with Hermes Agent  
+**Superseded by:** [ADR-0048](0048-ai-raccoon-decisions-replace-semantica.md)  
 **Scope:** `features/common/mcp/semantica/`, `features/common/skills/semantica-knowledge-graph/`, `docs/work/`, `AiRaccoon memory bridge`  
 
 ## Context

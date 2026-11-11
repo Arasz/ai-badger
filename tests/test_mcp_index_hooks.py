@@ -96,15 +96,6 @@ def real_mcp_matcher(hooks, load_script, monkeypatch):
     return module
 
 
-@pytest.fixture
-def semantica_export(hooks, load_script, monkeypatch):
-    """Inject the real export module so the Semantica nudge can resolve its gate/text."""
-    module = load_script(
-        "features/common/skills/semantica-knowledge-graph/scripts/export_semantica_graph.py")
-    monkeypatch.setitem(sys.modules, hooks.SEMANTICA_EXPORT_MODULE_NAME, module)
-    return module
-
-
 # ── _load_mcp_index ────────────────────────────────────────────────────────
 
 def test_load_index_when_present(hooks, tmp_path):
@@ -270,19 +261,18 @@ def test_usage_hint_returns_after_a_session_reset(hooks, tmp_path):
     assert "/usage" in (again or {}).get("context", "")
 
 
-def test_usage_and_semantica_hints_are_independent(hooks, semantica_export, tmp_path, monkeypatch):
-    """Each hint gates on its own membership key; showing one leaves the other live."""
-    monkeypatch.setattr(hooks, "_load_mcp_index",
-                        lambda cwd: {"sources": [{"name": "semantica"}]})
+def test_usage_hint_gates_on_its_own_membership_key(hooks, tmp_path):
+    """Only the usage key suppresses the usage hint; another shown key does not."""
+    hooks.reset_session_hints()
+    hooks._session_hints_shown.add("other")
+    foreign = hooks.pre_llm_inject_context(cwd=str(tmp_path), message="hello")
+    assert "/usage" in (foreign or {}).get("context", "")
 
     hooks.reset_session_hints()
     hooks._session_hints_shown.add("usage")
     first = hooks.pre_llm_inject_context(cwd=str(tmp_path), message="hello")
-    assert "Semantica" in (first or {}).get("context", "")
     assert "/usage" not in (first or {}).get("context", "")
 
     hooks.reset_session_hints()
-    hooks._session_hints_shown.add("semantica")
     second = hooks.pre_llm_inject_context(cwd=str(tmp_path), message="hello")
     assert "/usage" in (second or {}).get("context", "")
-    assert "Semantica" not in (second or {}).get("context", "")

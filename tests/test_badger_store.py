@@ -421,8 +421,7 @@ def _seed_file_set_legacy(kind: str, root: Path) -> Path:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text("1750000000.0 toolu_01", encoding="utf-8")
         return path
-    path = root / ("memory-first" if kind == "markers" else "semantica-nudge") \
-        / "01a04e01-18b7-7f42-88c6-19e68738589d"
+    path = root / "memory-first" / "01a04e01-18b7-7f42-88c6-19e68738589d"
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes(b"")
     return path
@@ -430,7 +429,6 @@ def _seed_file_set_legacy(kind: str, root: Path) -> Path:
 
 _FILE_SET_CASES = [
     ("markers", "memory_first"),
-    ("nudges", "semantica_nudge"),
     ("lanes", "dispatch_lanes"),
     ("kv_glob", "dirty_sweeps"),
     ("stem_denials", "blast_radius_denials"),
@@ -440,7 +438,7 @@ _FILE_SET_CASES = [
 @pytest.mark.parametrize("kind,table", _FILE_SET_CASES)
 def test_contained_file_set_family_opens_and_refuses_writes(kind, table,
                                                              tmp_path, monkeypatch):
-    """All five file-set kinds: open succeeds with the family contained; the migration
+    """All four file-set kinds: open succeeds with the family contained; the migration
     path refuses (a re-import would bless a file newer than its stamp); the kv_glob
     legacy read refuses too; a neighbour file-set family is unaffected (M2/D5c)."""
     monkeypatch.setattr(badger_store, "_DEFAULT_HOME", tmp_path)

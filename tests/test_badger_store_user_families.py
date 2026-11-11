@@ -80,14 +80,14 @@ def _ts(days_ago: float) -> str:
 def test_user_families_registry_pins_tables_and_legacy_paths():
     """The registry carries the P1 families and the P2 session families, all user-DB.
 
-    P2.0b grew the registry with the six session families (plan P2.0) — the pin extends
+    P2.0b grew the registry with the session families (plan P2.0) — the pin extends
     rather than replaces: every P1 family keeps its exact table + legacy path.
     """
     families = badger_store.USER_FAMILIES
     assert set(families) == {
         "awm_state", "awm_decisions", "commit_reminder", "commit_reminder_pending",
         "pending_feedback", "searches",
-        "memory_first", "semantica_nudge", "dispatch_lanes", "dirty_sweeps",
+        "memory_first", "dispatch_lanes", "dirty_sweeps",
         "blast_radius_denials",
         "messages", "cursors", "test_economy",
     }
@@ -99,7 +99,6 @@ def test_user_families_registry_pins_tables_and_legacy_paths():
         "pending_feedback": "pending_feedback",
         "searches": "searches",
         "memory_first": "memory_first",
-        "semantica_nudge": "semantica_nudge",
         "dispatch_lanes": "dispatch_lanes",
         "dirty_sweeps": "dirty_sweeps",
         "blast_radius_denials": "blast_radius_denials",

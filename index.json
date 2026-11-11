@@ -1,6 +1,6 @@
 {
   "$schema": "./schemas/index.schema.json",
-  "frameworkVersion": "0.217.4",
+  "frameworkVersion": "0.218.0",
   "stacks": {
     "ai-raccoon": {
       "skills": [
@@ -464,11 +464,6 @@
           "scope": "default"
         },
         {
-          "name": "semantica-knowledge-graph",
-          "path": "features/common/skills/semantica-knowledge-graph",
-          "scope": "default"
-        },
-        {
           "name": "send-message",
           "path": "features/common/skills/send-message",
           "scope": "default"
@@ -708,10 +703,6 @@
           "path": "features/common/templates/delegation.md.tmpl"
         },
         {
-          "name": "semantica-graph.json.tmpl",
-          "path": "features/common/templates/semantica-graph.json.tmpl"
-        },
-        {
           "name": "state.json",
           "path": "features/common/templates/state.json"
         }
@@ -778,10 +769,6 @@
         {
           "name": "playwright",
           "path": "features/common/mcp/playwright"
-        },
-        {
-          "name": "semantica",
-          "path": "features/common/mcp/semantica"
         },
         {
           "name": "task-graph",

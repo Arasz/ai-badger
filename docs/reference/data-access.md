@@ -214,7 +214,7 @@ Two-segment overrides remain ambiguous by design for compatibility.
 - **pi delegation.** The model registry accepts valid `<provider>/<model>` pins without provider discovery or
   policy filtering (ADR-0037). pi's own memory and
   RAG extensions run outside ai-badger's hooks.
-- **Third-party MCP binaries.** The internal network behaviour of semantica and
+- **Third-party MCP binaries.** The internal network behaviour of
   code-review-graph has not been audited. ai-raccoon is local and approved (see above).
 - **External search in agent text.** The instruction "search externally when memory has no hit"
   makes the host agent use its own web search tool.

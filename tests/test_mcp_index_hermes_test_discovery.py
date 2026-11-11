@@ -17,8 +17,8 @@ SCRIPT = "features/common/skills/mcp-index/scripts/mcp_index.py"
 MODULE = "features/common/skills/mcp-index/scripts/host_listings.py"
 
 # Verbatim shapes, measured from the installed hermes.
-CONNECTED = """  Testing 'semantica'...
-  Transport: stdio → /Users/x/.local/share/uv/tools/semantica/bin/python
+CONNECTED = """  Testing 'graph-memory'...
+  Transport: stdio → /Users/x/.local/share/uv/tools/graph-memory/bin/python
   Auth: none
   ✓ Connected (626ms)
   ✓ Tools discovered: 2
@@ -28,7 +28,7 @@ CONNECTED = """  Testing 'semantica'...
 """
 
 NOT_FOUND = """  ✗ Server 'plugin:github:github' not found in config.
-  Available: dotnet-sdk, glider, code-review-graph, ai-raccoon, rider, semantica
+  Available: dotnet-sdk, glider, code-review-graph, ai-raccoon, rider, graph-memory
 """
 
 # A tool line with no description at all — hermes prints a bare name when it has none.
@@ -113,9 +113,9 @@ def _runner(answers):
 
 def test_enrichment_fills_a_toolless_server_and_marks_it_known(load_script):
     hl = _load(load_script, MODULE)
-    servers = [{"name": "semantica", "tools": [], "tools_known": False}]
+    servers = [{"name": "graph-memory", "tools": [], "tools_known": False}]
 
-    hl.enrich_with_hermes_test(servers, run=_runner({"semantica": CONNECTED}))
+    hl.enrich_with_hermes_test(servers, run=_runner({"graph-memory": CONNECTED}))
 
     assert servers[0]["tools_known"] is True
     assert [t["name"] for t in servers[0]["tools"]] == ["extract_entities", "record_decision"]
@@ -148,8 +148,8 @@ def test_enrichment_leaves_a_server_it_could_not_test_untouched(load_script):
 def test_enrichment_does_not_re_test_a_server_that_already_carries_tools(load_script):
     """A listing that already enumerated tools is authoritative — and a subprocess is not free."""
     hl = _load(load_script, MODULE)
-    servers = [{"name": "semantica", "tools": [{"name": "a", "description": ""}]}]
-    run = _runner({"semantica": CONNECTED})
+    servers = [{"name": "graph-memory", "tools": [{"name": "a", "description": ""}]}]
+    run = _runner({"graph-memory": CONNECTED})
 
     hl.enrich_with_hermes_test(servers, run=run)
 
@@ -159,13 +159,13 @@ def test_enrichment_does_not_re_test_a_server_that_already_carries_tools(load_sc
 
 def test_enrichment_reports_which_servers_it_could_not_test(load_script):
     hl = _load(load_script, MODULE)
-    servers = [{"name": "semantica", "tools": [], "tools_known": False},
+    servers = [{"name": "graph-memory", "tools": [], "tools_known": False},
                {"name": "rider", "tools": [], "tools_known": False}]
 
-    notes = hl.enrich_with_hermes_test(servers, run=_runner({"semantica": CONNECTED}))
+    notes = hl.enrich_with_hermes_test(servers, run=_runner({"graph-memory": CONNECTED}))
 
     assert any("rider" in note for note in notes)
-    assert not any("semantica" in note for note in notes)
+    assert not any("graph-memory" in note for note in notes)
 
 
 # ── wiring ───────────────────────────────────────────────────────────────────
@@ -184,7 +184,7 @@ def test_discover_is_off_by_default(tmp_path, load_script, monkeypatch):
                         lambda servers, run=None: called.append(servers) or [])
 
     assert mod.main(["init", "--target", str(tmp_path),
-                     "--from-json", _names_only("semantica")]) == 0
+                     "--from-json", _names_only("graph-memory")]) == 0
     assert called == []
 
 
@@ -199,8 +199,8 @@ def test_discover_flag_enriches_before_indexing(tmp_path, load_script, monkeypat
 
     monkeypatch.setattr(mod.hl, "enrich_with_hermes_test", fake)
     assert mod.main(["init", "--target", str(tmp_path), "--discover",
-                     "--from-json", _names_only("semantica")]) == 0
+                     "--from-json", _names_only("graph-memory")]) == 0
 
     index = json.loads((tmp_path / ".ai-badger" / "mcp-tools.json").read_text(encoding="utf-8"))
-    tools = next(s for s in index["sources"] if s["name"] == "semantica")["tools"]
+    tools = next(s for s in index["sources"] if s["name"] == "graph-memory")["tools"]
     assert "record_decision" in tools

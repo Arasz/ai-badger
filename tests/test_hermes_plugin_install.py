@@ -8,12 +8,15 @@ Kept out of test_scaffold.py, which is already at pylint's module-length limit.
 # pylint: disable=redefined-outer-name  # module-local fixture reuse; see pyproject.toml
 from __future__ import annotations
 
+import ast
 import importlib.util
 import json
 import sys
 from pathlib import Path
 from unittest.mock import patch
-from conftest import _test_write
+
+import pytest
+from conftest import ROOT, _test_write
 
 PLUGIN_DIR_NAME = "ai-badger"
 USER_PLUGIN_FILES = ("ai_badger_hooks.py", "learned_skills_sync.py", "debug_log.py")
@@ -22,7 +25,6 @@ SHARED_SKILL_FILES = (
     ("commit-reminder", "impact_estimator.py"),
     ("test-economy", "suite_economy.py"),
     ("ai-raccoon-memory", "memory_first_gate.py"),
-    ("semantica-knowledge-graph", "export_semantica_graph.py"),
     ("git-work", "git_internals_guard.py"),
     ("git-work", "shell_parser.py"),
     ("ai-raccoon-memory", "memory_context.py"),
@@ -31,6 +33,20 @@ SHARED_SKILL_FILES = (
     ("task", "model_groups.py"),
 )
 RETRIEVAL_FILES = ("tokenizer.py", "bm25.py", "mcp_matcher.py")
+
+
+def _removed_modules() -> tuple[str, ...]:
+    """adjust_hooks.REMOVED_MODULES, parsed at collection time so each member is a case."""
+    tree = ast.parse((ROOT / "features/hermes/adjustments/adjust_hooks.py")
+                     .read_text(encoding="utf-8"))
+    for node in tree.body:
+        if isinstance(node, ast.Assign) and any(
+                getattr(target, "id", None) == "REMOVED_MODULES" for target in node.targets):
+            return ast.literal_eval(node.value)
+    raise AssertionError("REMOVED_MODULES not assigned in adjust_hooks.py")
+
+
+_REMOVED_MODULES = _removed_modules()
 
 
 def _skill_script(root, skill, name):
@@ -162,9 +178,10 @@ def test_adjust_hooks_copies_shared_skill_modules_to_project_hooks_dir(
         assert dst.read_text(encoding="utf-8") == _skill_script(root, skill, name)
 
 
-def test_adjust_hooks_removes_stale_memory_grade_copies(
-        tmp_path, load_script, root):
-    """The removed memory-grade sibling must be deleted, not copied, from both destinations."""
+@pytest.mark.parametrize("stale_name", _REMOVED_MODULES)
+def test_adjust_hooks_removes_stale_copies_of_removed_modules(
+        tmp_path, load_script, root, stale_name):
+    """Every module the framework stopped shipping is deleted, not kept, in both destinations."""
     adjust_hooks = load_script("features/hermes/adjustments/adjust_hooks.py")
     _, target, home = _run_adjust(adjust_hooks, tmp_path, root)
 
@@ -172,14 +189,14 @@ def test_adjust_hooks_removes_stale_memory_grade_copies(
     stale_dirs = (target / ".ai-badger" / "hooks", _plugin_dir(home))
     for dst_dir in stale_dirs:
         dst_dir.mkdir(parents=True, exist_ok=True)
-        _test_write(dst_dir / "memory_grade.py", "# stale copy\n", encoding="utf-8")
+        _test_write(dst_dir / stale_name, "# stale copy\n", encoding="utf-8")
 
     with patch("pathlib.Path.home", return_value=home):
         adjust_hooks.adjust(_adjust_context(root, target, ["hermes"]))
 
     for dst_dir in stale_dirs:
-        assert not (dst_dir / "memory_grade.py").exists(), \
-            f"stale memory_grade.py survived at {dst_dir / 'memory_grade.py'}"
+        assert not (dst_dir / stale_name).exists(), \
+            f"stale {stale_name} survived at {dst_dir / stale_name}"
 
 
 def test_adjust_hooks_copies_shared_skill_modules_into_plugin_dir(

@@ -54,7 +54,6 @@ Runtime dependencies are deliberately few, and they behave differently on purpos
 - **`pyyaml` is optional.** It is imported behind a guard and degrades to a printed note
   (`mcp_index.YAML_MISSING_HINT`), because the features needing it are not on the critical path.
 - **`tomli` supplies TOML parsing on Python 3.10**; 3.11+ uses the standard library `tomllib`.
-- **`semantica` is declared for the optional MCP wrapper only.**
 
 Everything else is standard library. **Do not add a runtime dependency without a very good
 reason**; if you must, decide deliberately which shape it takes (required, guarded or

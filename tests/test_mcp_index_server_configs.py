@@ -44,10 +44,10 @@ def _approve_all(target: Path):
 
 def test_project_mcp_json_entries_resolve(sc, tmp_path):
     home, target = _dirs(tmp_path)
-    _write(target / ".mcp.json", {"mcpServers": {"semantica": _stdio("project")}})
+    _write(target / ".mcp.json", {"mcpServers": {"graph-memory": _stdio("project")}})
     _approve_all(target)
 
-    spec, reason = sc.lookup(sc.load(target, home), "semantica")
+    spec, reason = sc.lookup(sc.load(target, home), "graph-memory")
 
     assert spec["command"] == "/bin/project" and reason == ""
 

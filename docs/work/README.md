@@ -214,3 +214,4 @@ the first plain-markdown record here.
 | `2026-10-21-limited-env-research.md` | Research and evidence for instruction-only limited-env scaffolding, including the hook and memory procedure boundaries. |
 | `2026-10-21-limited-env-writer-audit.md` | Inventory of ai-badger hook writers, ownership markers, cleanup behavior, and external sources outside project stack control. |
 | `2026-10-23-decision-record-formats.md` | Research for the `decision-record` skill: how ADR variants (MADR, adr-tools, log4brains), OpenSpec, Spec Kit and Kiro are detected, and why a project carrying both an ADR log and a spec framework records a linked pair. |
+| `2026-11-11-replace-semantica-with-raccoon-decisions-research.md` | Research for replacing the semantica MCP integration with ai-raccoon's decision graph: tool shape, the 2.5.1 output-schema defect, and the full semantica removal map. |

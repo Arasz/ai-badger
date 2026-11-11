@@ -1,10 +1,10 @@
 # Skills
 
-This page catalogs 53 skills — everything under `features/common/skills/` and
+This page catalogs 52 skills — everything under `features/common/skills/` and
 `features/claude/skills/`.
-52 live under `features/common/skills/` and split by the `scope:` each declares in its own
+51 live under `features/common/skills/` and split by the `scope:` each declares in its own
 `SKILL.md` frontmatter ([ADR-0018](adr/0018-where-the-skill-routing-declaration-lives.md)):
-**50 are `default`** and arrive in every scaffolded project without being asked for, and
+**49 are `default`** and arrive in every scaffolded project without being asked for, and
 **2 are `optIn`** — the sqlite pair, which stays out of the default set because it is specific
 to a SQLite-backed project ([ADR-0029](adr/0029-sqlite-skills-stay-opt-in.md)). Everything else
 moved to `default` in 0.169.0 ([ADR-0028](adr/0028-all-catalog-skills-ship-by-default.md)); a
@@ -14,7 +14,7 @@ opt-in pair. The last one,
 ([ADR-0010](adr/0010-stack-local-skill-discovery.md)) and therefore **claude-only**: it does not
 reach a Copilot or Hermes project.
 
-**These 53 are not the whole tree.** `features/*/skills/*/SKILL.md` matches **59** files:
+**These 52 are not the whole tree.** `features/*/skills/*/SKILL.md` matches **58** files:
 the 52 above plus 6 more that belong to a single stack and arrive only with it — the
 `dotnet-workload` gateway under
 `features/dotnet/skills/`, 2 under `features/hermes/skills/`, 1 under `features/mcp/skills/`, 1 under `features/ai-raccoon/skills/` and 1 under `features/github/skills/`.
@@ -129,7 +129,6 @@ names it (the sqlite pair today), **claude-only** when the stack decides.
 | [maintain-agent-instructions](#maintain-agent-instructions) | Reconcile CLAUDE.md/Copilot/Hermes instruction files against one model | default | by name (or CI) |
 | [mcp-index](#mcp-index) | Curate the MCP tool index a hook uses to recommend tools per turn | default | by name; feeds a `pre_llm_call` hook |
 | [ai-raccoon-memory](#ai-raccoon-memory) | Project memory server: search memory first, write durable facts with source paths, watch a docs directory | default | by name |
-| [semantica-knowledge-graph](#semantica-knowledge-graph) | Session-scoped knowledge graph: record decisions with provenance, trace causal chains, extract entities from conversations | default | by name |
 | [browser-usage](#browser-usage) | Universal browser automation and manual E2E verification via Playwright MCP | default | by name |
 | [auto-wm](#auto-wm) | Auto-approve tool calls in partner/away mode | claude-only | by name (`/auto-wm`); installs a `PreToolUse` hook once enabled |
 | [documentation](#documentation) | Route to the documentation-workflow member that matches — scaffold the tree, update its documents, or migrate it wholesale | default | by name |
@@ -707,28 +706,6 @@ declared when `ai-raccoon` is on PATH. Install it with
 `dotnet tool install -g ai-raccoon`.
 
 ---
-
-### semantica-knowledge-graph
-
-[`SKILL.md`](../features/common/skills/semantica-knowledge-graph/SKILL.md)
-
-**What it is.** Semantica (MIT, 0.6.8 or newer) is a session-scoped knowledge graph MCP server
-(`semantica-mcp`). It records decisions with W3C PROV-O provenance,
-extracts entities and relations from text, traces causal chains, and runs forward-chaining
-reasoning over an in-memory graph that accumulates across tool calls within a session.
-
-**What it does.** The graph is session-scoped — no import mechanism exists, so `export_graph`
-produces archival snapshots only. Durable facts go to AiRaccoon (`add_memory`). Four
-workflows: decision recording (record rationale + link to affected components), entity
-extraction from documents (needs torch/transformers for full NLP), decision archaeology
-(query past decisions and trace causal ancestry), and graph export for audit trails.
-The export half was inert on 0.6.6: `export_graph` errored in every format
-upstream, so `.semantica/` stayed empty. Whether 0.6.8 fixed that is unverified here; check
-before relying on archival snapshots. The other three workflows were unaffected.
-
-**When to use it.** Reasoning over structured project knowledge — a decision was made and
-its rationale should be traceable, entities need extracting from a document, or a causal
-chain answers "why did we do this?". Install with `pip install semantica`.
 
 ### browser-usage
 

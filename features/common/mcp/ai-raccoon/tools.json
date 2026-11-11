@@ -4,8 +4,7 @@
   "tools": [
     {"name": "add_memory", "intent": "Persist a durable, project-scoped fact with its source path — one fact per entry, never raw chatter.", "tags": ["write"]},
     {"name": "query", "intent": "Search project/shared memory (scope=all, project, or shared) with 2-3 formulations before web or code search.", "tags": ["search", "semantic"]},
-    {"name": "get_entry", "intent": "Read one memory entry's full content by the content hash a query or add_memory returned — fetch a full note after a search snippet, not to find notes.", "tags": ["read"]},
-    {"name": "get_entry", "intent": "Read one indexed code chunk's full source by its content hash from a kind=code or kind=both query hit — the code twin of get_entry.", "tags": ["read"]},
+    {"name": "get_entry", "intent": "Read one entry's full content by the content hash a query hit returned, with entryType memory, file or code; fetch a full note or code chunk after a snippet, not to search.", "tags": ["read"]},
     {"name": "set_memory_usage_record", "intent": "Record that the agent opened a file a prior query served, keyed by its correlationId — search-quality telemetry, not a memory write.", "tags": ["write"]},
     {"name": "set_query_result_grade", "intent": "Grade a prior query call's usefulness 1-5 by its correlationId, with an optional note — human search-quality feedback, not entry rating.", "tags": ["write"]},
     {"name": "get_index", "intent": "List entries in a project's memory bank, optionally filtered.", "tags": ["read"]},
@@ -31,6 +30,19 @@
     {"name": "remove_watch", "intent": "Stop mirroring a watched path; a no-op when the path is not watched.", "tags": ["write", "files"]},
     {"name": "get_engine_statistics", "intent": "Report this project's server self-instrumentation: per-tool and per-search-phase latency percentiles and counts over a time window, for diagnosing slow memory calls.", "tags": ["read", "diagnostic"]},
     {"name": "get_project_id", "intent": "Look up the project id registered under an exact, case-sensitive project name; call it before minting, since every other tool takes that id.", "tags": ["read"]},
-    {"name": "save_project_id_token", "intent": "Mint and register a new project id (guidv7) once per project, only after get_project_id found no match for the name.", "tags": ["write"]}
+    {"name": "save_project_id_token", "intent": "Mint and register a new project id (guidv7) once per project, only after get_project_id found no match for the name.", "tags": ["write"]},
+{"name":"register_decision_task","intent":"Register the /task id as a decision task before its first decision; needs projectId, taskId, sessionId, requestId and title.","tags":["write"]},
+{"name":"record_decision","intent":"Record one decision (title, category, scenario, outcome, reasoning) under a registered task; returns its id and version 1.","tags":["write"]},
+{"name":"amend_decision","intent":"Replace a decision's content with a new version at the expectedVersion you last read; status and id stay.","tags":["write"]},
+{"name":"transition_decision","intent":"Move a decision to accepted, rejected or deprecated at the expectedVersion you last read.","tags":["write"]},
+{"name":"supersede_decision","intent":"Replace one accepted decision with another accepted one; the only way to make a supersedes edge.","tags":["write"]},
+{"name":"link_decisions","intent":"Add a depends_on, supports or contradicts edge between two decisions at the expected project revision.","tags":["write"]},
+{"name":"unlink_decisions","intent":"Remove a decision edge, kept in history; supersedes edges are permanent and refused.","tags":["write"]},
+{"name":"get_decision","intent":"Read one decision at its current or a given version, optionally with its version history.","tags":["read"]},
+{"name":"query_decisions","intent":"Search current decisions by literal text, category, status or task selector, one page at a time.","tags":["search","read"]},
+{"name":"find_decision_precedents","intent":"Find accepted, currently valid decisions that match a scenario, before you decide something new.","tags":["search","read"]},
+{"name":"get_decision_graph","intent":"Walk the edges around one decision upstream, downstream or both; returns nodes and typed edges.","tags":["navigation","read"]},
+{"name":"export_decisions","intent":"Return the complete decision snapshot for selected tasks as JSON; over 1 MiB, use the ai-raccoon decisions export CLI.","tags":["read"]},
+{"name":"preview_decisions","intent":"Return a compact text summary of the selected tasks' decisions and their direct links.","tags":["read"]}
   ]
 }

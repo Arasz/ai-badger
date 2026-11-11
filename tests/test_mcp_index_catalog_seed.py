@@ -18,8 +18,8 @@ from conftest import _test_write
 
 SCRIPT = "features/common/skills/mcp-index/scripts/mcp_index.py"
 
-# A server the shipped catalog describes (features/common/mcp/semantica/tools.json).
-CATALOG_SERVER = "semantica"
+# A server the shipped catalog describes (features/common/mcp/code-review-graph/tools.json).
+CATALOG_SERVER = "code-review-graph"
 
 
 def _catalog_tools(root: Path, server: str) -> dict:
@@ -90,10 +90,10 @@ def test_init_does_not_seed_when_the_listing_carries_tool_detail(tmp_path, load_
     """A listing that enumerates tools is authoritative — the catalog does not add to it."""
     mod = load_script(SCRIPT)
     assert mod.main(["init", "--target", str(tmp_path), "--from-json",
-                     _with_tools(CATALOG_SERVER, "record_decision")]) == 0
+                     _with_tools(CATALOG_SERVER, "query_graph_tool")]) == 0
 
     tools = _source(_read_index(tmp_path), CATALOG_SERVER)["tools"]
-    assert set(tools) == {"record_decision"}, "an enumerated listing is the whole truth"
+    assert set(tools) == {"query_graph_tool"}, "an enumerated listing is the whole truth"
     assert len(_catalog_tools(root, CATALOG_SERVER)) > 1, "guard: the catalog knows more"
 
 
@@ -117,12 +117,12 @@ def test_update_never_overwrites_a_manual_curation(tmp_path, load_script):
     manual = {"tags": ["read"], "intent": "Mine, not the catalog's.", "origin": "manual"}
     _write_index(tmp_path, {"version": "0.1.0", "generated_at": "2026-01-01T00:00:00Z",
                             "sources": [{"name": CATALOG_SERVER, "status": "unknown",
-                                         "tools": {"record_decision": dict(manual)}}]})
+                                         "tools": {"query_graph_tool": dict(manual)}}]})
     mod = load_script(SCRIPT)
     assert mod.main(["update", "--target", str(tmp_path), "--from-json",
                      _names_only(CATALOG_SERVER)]) == 0
 
-    assert _source(_read_index(tmp_path), CATALOG_SERVER)["tools"]["record_decision"] == manual
+    assert _source(_read_index(tmp_path), CATALOG_SERVER)["tools"]["query_graph_tool"] == manual
 
 
 def test_update_seeding_is_idempotent(tmp_path, load_script):
@@ -145,10 +145,10 @@ def test_update_does_not_resurrect_a_removed_tool(tmp_path, load_script):
                "status": "removed"}
     _write_index(tmp_path, {"version": "0.1.0", "generated_at": "2026-01-01T00:00:00Z",
                             "sources": [{"name": CATALOG_SERVER, "status": "unknown",
-                                         "tools": {"record_decision": dict(retired)}}]})
+                                         "tools": {"query_graph_tool": dict(retired)}}]})
     mod = load_script(SCRIPT)
     assert mod.main(["update", "--target", str(tmp_path), "--from-json",
                      _names_only(CATALOG_SERVER)]) == 0
 
-    entry = _source(_read_index(tmp_path), CATALOG_SERVER)["tools"]["record_decision"]
+    entry = _source(_read_index(tmp_path), CATALOG_SERVER)["tools"]["query_graph_tool"]
     assert entry["status"] == "removed"

@@ -1066,9 +1066,9 @@ _PI_REFERENCE_STATE = {
                      ".ai-badger/skills/task-decomposition/scripts/task_graph_server.py"],
             "exposure": "direct",
         },
-        "semantica": {
-            "command": "semantica-mcp",
-            "env": {"SEMANTICA_DISABLE_PROGRESS": "1"},
+        "docs-index": {
+            "command": "docs-index-mcp",
+            "env": {"DOCS_INDEX_QUIET": "1"},
             "exposure": "direct",
         },
         "code-review-graph": {
@@ -1091,8 +1091,8 @@ _PI_REFERENCE_CATALOG = [
     {"name": "ai-raccoon", "command": "ai-raccoon"},
     {"name": "task-graph",
      "command": "uv run --script .ai-badger/skills/task-decomposition/scripts/task_graph_server.py"},
-    {"name": "semantica", "command": "semantica-mcp",
-     "env": {"SEMANTICA_DISABLE_PROGRESS": "1"}},
+    {"name": "docs-index", "command": "docs-index-mcp",
+     "env": {"DOCS_INDEX_QUIET": "1"}},
     {"name": "code-review-graph", "command": "code-review-graph serve"},
     {"name": "playwright", "command": "npx -y @playwright/mcp@latest"},
 ]

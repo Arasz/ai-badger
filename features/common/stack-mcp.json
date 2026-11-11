@@ -24,17 +24,6 @@
       }
     },
     {
-      "name": "semantica",
-      "command": "semantica-mcp",
-      "declare": true,
-      "env": {
-        "SEMANTICA_DISABLE_PROGRESS": "1"
-      },
-      "availability": {
-        "command": "semantica-mcp"
-      }
-    },
-    {
       "name": "playwright",
       "command": "npx -y @playwright/mcp@latest",
       "declare": true,
