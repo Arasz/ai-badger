@@ -34,6 +34,15 @@ tools. Every write takes a `requestId`, and a resend with the same id replays th
 3. No nudge replaces the deleted one. The ai-raccoon section in every generated agent file already
    tells agents to record decisions.
 
+## Alternatives
+
+- **Keep both servers.** Two decision stores with overlapping tools; agents would have to pick one,
+  and semantica still loses its graph at process exit.
+- **A new decisions skill.** More surface for the same guidance; the owner chose to fold it into
+  `ai-raccoon-memory` and `decision-record`.
+- **Drop the `semantica_nudge` table and bump the schema.** The user database is shared by every
+  project on the machine; older installs still write the table, so dropping it breaks them.
+
 ## Consequences
 
 - One server fewer to install, check and keep in the doc budget. No per-session JSON dump: the
@@ -43,9 +52,10 @@ tools. Every write takes a `requestId`, and a resend with the same id replays th
   verify with `ai-raccoon decisions query`; use the CLI. A retry must reuse the same `requestId`.
 - The scaffold merges MCP servers, permission rules and hooks additively. A re-scaffold does not
   remove the semantica entries from `.claude/settings.json`, `.mcp.json`, `.github/mcp.json` or
-  `.pi/mcp.json`. This release removes them by hand here, and the upgrade notes tell consumers to
-  do the same. A scaffold prune for catalog-retired servers and hooks is a follow-up, not built
-  here.
+  `.pi/mcp.json`, nor the export hook entry in `.claude/settings.json`, nor a Hermes operator's
+  `~/.hermes/config.yaml` `mcp_servers` entry. This release removes them by hand here, and the
+  upgrade notes tell consumers to do the same. A scaffold prune for catalog-retired servers and
+  hooks is a follow-up issue, not built here.
 - The `semantica_nudge` table stays in existing user databases, and `~/.ai-badger/semantica-nudge/`
   stays on disk. The user database is shared by every project on the machine, and older installs
   still write to the table. No code reads either one any more.
