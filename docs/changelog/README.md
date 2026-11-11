@@ -19,7 +19,8 @@ When cutting a release:
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
-| 0.217.3 | [dependency bumps: pydantic 2.14.3, pytest 9.2, codeql-action 4.39.3](0.217.3-dependency-bumps.md) |
+| 0.217.4 | [dependency bumps: pydantic 2.14.3, pytest 9.2, codeql-action 4.39.3](0.217.4-dependency-bumps.md) |
+| 0.217.3 | [the ai-raccoon MCP section fits its line budget again](0.217.3-ai-raccoon-mcp-section-line-budget.md) |
 | 0.217.2 | [decision recording in the ai-raccoon checklist and its CLI fallback](0.217.2-ai-raccoon-checklist-decision-items.md) |
 | 0.217.1 | [limited-mode check-in works on Windows](0.217.1-limited-mode-windows-checkin.md) |
 | 0.217.0 | [agents write to the user in Simplified Technical English](0.217.0-simplified-technical-english.md) |

@@ -6,7 +6,7 @@ Agent-instruction framework distributed through a Claude Code plugin and native 
 
 > Domain: Developer tooling: agent instruction catalogs and repo scaffolding.
 > Stacks: python, js, github, claude, hermes, pi, ts, node, changelog, codex
-> Scaffolded by ai-badger 0.217.3. Source of truth for this file: `.ai-badger/AGENTS.md`.
+> Scaffolded by ai-badger 0.217.4. Source of truth for this file: `.ai-badger/AGENTS.md`.
 
 ## Commands
 
@@ -82,12 +82,7 @@ isolate in-progress notes and consolidate on finish; `share_memory` promotes dur
 facts. Keep the docs directory searchable: check `get_watch_status`, then `add_watch`
 (projectId + absolute path) when no watch exists.
 
-Record project decisions with `register_decision_task`, then `record_decision`. Through
-ai-raccoon 2.6.0 the decision tools commit on the server, but Claude Code rejects their reply:
-the output schema marks null fields as required. When a decision tool returns that schema
-error, do not retry. Check the write with `ai-raccoon decisions query --project-id <id>`, and use
-`ai-raccoon decisions task register | record | get | query | export | preview` instead. These
-commands go through the same server and the same project gate.
+Decision tools before 2.6.1 commit but Claude Code rejects the reply (null fields marked required): do not retry — verify and continue with `ai-raccoon decisions task register|record|get|query|export|preview`.
 
 <!-- semantica MCP tools -->
 ## MCP Tools: semantica
