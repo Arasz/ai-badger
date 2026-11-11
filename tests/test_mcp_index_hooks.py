@@ -262,7 +262,12 @@ def test_usage_hint_returns_after_a_session_reset(hooks, tmp_path):
 
 
 def test_usage_hint_gates_on_its_own_membership_key(hooks, tmp_path):
-    """The usage hint is suppressed while its key is in the shown set and returns after reset."""
+    """Only the usage key suppresses the usage hint; another shown key does not."""
+    hooks.reset_session_hints()
+    hooks._session_hints_shown.add("other")
+    foreign = hooks.pre_llm_inject_context(cwd=str(tmp_path), message="hello")
+    assert "/usage" in (foreign or {}).get("context", "")
+
     hooks.reset_session_hints()
     hooks._session_hints_shown.add("usage")
     first = hooks.pre_llm_inject_context(cwd=str(tmp_path), message="hello")
