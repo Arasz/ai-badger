@@ -388,3 +388,28 @@ class TestARemovedSkillTakesItsDirectory:
 
         assert (target / BEHAVIORIST).is_dir()
         assert any("call-behaviorist" in n and "left on disk" in n for n in result["notes"])
+
+
+class TestARetiredFlatHookCopy:
+    """A flat `.ai-badger/hooks/` copy of a retired script has no manifest entry, so the
+    manifest-driven prune never saw it: ai-raccoon kept a 1.x `memory_grade_hook.py` there."""
+
+    def test_a_retired_flat_hook_copy_is_removed(self, make_scaffolder):
+        target, _ = _scaffolded(make_scaffolder, _config(stacks=["python"]))
+        stale = target / ".ai-badger" / "hooks" / "memory_grade_hook.py"
+        _test_write(stale, "# grades memory_search\n", encoding="utf-8")
+
+        _, result = _scaffolded(make_scaffolder, _config(stacks=["python"]))
+
+        assert not stale.exists()
+        assert any(".ai-badger/hooks/memory_grade_hook.py" in n and "removed" in n
+                   for n in result["notes"])
+
+    def test_a_flat_hook_not_on_the_retired_list_stays(self, make_scaffolder):
+        target, _ = _scaffolded(make_scaffolder, _config(stacks=["python"]))
+        kept = target / ".ai-badger" / "hooks" / "project_hook.py"
+        _test_write(kept, "# the project's own\n", encoding="utf-8")
+
+        _scaffolded(make_scaffolder, _config(stacks=["python"]))
+
+        assert kept.is_file()
