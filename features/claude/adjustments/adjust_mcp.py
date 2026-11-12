@@ -36,7 +36,8 @@ def adjust(context: Dict[str, Any]) -> Dict[str, Any]:
 
     declined = _declined(config)
     declared = [name for name in (context.get("mcp_servers") or []) if name not in declined]
-    if not declared and not declined:
+    retired = list(context.get("retired_servers") or [])
+    if not declared and not declined and not retired:
         return _unapplied("no MCP server declared and none declined — nothing to approve or deny")
 
     guard = _config_guard(Path(context["framework_root"]))
@@ -49,7 +50,12 @@ def adjust(context: Dict[str, Any]) -> Dict[str, Any]:
         return _unapplied(
             f"{guard.refusal(path, 'permissions is not a mapping')} (MCP servers not approved)")
 
-    refused: List[str] = []
+    stale = _stale_notes(settings, permissions, retired)
+    if not declared and not declined:
+        return {"applied": False, "files": [], "notes": "; ".join(stale)
+                or "no MCP server declared and none declined — nothing to approve or deny"}
+
+    refused: List[str] = list(stale)
     approved = declared if bool((config.get("mcp") or {}).get("approve", True)) else []
     added = _extend(settings, "enabledMcpjsonServers", approved, refused)
     added += _extend(permissions, "allow", [tool_pattern(n) for n in approved], refused,
@@ -65,6 +71,24 @@ def adjust(context: Dict[str, Any]) -> Dict[str, Any]:
         "files": [],  # settings.json is merged into, never owned — so never recorded
         "notes": _notes(added, approved, declined, refused),
     }
+
+
+def _stale_notes(settings: Dict[str, Any], permissions: Dict[str, Any],
+                 retired: List[str]) -> List[str]:
+    """One note per retired server still approved in settings; nothing is removed."""
+    enabled = settings.get("enabledMcpjsonServers")
+    allow = permissions.get("allow")
+    enabled = enabled if isinstance(enabled, list) else []
+    allow = allow if isinstance(allow, list) else []
+    notes: List[str] = []
+    for name in retired:
+        found = ([f"enabledMcpjsonServers: {name}"] if name in enabled else []) + [
+            f"permissions.allow: {rule}" for rule in allow
+            if isinstance(rule, str) and rule.startswith(f"mcp__{name}__")]
+        if found:
+            notes.append(f"retired server {name} is still approved in .claude/settings.json "
+                         f"({', '.join(found)}) — delete these by hand, nothing was removed")
+    return notes
 
 
 def _declined(config: Dict[str, Any]) -> List[str]:
