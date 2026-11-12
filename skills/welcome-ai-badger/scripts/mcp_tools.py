@@ -185,6 +185,8 @@ class McpTools:
         self._scope_overrides_noted = False
         # Retired servers already named in the Hermes note this run.
         self._hermes_retired_noted = set()  # type: set
+        # The catalog's retired set, read once per run so its notes are said once.
+        self._retired = None  # type: Optional[Dict[str, List[Dict[str, Any]]]]
 
     # -- the mcp catalog ---------------------------------------------------------------
 
@@ -216,17 +218,32 @@ class McpTools:
         """Every catalog file's ``retired`` declarations by name, whatever the active stacks.
 
         A name that any catalog file still declares in ``servers`` is current, not retired.
+        Read once per run. One unreadable catalog file empties the set: never prune on part.
         """
+        if self._retired is None:
+            self._retired = self._read_retired()
+        return self._retired
+
+    def _read_retired(self) -> Dict[str, List[Dict[str, Any]]]:
+        """The retired set from every catalog file, or {} plus a note if one is unreadable."""
         retired = {}  # type: Dict[str, List[Dict[str, Any]]]
         current = set()
         for path in sorted((self.ctx.root / "features").glob("*/stack-mcp.json")):
+            rel = path.relative_to(self.ctx.root).as_posix()
             try:
                 data = _json.loads(path.read_text(encoding="utf-8"))
             except (ValueError, OSError):
-                continue
-            current.update(srv.get("name") for srv in data.get("servers", []))
+                data = None
+            if not isinstance(data, dict):
+                self.ctx.notes.append(f"{rel} is unreadable — retired prune skipped")
+                return {}
+            current.update(srv.get("name") for srv in data.get("servers", [])
+                           if isinstance(srv, dict))
             for srv in data.get("retired", []):
-                retired.setdefault(srv.get("name"), []).append(srv)
+                if not isinstance(srv, dict) or not srv.get("name"):
+                    self.ctx.notes.append(f"{rel}: skipped a retired entry with no name")
+                    continue
+                retired.setdefault(srv["name"], []).append(srv)
         return {name: decls for name, decls in retired.items() if name not in current}
 
     def _server_instructions(self, name: str) -> str:
@@ -455,18 +472,16 @@ class McpTools:
 
     def _destination_applies(
         self, dest: McpDestination, servers: Dict[str, Dict[str, Any]],
-        declined: Sequence[str] = (), retired_present: bool = False,
+        declined: Sequence[str] = (),
     ) -> bool:
         """Whether *dest* is touched at all: it needs something to say, and may need a reader.
 
         A run with nothing left to declare still has something to say when a server was
-        declined, or when the file holds a retired server: an earlier run's entry has to come
-        back out (#186), even from a file no configured agent reads.
+        declined — the entry an earlier run wrote has to come back out (#186).
         """
-        if not servers and not declined and not retired_present:
+        if not servers and not declined:
             return False
-        return (retired_present or not dest.requires_reader
-                or self._configured_reader(dest) is not None)
+        return not dest.requires_reader or self._configured_reader(dest) is not None
 
     def _configured_reader(self, dest: McpDestination) -> Optional[str]:
         """*dest*'s most authoritative reading agent that this project configures, or None."""
@@ -677,19 +692,23 @@ class McpTools:
         return existing, section
 
     def _holds_retired(self, path: Path) -> bool:
-        """Whether the file at *path* names a retired server; an unreadable file names none."""
-        if not path.exists():
+        """Whether the file at *path* may name a retired server.
+
+        True for a file that is not a readable mapping, so :meth:`_read_section` names the refusal.
+        """
+        retired = self.collect_retired_mcp_servers()
+        if not retired or not path.exists():
             return False
         existing, _ = cg.read_json_mapping(path)
         section = cg.mapping_section(existing, "mcpServers") if existing is not None else None
-        return isinstance(section, dict) and any(
-            name in section for name in self.collect_retired_mcp_servers())
+        return section is None or any(name in section for name in retired)
 
     def _prune_retired_only(self, path: Path, dest: McpDestination) -> None:
         """Drop retired entries from a file no configured agent reads, and add nothing."""
         existing, section = self._read_section(path, dest)
         if section is not None and self._drop_retired(section, dest):
             cg.write_json_with_backup(path, existing)
+            self.ctx.record_generated_config(path, dest.label)
 
     def _merge_pi_mcp_json(
         self,
@@ -946,11 +965,9 @@ class McpTools:
         wanted = {name: srv for name, srv in servers.items() if name not in declined}
         path = self.ctx.target / ".github" / "mcp.json"
         if not self._destination_applies(COPILOT_MCP_JSON, wanted,
-                                        declined + unavailable + user_scoped,
-                                        self._holds_retired(path)):
-            return
-        if self._configured_reader(COPILOT_MCP_JSON) is None:
-            self._prune_retired_only(path, COPILOT_MCP_JSON)
+                                        declined + unavailable + user_scoped):
+            if self._holds_retired(path):
+                self._prune_retired_only(path, COPILOT_MCP_JSON)
             return
 
         entries = self._render_entries(wanted, COPILOT_MCP_JSON)
@@ -1033,8 +1050,9 @@ class McpTools:
 
         path = self.ctx.target / ".mcp.json"
         if not self._destination_applies(MCP_JSON, project_servers,
-                                        declined + unavailable + user_scoped,
-                                        self._holds_retired(path)):
+                                        declined + unavailable + user_scoped):
+            if self._holds_retired(path):
+                self._prune_retired_only(path, MCP_JSON)
             return
 
         mcp_servers = self._render_entries(project_servers, MCP_JSON)
@@ -1062,11 +1080,9 @@ class McpTools:
 
         path = self.ctx.target / ".pi" / "mcp.json"
         if not self._destination_applies(PI_MCP_JSON, project_servers,
-                                        declined + unavailable + user_scoped,
-                                        self._holds_retired(path)):
-            return
-        if self._configured_reader(PI_MCP_JSON) is None:
-            self._prune_retired_only(path, PI_MCP_JSON)
+                                        declined + unavailable + user_scoped):
+            if self._holds_retired(path):
+                self._prune_retired_only(path, PI_MCP_JSON)
             return
 
         entries = self._render_entries(project_servers, PI_MCP_JSON)

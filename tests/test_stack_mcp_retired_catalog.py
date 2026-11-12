@@ -212,8 +212,7 @@ def test_history_check_fails_on_a_shallow_clone(ghost_repo, tmp_path, monkeypatc
 def test_four_semantica_launches_are_retired():
     doc = json.loads((ROOT / "features" / "common" / "stack-mcp.json").read_text(encoding="utf-8"))
     assert "semantica" not in {s["name"] for s in doc["servers"]}, "semantica is no longer declared"
-    retired = doc.get("retired", [])
-    assert {s["name"] for s in retired} <= {"semantica"}, "only semantica is retired in this change"
+    retired = [s for s in doc.get("retired", []) if s.get("name") == "semantica"]
     expected = {
         ("python3 -m semantica.mcp_server", (), ()),
         ("semantica mcp start", (), ()),

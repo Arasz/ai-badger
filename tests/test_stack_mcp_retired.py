@@ -332,12 +332,15 @@ def test_the_removal_note_says_how_to_keep_the_entry(dest, tmp_path, env, make_s
 
 
 def test_hermes_note_when_a_retired_entry_is_removed(tmp_path, env, make_scaffolder):
-    """Hermes is configured: one note names mcp_servers.ghost; ~/.hermes is not touched."""
+    """Every file removes the entry: still one note names mcp_servers.ghost; ~/.hermes untouched."""
     root = _framework(tmp_path)
     target = make_scaffolder.target
-    _write(target, ".mcp.json", {"ghost": _seed_of(GHOST_LAUNCH, ".mcp.json")})
+    for dest in DESTS:
+        _write(target, dest, {"ghost": _seed_of(GHOST_LAUNCH, dest)})
 
-    notes = _scaffold_mcp(make_scaffolder, root, ["claude", "hermes"])
+    notes = _scaffold_mcp(make_scaffolder, root, ALL_AGENTS + ["hermes"])
+
+    assert [dest for dest in DESTS if "ghost" in _section(target, dest)] == []
 
     hermes = [n for n in notes if "mcp_servers.ghost" in n]
     assert len(hermes) == 1, f"one Hermes note, got {hermes}"
@@ -411,3 +414,86 @@ def test_retired_servers_are_never_declared(tmp_path, env, make_scaffolder):
 
     assert "current" in catalog and "current" in project
     assert "ghost" not in catalog and "ghost" not in project
+
+
+# -- review fixes: a broken catalog or target never prunes on partial data -----------------------
+
+@pytest.mark.parametrize("text", ['{"servers": [', "[]"], ids=["not-json", "not-object"])
+def test_an_unreadable_catalog_file_skips_the_prune(text, tmp_path, env, make_scaffolder):
+    """One unreadable stack-mcp.json: nothing is pruned, and one note names the file."""
+    root = _framework(tmp_path)
+    _test_write(root / "features" / "other" / "stack-mcp.json", text)
+    target = make_scaffolder.target
+    seeded = _seed_of(GHOST_LAUNCH, ".mcp.json")
+    _write(target, ".mcp.json", {"ghost": seeded})
+
+    notes = _scaffold_mcp(make_scaffolder, root, ALL_AGENTS)
+
+    assert _section(target, ".mcp.json")["ghost"] == seeded, "pruned on partial catalog data"
+    said = [n for n in notes if "features/other/stack-mcp.json" in n
+            and "unreadable — retired prune skipped" in n]
+    assert said, "no note names the unreadable catalog file"
+
+
+@pytest.mark.parametrize("item", ["ghost", {"command": "ghost-mcp"}], ids=["not-dict", "no-name"])
+def test_a_malformed_retired_item_is_skipped_with_a_note(item, tmp_path, env, make_scaffolder):
+    """A retired item that is not a named object is skipped; the well-formed one still prunes."""
+    root = _framework(tmp_path, other={"servers": [], "retired": [item]})
+    target = make_scaffolder.target
+    _write(target, ".mcp.json", {"ghost": _seed_of(GHOST_LAUNCH, ".mcp.json"),
+                                 "mine": dict(MINE)})
+
+    notes = _scaffold_mcp(make_scaffolder, root, ALL_AGENTS)
+
+    section = _section(target, ".mcp.json")
+    assert "ghost" not in section and section["mine"] == MINE
+    said = [n for n in notes if "features/other/stack-mcp.json" in n and "retired" in n]
+    assert said, "no note names the file with the malformed retired item"
+
+
+@pytest.mark.parametrize("other", [
+    "[]", json.dumps({"servers": [], "retired": ["ghost"]}),
+], ids=["unreadable", "malformed"])
+def test_the_retired_set_is_read_once_per_run(other, tmp_path, env, make_scaffolder):
+    """The retired set is collected once per run, so a catalog note never repeats."""
+    root = _framework(tmp_path)
+    _test_write(root / "features" / "other" / "stack-mcp.json", other)
+    target = make_scaffolder.target
+    for dest in DESTS:
+        _write(target, dest, {"ghost": _seed_of(GHOST_LAUNCH, dest)})
+
+    notes = _scaffold_mcp(make_scaffolder, root, ALL_AGENTS)
+
+    said = [n for n in notes if "features/other/stack-mcp.json" in n]
+    assert len(said) == 1, f"the catalog note repeated: {said}"
+
+
+@pytest.mark.parametrize("text", ['{"mcpServers": {"ghost": {', '{"mcpServers": []}'],
+                         ids=["not-json", "not-mapping"])
+def test_an_unreadable_unread_file_is_refused_with_a_note(text, tmp_path, env, make_scaffolder):
+    """.github/mcp.json no agent reads, and unusable: left as found, and the refusal is named."""
+    root = _framework(tmp_path)
+    target = make_scaffolder.target
+    _test_write(target / ".github" / "mcp.json", text)
+
+    notes = _scaffold_mcp(make_scaffolder, root, ["claude"])
+
+    assert (target / ".github" / "mcp.json").read_text(encoding="utf-8") == text
+    assert [n for n in notes if "refused to overwrite" in n and ".github/mcp.json" in n]
+
+
+@pytest.mark.parametrize("dest", [".github/mcp.json", ".pi/mcp.json"], ids=["github", "pi"])
+def test_a_prune_only_write_is_recorded(dest, tmp_path, env, make_scaffolder):
+    """A file cleaned for an unconfigured agent is recorded for the manifest like any write."""
+    root = _framework(tmp_path)
+    target = make_scaffolder.target
+    _write(target, dest, {"ghost": _seed_of(GHOST_LAUNCH, dest), "mine": dict(MINE)})
+    scaf = make_scaffolder(root=root, config=_config(["claude"]))
+    scaf.mcp.generate_mcp_json()
+    project, _ = scaf.mcp.split_servers_by_scope(scaf.mcp.declared_servers())
+    scaf.mcp.generate_copilot_mcp_json(project)
+    scaf.mcp.generate_pi_mcp_json()
+
+    assert "ghost" not in _section(target, dest)
+    assert [r["path"] for r in scaf.generated_config.all_records([])
+            if r["path"] == dest] == [dest]
