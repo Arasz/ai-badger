@@ -1,12 +1,13 @@
 # Skills
 
-This page catalogs 52 skills — everything under `features/common/skills/` and
+This page catalogs 53 skills — everything under `features/common/skills/` and
 `features/claude/skills/`.
-51 live under `features/common/skills/` and split by the `scope:` each declares in its own
+52 live under `features/common/skills/` and split by the `scope:` each declares in its own
 `SKILL.md` frontmatter ([ADR-0018](adr/0018-where-the-skill-routing-declaration-lives.md)):
 **49 are `default`** and arrive in every scaffolded project without being asked for, and
-**2 are `optIn`** — the sqlite pair, which stays out of the default set because it is specific
-to a SQLite-backed project ([ADR-0029](adr/0029-sqlite-skills-stay-opt-in.md)). Everything else
+**3 are `optIn`** — the sqlite pair, which stays out of the default set because it is specific
+to a SQLite-backed project ([ADR-0029](adr/0029-sqlite-skills-stay-opt-in.md)), and
+`run-manual-checklist`, which needs a project-owned checks file ([ADR-0050](adr/0050-manual-checks-are-project-owned.md)). Everything else
 moved to `default` in 0.169.0 ([ADR-0028](adr/0028-all-catalog-skills-ship-by-default.md)); a
 project that wants less declines by name in `config.exclude`, and `config.include` asks for the
 opt-in pair. The last one,
@@ -14,11 +15,11 @@ opt-in pair. The last one,
 ([ADR-0010](adr/0010-stack-local-skill-discovery.md)) and therefore **claude-only**: it does not
 reach a Copilot or Hermes project.
 
-**These 52 are not the whole tree.** `features/*/skills/*/SKILL.md` matches **58** files:
-the 52 above plus 6 more that belong to a single stack and arrive only with it — the
+**These 53 are not the whole tree.** `features/*/skills/*/SKILL.md` matches **58** files:
+the 53 above plus 5 more that belong to a single stack and arrive only with it — the
 `dotnet-workload` gateway under
-`features/dotnet/skills/`, 2 under `features/hermes/skills/`, 1 under `features/mcp/skills/`, 1 under `features/ai-raccoon/skills/` and 1 under `features/github/skills/`.
-Those 6 have no row below and are documented by their own `SKILL.md`. Derive the number rather
+`features/dotnet/skills/`, 2 under `features/hermes/skills/`, 1 under `features/mcp/skills/` and 1 under `features/github/skills/`.
+Those 5 have no row below and are documented by their own `SKILL.md`. Derive the number rather
 than trusting this sentence: `python3 gates/skills_lint.py` prints how many `SKILL.md` files the
 catalog holds.
 
@@ -151,6 +152,7 @@ names it (the sqlite pair today), **claude-only** when the stack decides.
 | [pre-push-gate-debugging](#pre-push-gate-debugging) | Debug a blocked pre-push quality gate one lane at a time | default | by name |
 | [get-raw-text-search](#get-raw-text-search) | Retrieve the raw output of an asynchronous memory-first text-search capture by pattern or pattern hash | default | by name |
 | [sqlite-schema-review](#sqlite-schema-review) | Review SQLite DDL and migrations against scratch-database evidence | opt-in | by name |
+| [run-manual-checklist](#run-manual-checklist) | Hand-verify a live build against the project's own checks file, with scripts that validate and summarise the run | opt-in | by name |
 | [sqlite-bank-space-diagnosis](#sqlite-bank-space-diagnosis) | Diagnose a bloated SQLite file and its WAL read-only before reclaiming | opt-in | by name |
 
 ---
@@ -999,6 +1001,17 @@ they are specific to a SQLite-backed project, so they are not written into a rep
 `config.include.skills` names them. Ask for one with the edit at the top of this page, or
 decline it explicitly — and note that `den-refresh` lists any opt-in skill a project has not
 installed, so nobody has to know these exist in advance.
+
+### run-manual-checklist
+
+[`SKILL.md`](../features/common/skills/run-manual-checklist/SKILL.md)
+
+**What it is.** The general rules for a hand-run pass over a live build: record the command and
+the evidence behind every item, derive facts instead of pinning them, make every item able to
+fail, and never inherit an earlier verdict. The checks belong to the project, in a checks file it keeps
+in its own docs; the skill requires that file's path, and `init` writes the first one.
+`scripts/checklist.py` validates the checks file (`check`), starts a run and derives its facts
+(`new-run`), and validates and summarises a filled run (`report`).
 
 ### sqlite-schema-review
 

@@ -240,6 +240,19 @@ def test_report_item_without_evidence_is_incomplete(tmp_path):
     assert "evidence" in result.stderr
 
 
+def test_report_evidence_may_be_a_list_of_lines(tmp_path):
+    result = report(tmp_path, run_data([good_item(status="fail", evidence=["line one", "line two"])]))
+    assert result.returncode != 1, result.stderr
+    assert "line one" in result.stdout
+
+
+@pytest.mark.parametrize("evidence", [[], ["", "  "], [1]])
+def test_report_list_evidence_without_text_is_incomplete(tmp_path, evidence):
+    result = report(tmp_path, run_data([good_item(evidence=evidence)]))
+    assert result.returncode == 1
+    assert "evidence" in result.stderr
+
+
 def test_report_item_without_command_is_incomplete(tmp_path):
     result = report(tmp_path, run_data([good_item(command="")]))
     assert result.returncode == 1

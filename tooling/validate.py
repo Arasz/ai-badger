@@ -52,6 +52,7 @@ SCHEMA_INSTANCES = {
                                      "features/*/mcp-catalog/*/tools.json"],
     "tool.schema.json": ["features/*/tools/*/meta.json"],
     "stack.schema.json": ["features/*/stack.json"],
+    "manual-checks.schema.json": ["features/*/skills/run-manual-checklist/examples/checks.json"],
     "dependencies.schema.json": ["features/*/dependencies.json"],
     "scaffolding.schema.json": ["features/*/scaffolding.json"],
     "support.schema.json": ["features/*/support.json"],

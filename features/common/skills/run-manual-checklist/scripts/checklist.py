@@ -237,12 +237,22 @@ def validate_run(run, checks) -> list[str]:
     return problems
 
 
+def evidence_text(value) -> str:
+    """Evidence as one string: a non-blank string, or the non-blank lines of a list of strings."""
+    if isinstance(value, list):
+        if not all(isinstance(line, str) for line in value):
+            return ""
+        return " | ".join(line.strip() for line in value if line.strip())
+    return value.strip() if is_text(value) else ""
+
+
 def validate_run_item(item: dict, where: str) -> list[str]:
     """Completeness problems of one run item."""
     problems = []
-    for field in ("command", "evidence"):
-        if not is_text(item.get(field)):
-            problems.append(f"{where}: empty `{field}`")
+    if not is_text(item.get("command")):
+        problems.append(f"{where}: empty `command`")
+    if not evidence_text(item.get("evidence")):
+        problems.append(f"{where}: empty `evidence`")
     status = item.get("status")
     if status not in STATUSES:
         problems.append(f"{where}: status {status!r} not one of {sorted(STATUSES)}")
@@ -275,7 +285,7 @@ def render_report(run: dict) -> tuple[str, bool]:
     out += [f"- {status}: {n}" for status, n in counts.items()]
     out += ["", "## Failures", ""]
     fails = [i for i in items if i["status"] == "fail"]
-    out += [f"- {i['item']}: {i['evidence']}" for i in fails] or ["none"]
+    out += [f"- {i['item']}: {evidence_text(i['evidence'])}" for i in fails] or ["none"]
     out += ["", "## Skipped or substituted", ""]
     skipped = [i for i in items if i["status"] in ("skipped", "substituted")]
     out += [f"- {i['item']} ({i['status']}): {reason_of(i)}" for i in skipped] or ["none"]

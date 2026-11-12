@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Arasz/ai-badger/schemas/manual-checks.schema.json",
+  "title": "Project manual checks",
+  "description": "A project's own checks file for the run-manual-checklist skill (default docs/checklist/checks.json). Owned by the project, never written by the scaffold. scripts/checklist.py check enforces the same rules plus anchor existence.",
+  "type": "object",
+  "required": ["schema", "results-dir", "facts", "items"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {"type": "string"},
+    "schema": {"const": 1},
+    "results-dir": {"type": "string", "minLength": 1, "pattern": "^[^/]", "description": "Relative directory for dated run files."},
+    "rules": {"type": "array", "items": {"type": "string", "minLength": 1}, "description": "Project 'never' rules, printed by new-run; prose for the agent."},
+    "facts": {
+      "type": "object",
+      "description": "Facts a run compares against, each derived by running its command from the repo root.",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["command"],
+        "additionalProperties": false,
+        "properties": {
+          "command": {"type": "string", "minLength": 1},
+          "nonzero": {"type": "boolean", "description": "Output 0 means the derivation is broken."}
+        }
+      }
+    },
+    "items": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["item", "expected-result"],
+        "properties": {
+          "item": {"type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"},
+          "expected-result": {"type": "string", "minLength": 1},
+          "anchor": {"type": "string", "minLength": 1, "description": "Repo-relative path[#fragment] of the document defining the behaviour."},
+          "negative-control": {"type": "string"}
+        },
+        "additionalProperties": {"type": "string"}
+      }
+    }
+  }
+}
