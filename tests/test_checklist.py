@@ -103,10 +103,10 @@ def test_check_empty_fact_command_rejected(repo):
 
 
 def test_check_reports_every_problem_with_path(repo):
-    data = checks_data(extra=1)
+    data = checks_data()
     data["items"][0]["item"] = "Bad Id"
     data["items"][1]["expected-result"] = ""
-    checks = make_checks(repo, **{k: v for k, v in data.items() if k not in ("schema",)})
+    checks = make_checks(repo, extra=1, items=data["items"])
     result = run_cli("check", checks)
     assert result.returncode == 1
     lines = result.stderr.strip().splitlines()
@@ -184,7 +184,7 @@ def test_new_run_fact_zero_fails_only_with_nonzero_flag(repo):
     flagged = make_checks(repo, facts={"n": {"command": "printf 0", "nonzero": True}})
     result = new_run(repo, checks=flagged)
     assert result.returncode == 1
-    assert "n" in result.stderr
+    assert "fact 'n': printed 0 but is marked nonzero" in result.stderr
     plain = make_checks(repo, facts={"n": {"command": "printf 0"}})
     ok = new_run(repo, checks=plain)
     assert ok.returncode == 0, ok.stderr
@@ -223,7 +223,18 @@ def run_data(items=None, **run_over):
             "items": items if items is not None else [good_item()]}
 
 
+def auto_checks(tmp_path, data):
+    """A checks file naming exactly the item ids the run file carries."""
+    items = data.get("items", []) if isinstance(data, dict) else []
+    ids = [i["item"] for i in items if isinstance(i, dict) and isinstance(i.get("item"), str)]
+    entries = [{"item": ident, "expected-result": "x"} for ident in dict.fromkeys(ids)]
+    return write_json(tmp_path / "auto-checks.json", checks_data(items=entries or [
+        {"item": "placeholder", "expected-result": "x"}], facts={}))
+
+
 def report(tmp_path, data, *extra):
+    if "--checks" not in extra:
+        extra = (*extra, "--checks", auto_checks(tmp_path, data))
     return run_cli("report", write_json(tmp_path / "run.json", data), *extra)
 
 
@@ -231,7 +242,15 @@ def test_report_complete_exits_zero_with_counts(tmp_path):
     items = [good_item("a"), good_item("b")]
     result = report(tmp_path, run_data(items))
     assert result.returncode == 0, result.stderr
-    assert "pass" in result.stdout and "2" in result.stdout
+    assert "- pass: 2" in result.stdout.splitlines()
+
+
+def test_report_counts_each_status_exactly(tmp_path):
+    items = [good_item("a"), good_item("b", status="fail"), good_item("c", status="fail"),
+             good_item("d", status="skipped"), good_item("e", status="substituted")]
+    lines = report(tmp_path, run_data(items)).stdout.splitlines()
+    for expected in ("- pass: 1", "- fail: 2", "- skipped: 1", "- substituted: 1"):
+        assert expected in lines
 
 
 def test_report_item_without_evidence_is_incomplete(tmp_path):
@@ -318,7 +337,11 @@ def test_report_prints_findings(tmp_path):
 
 def test_report_usage_and_unreadable_exit_two(tmp_path):
     assert run_cli("report").returncode == 2
-    assert run_cli("report", tmp_path / "none.json").returncode == 2
+    checks = auto_checks(tmp_path, run_data())
+    assert run_cli("report", tmp_path / "none.json", "--checks", checks).returncode == 2
+    run = write_json(tmp_path / "run.json", run_data())
+    assert run_cli("report", run).returncode == 2  # --checks is required
+    assert run_cli("report", run, "--checks", tmp_path / "none.json").returncode == 2
 
 
 def test_report_cross_check_missing_scoped_item(tmp_path, repo):
@@ -368,6 +391,124 @@ def test_report_full_cycle_from_new_run(tmp_path, repo):
     # well-formed, every item answered.
     ("2026-10-22-2.0.0-post-rename.json", 0),
 ])
-def test_historic_runs(name, code):
-    result = run_cli("report", FIXTURES / name)
+def test_historic_runs(name, code, tmp_path):
+    run = json.loads((FIXTURES / name).read_text(encoding="utf-8"))
+    result = run_cli("report", FIXTURES / name, "--checks", auto_checks(tmp_path, run))
     assert result.returncode == code, result.stderr
+
+
+# ------------------------------------------------------- never a traceback
+
+def assert_clean_refusal(result):
+    assert result.returncode == 1, result.stdout
+    assert "Traceback" not in result.stderr
+    assert result.stderr.strip()
+
+
+@pytest.mark.parametrize("scope", [5, "first-item", ["first-item", 1], {"a": 1}])
+def test_report_scope_must_be_a_list_of_strings(tmp_path, repo, scope):
+    data = run_data([good_item("first-item")], scope=scope)
+    assert_clean_refusal(report(tmp_path, data, "--checks", make_checks(repo)))
+
+
+@pytest.mark.parametrize("status", [[1], {"a": 1}, 5, None])
+def test_report_non_string_status_is_incomplete(tmp_path, status):
+    assert_clean_refusal(report(tmp_path, run_data([good_item(status=status)])))
+
+
+@pytest.mark.parametrize("bad", [{"items": 5}, {"items": ["a"]}, {"items": [{"item": ["a"]}]}])
+def test_report_malformed_checks_file_is_refused(tmp_path, repo, bad):
+    checks = make_checks(repo, **bad)
+    assert_clean_refusal(report(tmp_path, run_data(), "--checks", checks))
+
+
+# ------------------------------------------------------------- rejected
+
+def test_report_rejected_item_is_listed_and_exits_four(tmp_path):
+    items = [good_item("a"), good_item("b-item", status="fail", accepted=False,
+                                       **{"acceptance-reason": "tracked nowhere yet"})]
+    result = report(tmp_path, run_data(items))
+    assert result.returncode == 4, result.stderr
+    out = result.stdout.splitlines()
+    assert "## Rejected" in out
+    assert "- b-item: tracked nowhere yet" in out
+
+
+def test_report_pending_wins_over_rejected(tmp_path):
+    items = [good_item("a", accepted=None), good_item("b-item", accepted=False)]
+    assert report(tmp_path, run_data(items)).returncode == 3
+
+
+def test_report_without_rejections_lists_none(tmp_path):
+    out = report(tmp_path, run_data()).stdout.splitlines()
+    assert out[out.index("## Rejected") + 2] == "none"
+
+
+# ------------------------------------------------- duplicates and scope
+
+def test_report_duplicate_run_item_ids_are_incomplete(tmp_path, repo):
+    items = [good_item("first-item"), good_item("first-item"), good_item("second-item")]
+    result = report(tmp_path, run_data(items), "--checks", make_checks(repo))
+    assert result.returncode == 1
+    assert "duplicate" in result.stderr
+
+
+def test_report_scope_naming_an_id_not_in_checks_is_refused(tmp_path, repo):
+    data = run_data([good_item("first-item")], scope=["first-item", "ghost-item"])
+    result = report(tmp_path, data, "--checks", make_checks(repo))
+    assert result.returncode == 1
+    assert "ghost-item" in result.stderr
+
+
+def test_report_run_item_outside_scope_is_refused(tmp_path, repo):
+    data = run_data([good_item("first-item"), good_item("second-item")], scope=["first-item"])
+    result = report(tmp_path, data, "--checks", make_checks(repo))
+    assert result.returncode == 1
+    assert "second-item" in result.stderr and "scope" in result.stderr
+
+
+def test_report_exact_scope_passes(tmp_path, repo):
+    data = run_data([good_item("second-item")], scope=["second-item"])
+    assert report(tmp_path, data, "--checks", make_checks(repo)).returncode == 0
+
+
+# ---------------------------------------------------------- path escape
+
+@pytest.mark.parametrize("slug", ["../../pwn", "a/b", "Bad Slug", ""])
+def test_new_run_slug_must_be_a_kebab_id(repo, slug):
+    result = new_run(repo, slug=slug)
+    assert result.returncode == 2
+    assert "slug" in result.stderr
+    assert not (repo / "results").exists()
+    assert not list(repo.parent.glob("**/pwn*"))
+
+
+@pytest.mark.parametrize("date", ["../x", "2026-13-01", "20261112", "2026-11-12/.."])
+def test_new_run_date_must_be_iso(repo, date):
+    result = run_cli("new-run", make_checks(repo), "--slug", "smoke", "--date", date)
+    assert result.returncode == 2
+    assert "date" in result.stderr
+    assert not (repo / "results").exists()
+
+
+@pytest.mark.parametrize("results_dir", ["../x", "results/../../x", "a/../../x"])
+def test_results_dir_escaping_the_repo_is_rejected(repo, results_dir):
+    checks = make_checks(repo, **{"results-dir": results_dir})
+    check = run_cli("check", checks)
+    assert check.returncode == 1
+    assert "results-dir" in check.stderr
+    assert new_run(repo, checks=checks).returncode == 1
+    assert not (repo.parent / "x").exists()
+
+
+# ----------------------------------------------------- the shipped example
+
+def test_shipped_example_checks_file_is_valid():
+    example = ROOT / "features/common/skills/run-manual-checklist/examples/checks.json"
+    result = run_cli("check", example, "--repo", ROOT)
+    assert result.returncode == 0, result.stderr
+
+
+def test_schema_must_be_the_integer_one(repo):
+    for bad in (1.0, True, "1"):
+        assert run_cli("check", make_checks(repo, schema=bad)).returncode == 1

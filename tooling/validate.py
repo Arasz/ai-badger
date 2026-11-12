@@ -52,7 +52,6 @@ SCHEMA_INSTANCES = {
                                      "features/*/mcp-catalog/*/tools.json"],
     "tool.schema.json": ["features/*/tools/*/meta.json"],
     "stack.schema.json": ["features/*/stack.json"],
-    "manual-checks.schema.json": ["features/*/skills/run-manual-checklist/examples/checks.json"],
     "dependencies.schema.json": ["features/*/dependencies.json"],
     "scaffolding.schema.json": ["features/*/scaffolding.json"],
     "support.schema.json": ["features/*/support.json"],
@@ -72,6 +71,9 @@ FEATURE_JSON_WITHOUT_SCHEMA: Dict[str, str] = {
         "gateway manifest (ADR-0021); its structure — kind, members, paths, purpose "
         "byte-equality, orphans — is validated by skills_lint rule 13, and a JSON Schema here "
         "would be a second copy of that shape",
+    "features/*/skills/run-manual-checklist/examples/checks.json":
+        "validated by run-manual-checklist scripts/checklist.py check; "
+        "tests/test_checklist.py runs it",
     "features/*/tsconfig.json":
         "TypeScript compiler configuration for a feature's own type-check gate; its shape is "
         "the TypeScript vendor's contract and tsc itself is the validator that reads it",

@@ -39,10 +39,13 @@ does it reliably.
    - `items`: each with an `anchor` to the document that defines the behaviour.
 4. `scripts/checklist.py` (stdlib only) does the mechanical work:
    - `check` validates a checks file.
-   - `new-run` writes a dated run file. It fills the git metadata, runs every fact command and
-     fails loudly when a command errors or prints nothing or zero.
-   - `report` validates a filled run and prints the counts, every fail and the pending
-     acceptances.
+   - `new-run` writes a dated run file. It fills the git metadata and runs every fact command.
+     It fails when a fact command errors or prints nothing, and on `0` only for a fact marked
+     `nonzero`.
+   - `report <run> --checks <checks>` validates a filled run against the checks file (`--checks`
+     is required) and prints the counts, every fail, every rejected result and the pending
+     acceptances. Exit codes: 0 done, 1 incomplete, 2 usage, 3 acceptances pending, 4 complete
+     but some results rejected.
 
    Judgement stays with the agent: which items to write, what counts as evidence, and how to
    make an item able to fail.

@@ -43,7 +43,7 @@ by eye.
 |---|---|
 | `checklist.py check <checks>` | Validates the checks file: unique kebab-case ids, non-empty expected results, existing anchors, a command for every fact, a non-empty item list |
 | `checklist.py new-run <checks> --slug <what>` | Writes `<results-dir>/<date>-<slug>.json`: git metadata, every item blank, and every fact derived by running its command. Fails loudly when a fact command errors or prints nothing, or prints `0` for a fact marked `nonzero` |
-| `checklist.py report <run> [--checks <checks>]` | Validates a filled run and prints the counts, every fail with its evidence, every skip or substitution with its reason, and every pending acceptance. Exit 0 complete, 3 complete with acceptances pending, 1 incomplete |
+| `checklist.py report <run> --checks <checks>` | Validates a filled run against the checks file and prints the counts, every fail with its evidence, every skip or substitution with its reason, every rejected result and every pending acceptance. Exit 0 complete, 1 incomplete, 2 usage, 3 acceptances pending, 4 complete but some results rejected |
 
 ## When NOT to use
 
@@ -91,7 +91,10 @@ These protect the person running the checklist, not the checklist:
    - `accepted` and `acceptance-reason`: whether the observed result is acceptable, and why. A
      `fail` can be accepted as a known defect when the reason names where the defect is tracked.
      `accepted` stays `null` until someone decides. A run with a `null` in it is unfinished. It
-     is not a run with no objections.
+     is not a run with no objections. `false` means the result is not acceptable; the report
+     lists it under Rejected and exits 4.
+     Older runs may carry `acceptation-reason` or `skip-reason`; `report` reads them as the
+     reason.
 
    Items are independent, so lanes can run in parallel. Give every lane its own isolation axis
    (its own scratch data, port and install path), and nothing else needs coordinating.
@@ -106,11 +109,13 @@ These protect the person running the checklist, not the checklist:
 5. When an item's feature no longer exists, **delete the item from the checks file** in the
    project's PR. Do not mark it skipped. A step for a removed feature either fails forever and
    gets waved through, or quietly passes against nothing.
-6. For a scoped pass, write the ids you ran into `run.scope`. `report --checks` then expects
-   exactly those ids.
+6. For a scoped pass, write the ids you ran into `run.scope` as a list of strings. `report
+   --checks` then expects exactly those ids: it flags a scoped id missing from the checks file,
+   a scoped id missing from the run, and a run item outside the scope.
 7. `checklist.py report <run> --checks <checks>`. Its output is the report: counts by status,
-   every fail with its evidence, and every finding against an earlier run. Exit 1 means the run
-   is not complete. Say so instead of reporting a total.
+   every fail with its evidence, every rejected result, and every finding against an earlier
+   run. Exit 1 means the run is not complete, 3 that acceptances are pending, 4 that some
+   results were rejected. Say so instead of reporting a total.
 
 ## Making an item able to fail
 
@@ -196,5 +201,5 @@ because its absence once caused a silent failure:
 - [ ] `checklist.py check` exits 0 on the checks file used
 - [ ] The run file was written by `new-run`, and no fact was typed by hand
 - [ ] Every item has `command` and `evidence`, read from output you saw
-- [ ] `checklist.py report --checks` exits 0 or 3, and its output is what was reported
+- [ ] `checklist.py report <run> --checks <checks>` exits 0, 3 or 4 (never 1 or 2), and its output is what was reported
 - [ ] Findings against earlier runs are recorded in their own block

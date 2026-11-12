@@ -2,7 +2,9 @@
 """Mechanical half of a manual checklist: validate a checks file, start a run, report a run.
 
 `check CHECKS` validates; `new-run CHECKS --slug S` writes a run skeleton with facts derived;
-`report RUN` summarises a filled run. Exit 0 ok, 1 invalid/incomplete, 2 usage, 3 pending.
+`report RUN --checks CHECKS` summarises a filled run. Exit codes: 0 ok, 1 invalid or incomplete,
+2 usage or unreadable input, 3 complete but acceptances pending, 4 complete but some results
+rejected (`accepted: false`); pending wins over rejected.
 """
 from __future__ import annotations
 
@@ -15,6 +17,7 @@ import sys
 from pathlib import Path
 
 ID_RE = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
+DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 TOP_KEYS = {"schema", "results-dir", "rules", "facts", "items"}
 STATUSES = {"pass", "fail", "skipped", "substituted"}
 REASON_KEYS = ("acceptance-reason", "acceptation-reason", "skip-reason")
@@ -48,6 +51,11 @@ def repo_root(checks: Path, override: str | None) -> Path:
     return Path(out.stdout.strip()) if out.returncode == 0 and out.stdout.strip() else start
 
 
+def inside(path: Path, root: Path) -> bool:
+    """True when *path* resolves to *root* or something under it."""
+    return path.resolve().is_relative_to(root.resolve())
+
+
 def validate_checks(data, root: Path) -> list[tuple[str, str]]:
     """Return every (json-path, problem) found in a parsed checks file."""
     if not isinstance(data, dict):
@@ -55,11 +63,14 @@ def validate_checks(data, root: Path) -> list[tuple[str, str]]:
     problems: list[tuple[str, str]] = []
     for key in sorted(set(data) - TOP_KEYS):
         problems.append((f"$.{key}", "unknown top-level key"))
-    if data.get("schema") != 1 or isinstance(data.get("schema"), bool):
+    schema = data.get("schema")
+    if not isinstance(schema, int) or isinstance(schema, bool) or schema != 1:
         problems.append(("$.schema", "must be the integer 1"))
     results = data.get("results-dir")
     if not is_text(results) or Path(results).is_absolute():
         problems.append(("$.results-dir", "must be a non-empty relative path"))
+    elif ".." in Path(results).parts or not inside(root / results, root):
+        problems.append(("$.results-dir", "must stay inside the repository"))
     rules = data.get("rules", [])
     if not isinstance(rules, list) or not all(isinstance(r, str) for r in rules):
         problems.append(("$.rules", "must be a list of strings"))
@@ -183,7 +194,17 @@ def cmd_new_run(args) -> int:
     if problems:
         return 1
     date = args.date or datetime.date.today().isoformat()
+    if not ID_RE.match(args.slug):
+        raise UsageError(f"--slug {args.slug!r} must be a kebab-case id")
+    if not DATE_RE.match(date):
+        raise UsageError(f"--date {date!r} must be YYYY-MM-DD")
+    try:
+        datetime.date.fromisoformat(date)
+    except ValueError as exc:
+        raise UsageError(f"--date {date!r} is not a calendar date") from exc
     target = root / data["results-dir"] / f"{date}-{args.slug}.json"
+    if not inside(target, root):
+        raise UsageError(f"{target} is outside the repository")
     if target.exists() and not args.force:
         raise UsageError(f"{target} exists; pass --force to overwrite")
     derived = {}
@@ -222,7 +243,7 @@ def validate_run(run, checks) -> list[str]:
     items = run.get("items")
     if not isinstance(items, list):
         return ["run file: `items` must be a list"]
-    problems = []
+    problems = scope_problems(run["run"].get("scope", []))
     ids = set()
     for index, item in enumerate(items):
         where = f"items[{index}]"
@@ -230,11 +251,20 @@ def validate_run(run, checks) -> list[str]:
             problems.append(f"{where}: missing `item` id")
             continue
         where = f"item {item['item']!r}"
+        if item["item"] in ids:
+            problems.append(f"{where}: duplicate item id")
         ids.add(item["item"])
         problems += validate_run_item(item, where)
-    if checks is not None:
+    if checks is not None and not problems:
         problems += cross_check(run, ids, checks)
     return problems
+
+
+def scope_problems(scope) -> list[str]:
+    """Problems with `run.scope`, which must be a list of item ids."""
+    if isinstance(scope, list) and all(isinstance(i, str) for i in scope):
+        return []
+    return ["run file: `run.scope` must be a list of item ids"]
 
 
 def evidence_text(value) -> str:
@@ -254,7 +284,7 @@ def validate_run_item(item: dict, where: str) -> list[str]:
     if not evidence_text(item.get("evidence")):
         problems.append(f"{where}: empty `evidence`")
     status = item.get("status")
-    if status not in STATUSES:
+    if not isinstance(status, str) or status not in STATUSES:
         problems.append(f"{where}: status {status!r} not one of {sorted(STATUSES)}")
     elif status in ("skipped", "substituted") and not reason_of(item):
         problems.append(f"{where}: {status} without a reason "
@@ -272,11 +302,15 @@ def cross_check(run: dict, ids: set, checks) -> list[str]:
     wanted = known if scope is None else known & set(scope)
     problems = [f"item {i!r}: not in the checks file" for i in sorted(ids - known)]
     problems += [f"item {i!r}: in scope but missing from the run" for i in sorted(wanted - ids)]
+    if scope is not None:
+        problems += [f"scope {i!r}: not in the checks file" for i in sorted(set(scope) - known)]
+        problems += [f"item {i!r}: run item outside run.scope"
+                     for i in sorted((ids & known) - set(scope))]
     return problems
 
 
-def render_report(run: dict) -> tuple[str, bool]:
-    """Markdown summary of a complete run and whether any item awaits acceptance."""
+def render_report(run: dict) -> tuple[str, bool, bool]:
+    """Markdown summary of a complete run, and whether any item is pending or rejected."""
     items = run["items"]
     counts = {s: sum(1 for i in items if i["status"] == s) for s in sorted(STATUSES)}
     head = run["run"]
@@ -292,24 +326,32 @@ def render_report(run: dict) -> tuple[str, bool]:
     out += ["", "## Pending acceptance", ""]
     pending = [i for i in items if i.get("accepted") is None]
     out += [f"- {i['item']}" for i in pending] or ["none"]
+    out += ["", "## Rejected", ""]
+    rejected = [i for i in items if i.get("accepted") is False]
+    out += [f"- {i['item']}: {reason_of(i) or 'no reason given'}" for i in rejected] or ["none"]
     out += ["", "## Findings against prior runs", ""]
     findings = run.get("findings-against-prior-runs") or []
     out += [f"- {f}" for f in findings] or ["none"]
-    return "\n".join(out) + "\n", bool(pending)
+    return "\n".join(out) + "\n", bool(pending), bool(rejected)
 
 
 def cmd_report(args) -> int:
-    """`report`: exit 1 incomplete, 3 pending acceptance, 0 done."""
+    """`report`: exit 1 incomplete, 3 pending acceptance, 4 rejected results, 0 done."""
     run = load_json(args.run)
-    checks = load_json(args.checks) if args.checks else None
-    problems = validate_run(run, checks)
+    checks = load_json(args.checks)
+    problems = [f"{args.checks}:{where}: {text}"
+                for where, text in validate_checks(checks, repo_root(args.checks, args.repo))]
+    if not problems:
+        problems = [f"{args.run}: {text}" for text in validate_run(run, checks)]
     for text in problems:
-        print(f"{args.run}: {text}", file=sys.stderr)
+        print(text, file=sys.stderr)
     if problems:
         return 1
-    text, pending = render_report(run)
+    text, pending, rejected = render_report(run)
     sys.stdout.write(text)
-    return 3 if pending else 0
+    if pending:
+        return 3
+    return 4 if rejected else 0
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -329,7 +371,8 @@ def build_parser() -> argparse.ArgumentParser:
     new_run.set_defaults(func=cmd_new_run)
     rep = sub.add_parser("report", help="summarise a filled run")
     rep.add_argument("run", type=Path)
-    rep.add_argument("--checks", type=Path)
+    rep.add_argument("--checks", type=Path, required=True)
+    rep.add_argument("--repo")
     rep.set_defaults(func=cmd_report)
     return parser
 
