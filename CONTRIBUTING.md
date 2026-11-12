@@ -74,6 +74,15 @@ Separately, lefthook runs **every** gate on `git push`. That one is worth instal
 stops an unbumped `VERSION` or a failing test from reaching CI. See
 [Automating the gates](#automating-the-gates-lefthook).
 
+### Retiring an MCP server
+
+When you delete an MCP server from the catalog, move every launch it ever shipped into the
+`retired` array of its `stack-mcp.json`, one line per launch, copied exactly as it was declared
+(`git show <sha>:features/<stack>/stack-mcp.json`). Never delete a `retired` item. Scaffold removes
+a user's entry only when it equals one of those launches, so a user who changed any launch field
+(command, args, env) keeps their entry. See
+[ADR-0049](docs/adr/0049-scaffold-prunes-catalog-retired-entries.md).
+
 ### Local MCP servers (`code-review-graph`, `hermes`)
 
 `.mcp.json` is **not tracked**. It used to be, and that shipped two permanently-broken

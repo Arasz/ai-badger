@@ -45,5 +45,11 @@
       ],
       "declare": true
     }
+  ],
+  "retired": [
+    {"name": "semantica", "command": "python3 -m semantica.mcp_server", "declare": true, "availability": {"command": "python3"}},
+    {"name": "semantica", "command": "semantica mcp start", "declare": true, "availability": {"command": "semantica"}},
+    {"name": "semantica", "command": "semantica-mcp", "declare": true, "availability": {"command": "semantica-mcp"}},
+    {"name": "semantica", "command": "semantica-mcp", "declare": true, "env": {"SEMANTICA_DISABLE_PROGRESS": "1"}, "availability": {"command": "semantica-mcp"}}
   ]
 }
