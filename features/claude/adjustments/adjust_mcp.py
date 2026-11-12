@@ -11,6 +11,8 @@ import sys
 from pathlib import Path
 from typing import Any, Dict, List
 
+NOTHING_TO_DO = "no MCP server declared and none declined — nothing to approve or deny"
+
 
 def tool_pattern(server: str) -> str:
     """The permission rule matching every tool of *server* (documented: permissions.md, MCP)."""
@@ -38,22 +40,23 @@ def adjust(context: Dict[str, Any]) -> Dict[str, Any]:
     declared = [name for name in (context.get("mcp_servers") or []) if name not in declined]
     retired = list(context.get("retired_servers") or [])
     if not declared and not declined and not retired:
-        return _unapplied("no MCP server declared and none declined — nothing to approve or deny")
+        return _unapplied(NOTHING_TO_DO)
 
     guard = _config_guard(Path(context["framework_root"]))
     path = Path(context["target"]) / ".claude" / "settings.json"
+    consequence = ("MCP servers not approved" if declared or declined
+                   else "retired-server approvals not checked")
     settings, note = guard.read_json_mapping(path)
     if settings is None:
-        return _unapplied(f"{note} (MCP servers not approved)")
+        return _unapplied(f"{note} ({consequence})")
     permissions = guard.mapping_section(settings, "permissions")
     if permissions is None:
         return _unapplied(
-            f"{guard.refusal(path, 'permissions is not a mapping')} (MCP servers not approved)")
+            f"{guard.refusal(path, 'permissions is not a mapping')} ({consequence})")
 
     stale = _stale_notes(settings, permissions, retired)
     if not declared and not declined:
-        return {"applied": False, "files": [], "notes": "; ".join(stale)
-                or "no MCP server declared and none declined — nothing to approve or deny"}
+        return _unapplied("; ".join(stale) or NOTHING_TO_DO)
 
     refused: List[str] = list(stale)
     approved = declared if bool((config.get("mcp") or {}).get("approve", True)) else []

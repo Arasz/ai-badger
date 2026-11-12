@@ -371,3 +371,19 @@ def test_a_notes_only_run_writes_no_settings(tmp_path, root, load_script):
 
     assert path.read_bytes() == seed_bytes
     assert [p.name for p in path.parent.iterdir()] == ["settings.json"]
+
+
+@pytest.mark.retired_prune
+@pytest.mark.parametrize("payload", [b'{"permissions": {', {"permissions": []}],
+                         ids=["unreadable", "permissions-not-mapping"])
+def test_a_retired_only_run_names_what_was_not_checked(payload, tmp_path, root, load_script):
+    """Nothing declared or declined: unusable settings skip the retired check, not an approval."""
+    adjust_mcp = load_script(ADJUSTER)
+    target = tmp_path / "proj"
+    _write_settings(target, payload)
+
+    result = adjust_mcp.adjust(_retired_context(root, target, servers=()))
+
+    assert result["applied"] is False
+    assert result["notes"].endswith("(retired-server approvals not checked)"), result["notes"]
+    assert "MCP servers not approved" not in result["notes"]

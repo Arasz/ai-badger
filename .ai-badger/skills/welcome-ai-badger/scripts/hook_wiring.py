@@ -44,16 +44,21 @@ def skill_script_id(command: str) -> Optional[str]:
     return None
 
 
-def project_script(command: str) -> Optional[str]:
-    """The project-relative script a rewritten command runs, or None if it names none."""
+def _project_path(command: str, last: bool) -> Optional[str]:
+    """The first (or *last*) project-relative path in a command, cut at the first closer."""
     marker = PROJECT_DIR_VAR + "/"
-    idx = command.rfind(marker)
+    idx = command.rfind(marker) if last else command.find(marker)
     if idx == -1:
         return None
     rest = command[idx + len(marker):]
     for closer in ('"', "'", " "):
         rest = rest.split(closer, 1)[0]
     return rest or None
+
+
+def project_script(command: str) -> Optional[str]:
+    """The project-relative script a rewritten command runs, or None if it names none."""
+    return _project_path(command, last=True)
 
 
 # The only characters a scaffolded script path may carry into a shell string (F4).
@@ -113,22 +118,13 @@ def drop_declined(existing_hooks: Dict[str, Any], declined: Set[str]) -> List[st
     return dropped
 
 
-def _executed_script(command: str) -> Optional[str]:
-    """The first project-relative path in a command: the script it runs, not a later argument."""
-    marker = PROJECT_DIR_VAR + "/"
-    idx = command.find(marker)
-    if idx == -1:
-        return None
-    rest = command[idx + len(marker):]
-    for closer in ('"', "'", " "):
-        rest = rest.split(closer, 1)[0]
-    return rest or None
-
-
 def _retired(command: Any, root: Path, target: Path) -> Optional[str]:
-    """The script id of an owned hook whose skill has no catalog source and whose script is gone."""
+    """The script id of an owned hook whose skill has no catalog source and whose script is gone.
+
+    The script is the command's first project-relative path — what it runs, not a later argument.
+    """
     script_id = skill_script_id(command) if isinstance(command, str) else None
-    script = _executed_script(command) if script_id else None
+    script = _project_path(command, last=False) if script_id else None
     if script is None or not script.endswith(f"skills/{script_id}") or (target / script).exists():
         return None
     skill = script_id.split("/")[0]
@@ -413,7 +409,7 @@ class HookWiring:
             settings_hooks.setdefault(event, []).extend(rewritten)
 
         settings_path = self.ctx.target / ".claude" / "settings.json"
-        to_wire = bool(target_hooks["hooks"] or self.ctx.excluded["skills"])
+        has_work = bool(target_hooks["hooks"] or self.ctx.excluded["skills"])
         if not target_hooks["hooks"] and not settings_path.exists():
             return
 
@@ -425,14 +421,14 @@ class HookWiring:
         # Merge into .claude/settings.json — never over an unreadable file
         settings, note = cg.read_json_mapping(settings_path)
         if settings is None:
-            if to_wire:
-                self.ctx.notes.append(f"{note} (hooks not wired)")
+            consequence = "hooks not wired" if has_work else "retired-hook check skipped"
+            self.ctx.notes.append(f"{note} ({consequence})")
             return
 
         existing_hooks = settings.get("hooks", {})
         retired = drop_retired(existing_hooks, self.ctx.root, self.ctx.target)
         # Nothing to wire, nothing declined and nothing retired: leave the file alone.
-        if not (to_wire or retired):
+        if not (has_work or retired):
             return
         declined = self.ctx.excluded["skills"]
         unwired = drop_declined(existing_hooks, declined) if declined else []

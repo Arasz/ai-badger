@@ -746,3 +746,22 @@ def test_retired_prune_survives_a_malformed_entry_when_nothing_is_declined(tmp_p
     hooks.wire()
 
     assert _settings_hooks(target)["PostToolUse"] == [bad]
+
+
+@pytest.mark.retired_prune
+def test_retired_hook_check_skip_is_noted_when_nothing_is_wired(tmp_path, load_script, root):
+    """Nothing to wire or decline, settings.json unreadable: the skipped check is still said."""
+    target = tmp_path / "proj"
+    target.mkdir()
+    fw_root = _fake_framework(tmp_path, [])
+    hooks, ctx = _wiring(load_script, root, fw_root, target, [])
+    broken = '{"hooks": {"PostToolUse": ['
+    path = target / ".claude" / "settings.json"
+    path.parent.mkdir(parents=True)
+    _test_write(path, broken, encoding="utf-8")
+
+    hooks.wire()
+
+    assert path.read_text(encoding="utf-8") == broken
+    said = [n for n in ctx.notes if "settings.json" in n and "retired-hook check skipped" in n]
+    assert len(said) == 1, f"one note says the retired-hook check was skipped, got {ctx.notes}"
