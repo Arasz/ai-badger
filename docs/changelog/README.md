@@ -19,6 +19,7 @@ When cutting a release:
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
+| 0.219.0 | [A re-scaffold removes what ai-badger wrote for a retired catalog entry](0.219.0-prune-retired-catalog-entries.md) |
 | 0.218.1 | [ai-raccoon scaffold hygiene](0.218.1-ai-raccoon-scaffold-hygiene.md) |
 | 0.218.0 | [ai-raccoon decision records replace Semantica](0.218.0-ai-raccoon-decision-records.md) |
 | 0.217.4 | [dependency bumps: pydantic 2.14.3, pytest 9.2, codeql-action 4.39.3](0.217.4-dependency-bumps.md) |
