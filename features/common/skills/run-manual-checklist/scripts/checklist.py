@@ -11,10 +11,12 @@ from __future__ import annotations
 import argparse
 import datetime
 import json
+import os
 import re
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any
 
 ID_RE = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
@@ -28,7 +30,21 @@ class UsageError(Exception):
     """Unreadable input or a refused write; the CLI maps it to exit 2."""
 
 
-def load_json(path: Path):
+# Standalone skills cannot import the framework; kept in sync by test_git_invocation.
+GIT_LOCATION_ENV = ("GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR", "GIT_INDEX_FILE",
+                    "GIT_OBJECT_DIRECTORY", "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+                    "GIT_PREFIX", "GIT_NAMESPACE", "GIT_CEILING_DIRECTORIES")
+
+
+def git_env(env: dict[str, str] | None = None) -> dict[str, str]:
+    """Copy the environment without variables that redirect Git to another repository."""
+    out = dict(os.environ if env is None else env)
+    for name in GIT_LOCATION_ENV:
+        out.pop(name, None)
+    return out
+
+
+def load_json(path: Path) -> Any:
     """Read *path* as JSON or raise UsageError."""
     try:
         return json.loads(Path(path).read_text(encoding="utf-8"))
@@ -36,7 +52,7 @@ def load_json(path: Path):
         raise UsageError(f"{path}: cannot read JSON: {exc}") from exc
 
 
-def is_text(value) -> bool:
+def is_text(value: Any) -> bool:
     """True for a non-blank string."""
     return isinstance(value, str) and bool(value.strip())
 
@@ -47,7 +63,7 @@ def repo_root(checks: Path, override: str | None) -> Path:
         return Path(override).resolve()
     start = Path(checks).resolve().parent
     out = subprocess.run(["git", "-C", str(start), "rev-parse", "--show-toplevel"],
-                         capture_output=True, text=True, check=False)
+                         capture_output=True, text=True, env=git_env(), check=False)
     return Path(out.stdout.strip()) if out.returncode == 0 and out.stdout.strip() else start
 
 
@@ -56,7 +72,7 @@ def inside(path: Path, root: Path) -> bool:
     return path.resolve().is_relative_to(root.resolve())
 
 
-def validate_checks(data, root: Path) -> list[tuple[str, str]]:
+def validate_checks(data: Any, root: Path) -> list[tuple[str, str]]:
     """Return every (json-path, problem) found in a parsed checks file."""
     if not isinstance(data, dict):
         return [("$", "top level must be an object")]
@@ -79,7 +95,7 @@ def validate_checks(data, root: Path) -> list[tuple[str, str]]:
     return problems
 
 
-def validate_facts(facts) -> list[tuple[str, str]]:
+def validate_facts(facts: Any) -> list[tuple[str, str]]:
     """Problems in the `facts` object."""
     if not isinstance(facts, dict):
         return [("$.facts", "must be an object")]
@@ -96,7 +112,7 @@ def validate_facts(facts) -> list[tuple[str, str]]:
     return problems
 
 
-def validate_items(items, root: Path) -> list[tuple[str, str]]:
+def validate_items(items: Any, root: Path) -> list[tuple[str, str]]:
     """Problems in the `items` list."""
     if not isinstance(items, list) or not items:
         return [("$.items", "must be a non-empty list")]
@@ -121,17 +137,19 @@ def validate_items(items, root: Path) -> list[tuple[str, str]]:
     return problems
 
 
-def validate_anchor(anchor, where: str, root: Path) -> list[tuple[str, str]]:
+def validate_anchor(anchor: Any, where: str, root: Path) -> list[tuple[str, str]]:
     """Problems in one anchor: a string `path[#fragment]` naming a file under *root*."""
     if not is_text(anchor):
         return [(where, "must be a non-empty string")]
     path = anchor.split("#", 1)[0]
-    if not path or Path(path).is_absolute() or not (root / path).exists():
+    candidate = (root / path).resolve()
+    if (not path or Path(path).is_absolute()
+            or not candidate.is_relative_to(root.resolve()) or not candidate.is_file()):
         return [(where, f"anchor file not found: {path or anchor}")]
     return []
 
 
-def cmd_check(args) -> int:
+def cmd_check(args: argparse.Namespace) -> int:
     """`check`: print `ok: N items, M facts` or every problem."""
     data = load_json(args.checks)
     problems = validate_checks(data, repo_root(args.checks, args.repo))
@@ -146,7 +164,7 @@ def cmd_check(args) -> int:
 def git_value(root: Path, *git_args: str) -> str:
     """Stripped stdout of a git command in *root*, empty when git fails."""
     out = subprocess.run(["git", "-C", str(root), *git_args], capture_output=True, text=True,
-                         check=False)
+                         env=git_env(), check=False)
     return out.stdout.strip() if out.returncode == 0 else ""
 
 
@@ -179,12 +197,12 @@ def skeleton_item(entry: dict) -> dict:
     return item
 
 
-def dump_json(data) -> str:
+def dump_json(data: Any) -> str:
     """The on-disk JSON form of a run file."""
     return json.dumps(data, indent=1, ensure_ascii=False) + "\n"
 
 
-def cmd_new_run(args) -> int:
+def cmd_new_run(args: argparse.Namespace) -> int:
     """`new-run`: derive facts and write a run skeleton."""
     data = load_json(args.checks)
     root = repo_root(args.checks, args.repo)
@@ -234,7 +252,7 @@ def reason_of(item: dict) -> str:
     return ""
 
 
-def validate_run(run, checks) -> list[str]:
+def validate_run(run: Any, checks: Any) -> list[str]:
     """Return every completeness problem of a parsed run file; *checks* is parsed or None."""
     if not isinstance(run, dict):
         return ["run file: top level must be an object"]
@@ -243,7 +261,7 @@ def validate_run(run, checks) -> list[str]:
     items = run.get("items")
     if not isinstance(items, list):
         return ["run file: `items` must be a list"]
-    problems = scope_problems(run["run"].get("scope", []))
+    problems = scope_problems(run["run"]["scope"]) if "scope" in run["run"] else []
     ids = set()
     for index, item in enumerate(items):
         where = f"items[{index}]"
@@ -260,14 +278,15 @@ def validate_run(run, checks) -> list[str]:
     return problems
 
 
-def scope_problems(scope) -> list[str]:
-    """Problems with `run.scope`, which must be a list of item ids."""
-    if isinstance(scope, list) and all(isinstance(i, str) for i in scope):
+def scope_problems(scope: Any) -> list[str]:
+    """Problems with `run.scope`, which must be a non-empty list of item ids."""
+    if (isinstance(scope, list) and scope
+            and all(isinstance(i, str) and ID_RE.fullmatch(i) for i in scope)):
         return []
-    return ["run file: `run.scope` must be a list of item ids"]
+    return ["run file: `run.scope` must be a non-empty list of item ids"]
 
 
-def evidence_text(value) -> str:
+def evidence_text(value: Any) -> str:
     """Evidence as one string: a non-blank string, or the non-blank lines of a list of strings."""
     if isinstance(value, list):
         if not all(isinstance(line, str) for line in value):
@@ -283,18 +302,22 @@ def validate_run_item(item: dict, where: str) -> list[str]:
         problems.append(f"{where}: empty `command`")
     if not evidence_text(item.get("evidence")):
         problems.append(f"{where}: empty `evidence`")
+    if not is_text(item.get("observed-result")):
+        problems.append(f"{where}: empty `observed-result`")
     status = item.get("status")
     if not isinstance(status, str) or status not in STATUSES:
         problems.append(f"{where}: status {status!r} not one of {sorted(STATUSES)}")
     elif status in ("skipped", "substituted") and not reason_of(item):
         problems.append(f"{where}: {status} without a reason "
                         f"({'/'.join(REASON_KEYS)})")
+    if status == "fail" and item.get("accepted") is True and not reason_of(item):
+        problems.append(f"{where}: accepted fail without a reason ({'/'.join(REASON_KEYS)})")
     if item.get("accepted") is not None and not isinstance(item.get("accepted"), bool):
         problems.append(f"{where}: `accepted` must be null, true or false")
     return problems
 
 
-def cross_check(run: dict, ids: set, checks) -> list[str]:
+def cross_check(run: dict, ids: set[str], checks: Any) -> list[str]:
     """Problems comparing run item ids with the checks file, honouring run.scope."""
     entries = checks.get("items", []) if isinstance(checks, dict) else []
     known = {e["item"] for e in entries if isinstance(e, dict) and "item" in e}
@@ -306,6 +329,13 @@ def cross_check(run: dict, ids: set, checks) -> list[str]:
         problems += [f"scope {i!r}: not in the checks file" for i in sorted(set(scope) - known)]
         problems += [f"item {i!r}: run item outside run.scope"
                      for i in sorted((ids & known) - set(scope))]
+    expectations = {e["item"]: e.get("expected-result") for e in entries}
+    for item in run["items"]:
+        if item["item"] in known and item.get("expected-result") != expectations[item["item"]]:
+            problems.append(f"item {item['item']!r}: expected-result differs from the checks file")
+    derived = run.get("derived")
+    if not isinstance(derived, dict) or set(derived) != set(checks.get("facts", {})):
+        problems.append("run file: derived fact keys differ from the checks file")
     return problems
 
 
@@ -335,7 +365,7 @@ def render_report(run: dict) -> tuple[str, bool, bool]:
     return "\n".join(out) + "\n", bool(pending), bool(rejected)
 
 
-def cmd_report(args) -> int:
+def cmd_report(args: argparse.Namespace) -> int:
     """`report`: exit 1 incomplete, 3 pending acceptance, 4 rejected results, 0 done."""
     run = load_json(args.run)
     checks = load_json(args.checks)
@@ -377,7 +407,7 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def main(argv=None) -> int:
+def main(argv: list[str] | None = None) -> int:
     """Entry point; returns the process exit code."""
     args = build_parser().parse_args(argv)
     try:

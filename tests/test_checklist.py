@@ -227,9 +227,13 @@ def auto_checks(tmp_path, data):
     """A checks file naming exactly the item ids the run file carries."""
     items = data.get("items", []) if isinstance(data, dict) else []
     ids = [i["item"] for i in items if isinstance(i, dict) and isinstance(i.get("item"), str)]
-    entries = [{"item": ident, "expected-result": "x"} for ident in dict.fromkeys(ids)]
+    entries = [{"item": ident, "expected-result": next(
+        i["expected-result"] for i in items if i.get("item") == ident)}
+        for ident in dict.fromkeys(ids)]
     return write_json(tmp_path / "auto-checks.json", checks_data(items=entries or [
-        {"item": "placeholder", "expected-result": "x"}], facts={}))
+        {"item": "placeholder", "expected-result": "x"}],
+        facts={key: {"command": "printf 1"} for key in data.get("derived", {})}
+        if isinstance(data, dict) else {}))
 
 
 def report(tmp_path, data, *extra):
@@ -468,7 +472,7 @@ def test_report_run_item_outside_scope_is_refused(tmp_path, repo):
 
 
 def test_report_exact_scope_passes(tmp_path, repo):
-    data = run_data([good_item("second-item")], scope=["second-item"])
+    data = run_data([good_item("second-item", **{"expected-result": "also works"})], scope=["second-item"])
     assert report(tmp_path, data, "--checks", make_checks(repo)).returncode == 0
 
 
@@ -512,3 +516,84 @@ def test_shipped_example_checks_file_is_valid():
 def test_schema_must_be_the_integer_one(repo):
     for bad in (1.0, True, "1"):
         assert run_cli("check", make_checks(repo, schema=bad)).returncode == 1
+
+@pytest.mark.parametrize("anchor", ["../outside.md", "docs", "docs/link.md"])
+def test_anchor_must_resolve_to_file_inside_repo(repo, anchor):
+    outside = repo.parent / "outside.md"
+    outside.write_text("outside", encoding="utf-8")
+    (repo / "docs/link.md").symlink_to(outside)
+    items = checks_data()["items"]
+    items[0]["anchor"] = anchor
+    result = run_cli("check", make_checks(repo, items=items))
+    assert_clean_refusal(result)
+    assert "anchor file not found" in result.stderr
+
+
+@pytest.mark.parametrize("scope", [[], None, [""], ["Bad Id"]])
+def test_present_scope_must_name_items(tmp_path, scope):
+    result = report(tmp_path, run_data(scope=scope))
+    assert_clean_refusal(result)
+    assert "scope" in result.stderr
+
+
+@pytest.mark.parametrize("observed", ["", "  ", None])
+def test_report_requires_observed_result(tmp_path, observed):
+    result = report(tmp_path, run_data([good_item(**{"observed-result": observed})]))
+    assert_clean_refusal(result)
+    assert "observed-result" in result.stderr
+
+
+def test_accepted_failure_requires_reason(tmp_path):
+    result = report(tmp_path, run_data([
+        good_item(status="fail", **{"acceptance-reason": "  "})]))
+    assert_clean_refusal(result)
+    assert "reason" in result.stderr
+
+
+@pytest.mark.parametrize("field", ["acceptance-reason", "acceptation-reason", "skip-reason"])
+def test_accepted_failure_allows_reason_aliases(tmp_path, field):
+    item = good_item(status="fail", **{"acceptance-reason": "", field: "tracked defect"})
+    assert report(tmp_path, run_data([item])).returncode == 0
+
+
+@pytest.mark.parametrize("change", ["expectation", "fact-added", "fact-removed"])
+def test_report_detects_changed_checks(tmp_path, repo, change):
+    checks = make_checks(repo)
+    assert new_run(repo, checks=checks).returncode == 0
+    data = json.loads((repo / "results/2026-11-12-smoke.json").read_text())
+    for item in data["items"]:
+        item.update(command="echo", evidence="output", status="pass", accepted=True,
+                    **{"observed-result": "ok"})
+    updated = json.loads(checks.read_text())
+    if change == "expectation":
+        updated["items"][0]["expected-result"] = "new expectation"
+    elif change == "fact-added":
+        updated["facts"]["new-fact"] = {"command": "printf 1"}
+    else:
+        updated["facts"] = {}
+    write_json(checks, updated)
+    result = report(tmp_path, data, "--checks", checks)
+    assert_clean_refusal(result)
+    assert ("expected-result" if change == "expectation" else "derived") in result.stderr
+
+
+def test_empty_scope_cannot_complete_an_empty_run(tmp_path, repo):
+    result = report(tmp_path, run_data([], scope=[]), "--checks", make_checks(repo))
+    assert_clean_refusal(result)
+    assert "scope" in result.stderr
+
+
+def test_standalone_checklist_ignores_git_repository_overrides(repo, tmp_path, monkeypatch):
+    script = tmp_path / "installed/checklist.py"
+    script.parent.mkdir()
+    script.write_bytes(SCRIPT.read_bytes())
+    monkeypatch.setenv("GIT_DIR", str(tmp_path / "missing.git"))
+    monkeypatch.setenv("GIT_WORK_TREE", str(tmp_path))
+    result = subprocess.run(
+        [sys.executable, str(script), "new-run", str(make_checks(repo)), "--slug", "standalone",
+         "--date", "2026-11-12"], capture_output=True, text=True, check=False, cwd=tmp_path)
+    assert result.returncode == 0, result.stderr
+    run = json.loads((repo / "results/2026-11-12-standalone.json").read_text())
+    assert run["run"]["branch"] == "feature/x"
+    assert len(run["run"]["commit"]) == 40
+    assert run["derived"] == {"count": "3"}

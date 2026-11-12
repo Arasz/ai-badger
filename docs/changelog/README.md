@@ -19,6 +19,7 @@ When cutting a release:
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
+| 0.220.1 | [Validate manual checklist evidence and checks-file consistency](0.220.1-checklist-validation.md) |
 | 0.220.0 | [The manual checklist is generic; each project owns its checks](0.220.0-generic-manual-checklist.md) |
 | 0.219.0 | [A re-scaffold removes what ai-badger wrote for a retired catalog entry](0.219.0-scaffold-prunes-retired-catalog-entries.md) |
 | 0.218.1 | [ai-raccoon scaffold hygiene](0.218.1-ai-raccoon-scaffold-hygiene.md) |
