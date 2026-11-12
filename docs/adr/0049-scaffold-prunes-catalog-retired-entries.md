@@ -67,7 +67,8 @@ Principle: **the prune never removes a permission rule; it removes only entries 
      project declares no current server for it, or no longer configures the agent that reads it.
    - **Keep-it rule:** a user who wants to keep the server changes any launch field (command, args,
      env or cwd). The scaffold then keeps the entry with a note. An exact copy of a retired launch
-     is removed on every refresh.
+     is removed on every refresh. The "kept" note repeats on every run, as the stale-approval note
+     does.
 4. **Claude approvals are reported, not removed.** For each retired name, the Claude adjustment
    writes a note when `enabledMcpjsonServers` holds the name, or when an allow entry starts with
    `mcp__<n>__`. The note lists the exact strings. The adjustment writes the note before its
@@ -78,7 +79,8 @@ Principle: **the prune never removes a permission rule; it removes only entries 
    `.claude/settings.json`, in any event, only when all three conditions are true:
    - ai-badger owns it (`skill_script_id` is not None);
    - its skill has no directory `features/*/skills/<skill>/` in the catalog;
-   - its project script is not None and is missing from the target.
+   - the script that the command executes (the first `${CLAUDE_PROJECT_DIR}/` path) ends in
+     `skills/<script id>` and is missing from the target.
 
    The prune also runs when the manifest has nothing to wire. It removes only the entries and
    events that it empties itself.

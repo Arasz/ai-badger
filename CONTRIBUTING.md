@@ -77,10 +77,12 @@ stops an unbumped `VERSION` or a failing test from reaching CI. See
 ### Retiring an MCP server
 
 When you delete an MCP server from the catalog, move every launch it ever shipped into the
-`retired` array of its `stack-mcp.json`, one line per launch, copied exactly as it was declared
-(`git show <sha>:features/<stack>/stack-mcp.json`). Never delete a `retired` item. Scaffold removes
-a user's entry only when it equals one of those launches, so a user who changed any launch field
-(command, args, env) keeps their entry. See
+`retired` array of its `stack-mcp.json`, one line per launch, copied exactly as it was declared.
+To find every launch, run `git log -p -- features/<stack>/stack-mcp.json`. Never delete a
+`retired` item. The history test fails when a launch is missing from `retired`, and it needs a full
+clone. Scaffold removes a user's entry only when it equals one of those launches, so a user who
+changed any launch field (command, args, env, cwd) keeps their entry. A retired hook skill needs no
+tombstone: delete its `features/*/skills/<skill>/` directory. See
 [ADR-0049](docs/adr/0049-scaffold-prunes-catalog-retired-entries.md).
 
 ### Local MCP servers (`code-review-graph`, `hermes`)
