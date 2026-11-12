@@ -82,24 +82,36 @@ def history_paths(repo: Path) -> list:
 def untombstoned_launches(repo: Path) -> list:
     """(path, name, launch) for each deleted launch with no equal item in that file's `retired`.
 
+    A name some catalog file still declares in `servers` moved stacks and needs none.
+
     Fails the test on a shallow clone: a shortened history hides deletions, so a pass proves nothing.
     """
     if _git(repo, "rev-parse", "--is-shallow-repository").stdout.strip() == "true":
         pytest.fail("shallow clone: the tombstone history check needs a full clone (fetch-depth: 0)")
+    declared = {s["name"] for f in sorted(repo.glob(CATALOG_GLOB))
+                for s in json.loads(f.read_text(encoding="utf-8")).get("servers", [])}
     missing = []
     for path in history_paths(repo):
         file = repo / path
         retired = json.loads(file.read_text(encoding="utf-8")).get("retired", []) if file.exists() else []
-        have = {_launch(item) for item in retired}
+        have = {(item["name"], _launch(item)) for item in retired}
         for name, launches in deleted_launches(repo, path).items():
-            missing += [(path, name, launch) for launch in launches if launch not in have]
+            if name in declared:
+                continue
+            missing += [(path, name, launch) for launch in launches if (name, launch) not in have]
     return missing
 
 
-def _write_catalog(repo: Path, servers: list) -> None:
-    target = repo / "features" / "common" / "stack-mcp.json"
+def _write_catalog(repo: Path, servers: list, retired: list = (), stack: str = "common") -> None:
+    target = repo / "features" / stack / "stack-mcp.json"
     target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(json.dumps({"servers": servers}), encoding="utf-8")
+    doc = {"servers": servers, **({"retired": list(retired)} if retired else {})}
+    target.write_text(json.dumps(doc), encoding="utf-8")
+
+
+def _commit_all(repo: Path, message: str) -> None:
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-q", "-m", message)
 
 
 @pytest.fixture(name="ghost_repo")
@@ -156,6 +168,35 @@ def test_history_comparator_on_a_synthetic_repo(ghost_repo):
     assert set(found) == {"ghost"}, "only the deleted name is reported; `stay` and the scope move are not"
     assert found["ghost"] == [("ghost serve", (), ()), ("ghost serve --v2", (), ())]
     assert len(untombstoned_launches(ghost_repo)) == 2, "neither launch is tombstoned in the synthetic repo"
+
+
+def test_tombstone_must_carry_the_deleted_name_not_only_its_launch(ghost_repo):
+    wrong_name = [{"name": "other", "command": "ghost serve", "declare": True},
+                  {"name": "other", "command": "ghost serve --v2", "declare": True}]
+    _write_catalog(ghost_repo, [{"name": "stay", "command": "stay serve", "declare": True}],
+                   retired=wrong_name)
+    assert {name for _p, name, _l in untombstoned_launches(ghost_repo)} == {"ghost"}, \
+        "the right launch under the wrong name does not tombstone `ghost`"
+    right_name = [dict(item, name="ghost") for item in wrong_name]
+    _write_catalog(ghost_repo, [{"name": "stay", "command": "stay serve", "declare": True}],
+                   retired=right_name)
+    assert untombstoned_launches(ghost_repo) == []
+
+
+def test_a_server_that_moved_stacks_needs_no_tombstone(tmp_path):
+    repo = tmp_path / "moved-repo"
+    repo.mkdir()
+    _git(repo, "init", "-q")
+    mover = {"name": "mover", "command": "mover serve", "declare": True}
+    _write_catalog(repo, [mover])
+    _commit_all(repo, "declare in common")
+    _write_catalog(repo, [])
+    _write_catalog(repo, [mover], stack="python")
+    _commit_all(repo, "move to python")
+    assert untombstoned_launches(repo) == []
+    _write_catalog(repo, [], stack="python")
+    _commit_all(repo, "delete everywhere")
+    assert {name for _p, name, _l in untombstoned_launches(repo)} == {"mover"}
 
 
 def test_history_check_fails_on_a_shallow_clone(ghost_repo, tmp_path, monkeypatch):
