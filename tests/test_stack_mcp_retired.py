@@ -159,6 +159,10 @@ def test_a_hand_edited_retired_entry_is_kept(dest, tmp_path, env, make_scaffolde
 
     assert _section(target, dest)["ghost"] == edited
     assert _ghost_removals(notes) == []
+    kept = [n for n in notes if "'ghost'" in n and n.startswith(f"{dest}:") and "kept" in n]
+    assert len(kept) == 1, f"one kept note for {dest}, got {kept}"
+    assert "retired" in kept[0] and "hand edit" in kept[0]
+    assert "executable" not in kept[0], "the kept note reuses the unavailable wording"
 
 
 @pytest.mark.parametrize("dest", DESTS, ids=DEST_IDS)

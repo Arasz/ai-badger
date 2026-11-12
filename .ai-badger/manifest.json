@@ -1634,12 +1634,12 @@
       "source": "features/common/skills/welcome-ai-badger",
       "target": ".ai-badger/skills/welcome-ai-badger",
       "frameworkVersion": "0.219.0",
-      "hash": "eaebf2c3ccd3a0d2b63ca96bea26b49bc35c1d1fcfb10989455a61a0d00ba629",
+      "hash": "d5a158936b736cea61e5e7f6314fcfe0950c67074786637e265e25f7d261839e",
       "dirMeta": {
         "file_count": 32,
         "dir_count": 2
       },
-      "sourceHash": "eaebf2c3ccd3a0d2b63ca96bea26b49bc35c1d1fcfb10989455a61a0d00ba629",
+      "sourceHash": "d5a158936b736cea61e5e7f6314fcfe0950c67074786637e265e25f7d261839e",
       "sourceMeta": {
         "file_count": 32,
         "dir_count": 2
