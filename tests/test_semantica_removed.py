@@ -31,12 +31,25 @@ HISTORY = (
     ".ai-badger/state.json",
     "features/common/retrieval/eval/eval_index.json",
     "features/ai-raccoon/skills/ai-raccoon-manual-checklist/",
+    "tests/fixtures/retired-semantica-shapes.json",
+    "tests/fixtures/build_retired_semantica_shapes.py",
+    "tests/test_stack_mcp_retired_catalog.py",
     THIS,
 )
 SOURCE_ROOTS = ("features/", "engine/", "tooling/", "tests/")
-# A cleanup list must name the file it deletes; only that exact literal is exempt in that file.
+# A cleanup list must name what it deletes; only those exact literals are exempt in that file.
 TOMBSTONES = {
-    "features/hermes/adjustments/adjust_hooks.py": '"export_semantica_graph.py"',
+    "features/hermes/adjustments/adjust_hooks.py": ('"export_semantica_graph.py"',),
+    "features/common/stack-mcp.json": (
+        '{"name": "semantica", "command": "python3 -m semantica.mcp_server", "declare": true,'
+        ' "availability": {"command": "python3"}}',
+        '{"name": "semantica", "command": "semantica mcp start", "declare": true,'
+        ' "availability": {"command": "semantica"}}',
+        '{"name": "semantica", "command": "semantica-mcp", "declare": true,'
+        ' "availability": {"command": "semantica-mcp"}}',
+        '{"name": "semantica", "command": "semantica-mcp", "declare": true,'
+        ' "env": {"SEMANTICA_DISABLE_PROGRESS": "1"}, "availability": {"command": "semantica-mcp"}}',
+    ),
 }
 
 
@@ -59,8 +72,8 @@ def _offenders(paths) -> list[str]:
             text = (ROOT / path).read_text(encoding="utf-8")
         except (OSError, UnicodeDecodeError):
             continue
-        if path in TOMBSTONES:
-            text = text.replace(TOMBSTONES[path], "", 1)
+        for literal in TOMBSTONES.get(path, ()):
+            text = text.replace(literal, "", 1)
         if PATTERN.search(text):
             found.append(path)
     return found
@@ -104,7 +117,7 @@ def test_source_catalog_holds_no_semantica_template():
 
 
 def test_source_stack_mcp_declares_no_semantica_server():
-    """Every stack-mcp.json parses to server names: survivors present, semantica absent."""
+    """Every stack-mcp.json parses to server names: survivors present, semantica only retired."""
     names = []
     for path in sorted(ROOT.glob("features/*/stack-mcp.json")):
         data = json.loads(path.read_text(encoding="utf-8"))
@@ -112,6 +125,11 @@ def test_source_stack_mcp_declares_no_semantica_server():
 
     assert {"ai-raccoon", "code-review-graph"} <= set(names)
     assert not _matches(names)
+
+    retired = json.loads((ROOT / "features/common/stack-mcp.json")
+                         .read_text(encoding="utf-8"))["retired"]
+    assert len(retired) == 4, "semantica is tombstoned once per shipped launch"
+    assert {server["name"] for server in retired} == {"semantica"}
 
 
 def test_source_hooks_manifest_registers_no_semantica_hook():

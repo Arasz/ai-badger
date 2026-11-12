@@ -1,0 +1,199 @@
+{
+  "_source": {
+    "shape1/.github/mcp.json": "committed output: git show c5e424bb:.github/mcp.json (MEASURED)",
+    "shape1/.pi/mcp.json": "frozen renderer over git show c5e424bb:features/common/stack-mcp.json (no committed file at that commit); see circularity_limit",
+    "shape1/.mcp.json": "frozen renderer over git show c5e424bb:features/common/stack-mcp.json (.mcp.json is gitignored); see circularity_limit",
+    "shape2/.github/mcp.json": "committed output: git show e2b95eac:.github/mcp.json (MEASURED)",
+    "shape2/.pi/mcp.json": "frozen renderer over git show e2b95eac:features/common/stack-mcp.json (no committed file at that commit); see circularity_limit",
+    "shape2/.mcp.json": "frozen renderer over git show e2b95eac:features/common/stack-mcp.json (.mcp.json is gitignored); see circularity_limit",
+    "shape3/.github/mcp.json": "committed output: git show 240ad606:.github/mcp.json (MEASURED)",
+    "shape3/.pi/mcp.json": "frozen renderer over git show 240ad606:features/common/stack-mcp.json (no committed file at that commit); see circularity_limit",
+    "shape3/.mcp.json": "frozen renderer over git show 240ad606:features/common/stack-mcp.json (.mcp.json is gitignored); see circularity_limit",
+    "shape4/.github/mcp.json": "committed output: git show 769d94fb^:.github/mcp.json (MEASURED)",
+    "shape4/.pi/mcp.json": "committed output: git show 769d94fb^:.pi/mcp.json (MEASURED)",
+    "shape4/.mcp.json": "main checkout .mcp.json, gitignored, read 2026-11-12 (MEASURED); literal recorded in the builder as MCP_JSON_SHAPE4",
+    "claude_hook": "git show 769d94fb^:.claude/settings.json hooks.PostToolUse (MEASURED)",
+    "copilot_hook": "git show 769d94fb^:.github/hooks/ai-badger-hooks.json hooks.postToolUse (MEASURED)",
+    "circularity_limit": "A seed marked 'frozen renderer' proves only that the prune matches what this builder's render() writes, not what the old scaffold wrote. Bounds: the correctness review read pin_cwd=False and the same _render_entry shape at all four commits, and the prune compares _launch_of (command, args, env, cwd) only, so a decoration (tools, exposure) cannot cause a mismatch.",
+    "builder": "tests/fixtures/build_retired_semantica_shapes.py"
+  },
+  "name": "semantica",
+  "skill": "semantica-knowledge-graph",
+  "claude_hook": {
+    "PostToolUse": {
+      "matcher": "^(mcp__.+__|.+-)?export_graph$",
+      "hooks": [
+        {
+          "type": "command",
+          "command": "if [ -f \"${CLAUDE_PROJECT_DIR}/.ai-badger/skills/semantica-knowledge-graph/scripts/semantica_export_autosave_hook.py\" ]; then python3 \"${CLAUDE_PROJECT_DIR}/.ai-badger/skills/semantica-knowledge-graph/scripts/semantica_export_autosave_hook.py\"; elif [ -f \".ai-badger/skills/semantica-knowledge-graph/scripts/semantica_export_autosave_hook.py\" ]; then python3 \".ai-badger/skills/semantica-knowledge-graph/scripts/semantica_export_autosave_hook.py\"; else echo '{\"systemMessage\": \"ai-badger: .ai-badger/skills/semantica-knowledge-graph/scripts/semantica_export_autosave_hook.py not found - hook skipped\"}'; fi"
+        }
+      ]
+    }
+  },
+  "copilot_hook": {
+    "postToolUse": {
+      "type": "command",
+      "bash": "if [ -f \".ai-badger/skills/semantica-knowledge-graph/scripts/semantica_export_autosave_hook.py\" ]; then python3 \".ai-badger/skills/semantica-knowledge-graph/scripts/semantica_export_autosave_hook.py\"; else echo '{\"systemMessage\": \"ai-badger: .ai-badger/skills/semantica-knowledge-graph/scripts/semantica_export_autosave_hook.py not found - hook skipped\"}'; fi",
+      "timeoutSec": 10,
+      "matcher": "^(mcp__.+__|.+-)?export_graph$"
+    }
+  },
+  "shapes": [
+    {
+      "id": "shape1",
+      "commit": "c5e424bb",
+      "declaration": {
+        "name": "semantica",
+        "command": "python3 -m semantica.mcp_server",
+        "declare": true,
+        "availability": {
+          "command": "python3"
+        }
+      },
+      "files": {
+        ".github/mcp.json": {
+          "command": "python3",
+          "args": [
+            "-m",
+            "semantica.mcp_server"
+          ],
+          "tools": [
+            "*"
+          ]
+        },
+        ".pi/mcp.json": {
+          "command": "python3",
+          "args": [
+            "-m",
+            "semantica.mcp_server"
+          ],
+          "exposure": "direct"
+        },
+        ".mcp.json": {
+          "command": "python3",
+          "args": [
+            "-m",
+            "semantica.mcp_server"
+          ],
+          "tools": [
+            "*"
+          ]
+        }
+      }
+    },
+    {
+      "id": "shape2",
+      "commit": "e2b95eac",
+      "declaration": {
+        "name": "semantica",
+        "command": "semantica mcp start",
+        "declare": true,
+        "availability": {
+          "command": "semantica"
+        }
+      },
+      "files": {
+        ".github/mcp.json": {
+          "command": "semantica",
+          "args": [
+            "mcp",
+            "start"
+          ],
+          "tools": [
+            "*"
+          ]
+        },
+        ".pi/mcp.json": {
+          "command": "semantica",
+          "args": [
+            "mcp",
+            "start"
+          ],
+          "exposure": "direct"
+        },
+        ".mcp.json": {
+          "command": "semantica",
+          "args": [
+            "mcp",
+            "start"
+          ],
+          "tools": [
+            "*"
+          ]
+        }
+      }
+    },
+    {
+      "id": "shape3",
+      "commit": "240ad606",
+      "declaration": {
+        "name": "semantica",
+        "command": "semantica-mcp",
+        "declare": true,
+        "availability": {
+          "command": "semantica-mcp"
+        }
+      },
+      "files": {
+        ".github/mcp.json": {
+          "command": "semantica-mcp",
+          "tools": [
+            "*"
+          ]
+        },
+        ".pi/mcp.json": {
+          "command": "semantica-mcp",
+          "exposure": "direct"
+        },
+        ".mcp.json": {
+          "command": "semantica-mcp",
+          "tools": [
+            "*"
+          ]
+        }
+      }
+    },
+    {
+      "id": "shape4",
+      "commit": "769d94fb^",
+      "declaration": {
+        "name": "semantica",
+        "command": "semantica-mcp",
+        "declare": true,
+        "env": {
+          "SEMANTICA_DISABLE_PROGRESS": "1"
+        },
+        "availability": {
+          "command": "semantica-mcp"
+        }
+      },
+      "files": {
+        ".github/mcp.json": {
+          "command": "semantica-mcp",
+          "env": {
+            "SEMANTICA_DISABLE_PROGRESS": "1"
+          },
+          "tools": [
+            "*"
+          ]
+        },
+        ".pi/mcp.json": {
+          "command": "semantica-mcp",
+          "env": {
+            "SEMANTICA_DISABLE_PROGRESS": "1"
+          },
+          "exposure": "direct"
+        },
+        ".mcp.json": {
+          "command": "semantica-mcp",
+          "env": {
+            "SEMANTICA_DISABLE_PROGRESS": "1"
+          },
+          "tools": [
+            "*"
+          ]
+        }
+      }
+    }
+  ]
+}

@@ -9,6 +9,9 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+
+import pytest
+
 from conftest import _test_write
 
 ADJUSTER = "features/claude/adjustments/adjust_mcp.py"
@@ -261,3 +264,126 @@ def test_config_mcp_refuses_an_unknown_key(root, load_script):
 
 def test_config_mcp_refuses_a_blank_declined_name(root, load_script):
     assert _validate(root, load_script, {"mcp": {"decline": [""]}}) != []
+
+
+# ── retired servers: the Claude adjustment reports stale approvals, removes nothing ──────────
+
+def _retired_context(root, target, *, retired=("ghost",), **kwargs) -> dict:
+    context = _context(root, target, **kwargs)
+    context["retired_servers"] = list(retired)
+    return context
+
+
+def _note_segments(result: dict, needle: str) -> list:
+    """The `; `-separated parts of the notes line that mention *needle*."""
+    return [part for part in result["notes"].split("; ") if needle in part]
+
+
+@pytest.mark.retired_prune
+def test_retired_note_names_an_enabled_server(tmp_path, root, load_script):
+    adjust_mcp = load_script(ADJUSTER)
+    target = tmp_path / "proj"
+    _write_settings(target, {"enabledMcpjsonServers": ["code-review-graph", "ghost"],
+                             "permissions": {"allow": ["mcp__code-review-graph__*"]}})
+
+    result = adjust_mcp.adjust(_retired_context(root, target))
+
+    segments = _note_segments(result, "ghost")
+    assert len(segments) == 1
+    assert "enabledMcpjsonServers" in segments[0]
+
+
+@pytest.mark.retired_prune
+def test_retired_note_lists_every_rule_of_the_server(tmp_path, root, load_script):
+    adjust_mcp = load_script(ADJUSTER)
+    target = tmp_path / "proj"
+    _write_settings(target, {
+        "enabledMcpjsonServers": ["code-review-graph"],
+        "permissions": {"allow": ["mcp__code-review-graph__*", "mcp__ghost__*",
+                                  "mcp__ghost__tool", "mcp__ghost-pro__*"]}})
+
+    result = adjust_mcp.adjust(_retired_context(root, target))
+
+    segments = _note_segments(result, "mcp__ghost__")
+    assert len(segments) == 1
+    assert "mcp__ghost__*" in segments[0]
+    assert "mcp__ghost__tool" in segments[0]
+    assert "mcp__ghost-pro__*" not in result["notes"]
+
+
+@pytest.mark.retired_prune
+def test_retired_pass_removes_nothing(tmp_path, root, load_script):
+    adjust_mcp = load_script(ADJUSTER)
+    target = tmp_path / "proj"
+    seed = {
+        "enabledMcpjsonServers": ["code-review-graph", "ghost"],
+        "disabledMcpjsonServers": ["rider", "ghost"],
+        "permissions": {"allow": ["mcp__code-review-graph__*", "mcp__ghost__*", "mcp__ghost__tool"],
+                        "deny": ["mcp__rider__*", "mcp__ghost__danger"]},
+    }
+    _write_settings(target, seed)
+    before = _settings(target)
+
+    adjust_mcp.adjust(_retired_context(root, target))
+
+    after = _settings(target)
+    assert after["enabledMcpjsonServers"] == before["enabledMcpjsonServers"]
+    assert after["disabledMcpjsonServers"] == before["disabledMcpjsonServers"]
+    assert after["permissions"]["allow"] == before["permissions"]["allow"]
+    assert after["permissions"]["deny"] == before["permissions"]["deny"]
+
+
+@pytest.mark.retired_prune
+def test_retired_note_when_nothing_is_declared_or_declined(tmp_path, root, load_script):
+    adjust_mcp = load_script(ADJUSTER)
+    target = tmp_path / "proj"
+    _write_settings(target, {"enabledMcpjsonServers": ["ghost"]})
+
+    result = adjust_mcp.adjust(_retired_context(root, target, servers=()))
+
+    segments = _note_segments(result, "ghost")
+    assert len(segments) == 1
+    assert "enabledMcpjsonServers" in segments[0]
+
+
+@pytest.mark.retired_prune
+def test_no_retired_note_when_nothing_is_stale(tmp_path, root, load_script):
+    adjust_mcp = load_script(ADJUSTER)
+    target = tmp_path / "proj"
+    _write_settings(target, {"enabledMcpjsonServers": ["code-review-graph"],
+                             "permissions": {"allow": ["mcp__code-review-graph__*",
+                                                       "mcp__ghost-pro__*"]}})
+
+    result = adjust_mcp.adjust(_retired_context(root, target))
+
+    assert "ghost" not in result["notes"]
+
+
+@pytest.mark.retired_prune
+def test_a_notes_only_run_writes_no_settings(tmp_path, root, load_script):
+    adjust_mcp = load_script(ADJUSTER)
+    target = tmp_path / "proj"
+    path = _write_settings(target, {"enabledMcpjsonServers": ["ghost"],
+                                    "permissions": {"allow": ["mcp__ghost__*"]}})
+    seed_bytes = path.read_bytes()
+
+    adjust_mcp.adjust(_retired_context(root, target, servers=()))
+
+    assert path.read_bytes() == seed_bytes
+    assert [p.name for p in path.parent.iterdir()] == ["settings.json"]
+
+
+@pytest.mark.retired_prune
+@pytest.mark.parametrize("payload", [b'{"permissions": {', {"permissions": []}],
+                         ids=["unreadable", "permissions-not-mapping"])
+def test_a_retired_only_run_names_what_was_not_checked(payload, tmp_path, root, load_script):
+    """Nothing declared or declined: unusable settings skip the retired check, not an approval."""
+    adjust_mcp = load_script(ADJUSTER)
+    target = tmp_path / "proj"
+    _write_settings(target, payload)
+
+    result = adjust_mcp.adjust(_retired_context(root, target, servers=()))
+
+    assert result["applied"] is False
+    assert result["notes"].endswith("(retired-server approvals not checked)"), result["notes"]
+    assert "MCP servers not approved" not in result["notes"]
