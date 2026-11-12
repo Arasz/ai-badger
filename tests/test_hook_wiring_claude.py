@@ -550,3 +550,174 @@ def test_merge_hooks_puts_framework_groups_ahead_of_a_marked_tool_group(load_scr
     hook_wiring.merge_hooks(existing, {"PreToolUse": [guard]})
 
     assert existing["PreToolUse"] == [guard, tool]
+
+
+# ------------------------------------------- retired hooks: pruned by catalog source and disk
+_PD = "${CLAUDE_PROJECT_DIR}"
+_DEAD = ".ai-badger/skills/gone/scripts/x_hook.py"
+_LIVE_MANIFEST = [
+    {"name": "task",
+     "agents": {"claude": {"type": "hooks-json", "entry": "hooks.json",
+                            "event": "Stop", "script": "stop_hook.py"}}},
+]
+
+_SHAPES = {
+    "plain": f'python3 "{_PD}/{_DEAD}"',
+    "if-f": (f'if [ -f "{_PD}/{_DEAD}" ]; then python3 "{_PD}/{_DEAD}"; '
+             f'elif [ -f "{_DEAD}" ]; then python3 "{_DEAD}"; '
+             f'else echo \'{{"systemMessage": "ai-badger: {_DEAD} not found - hook skipped"}}\'; fi'),
+    "bracket-or": (f'[ -f "{_PD}/{_DEAD}" ] && python3 "{_PD}/{_DEAD}" '
+                   f'|| echo \'{{"systemMessage": "ai-badger: {_DEAD} not found"}}\''),
+}
+
+
+def _dead_command(skill="gone", script="x_hook.py") -> str:
+    return f'python3 "{_PD}/.ai-badger/skills/{skill}/scripts/{script}"'
+
+
+def _command_entry(command: str, matcher=None) -> dict:
+    entry = {"hooks": [{"type": "command", "command": command}]}
+    if matcher:
+        entry["matcher"] = matcher
+    return entry
+
+
+def _seed_settings(target: Path, hooks: dict) -> Path:
+    path = target / ".claude" / "settings.json"
+    _write_json(path, {"hooks": hooks})
+    return path
+
+
+def _settings_hooks(target: Path) -> dict:
+    return json.loads((target / ".claude" / "settings.json").read_text(encoding="utf-8"))["hooks"]
+
+
+def _wire_live_stop(tmp_path, load_script, root, catalog_skills=()):
+    """Wire one live Stop hook over a fake framework; `catalog_skills` get a source directory."""
+    target = tmp_path / "proj"
+    _skill_scripts(target, "task", "stop_hook.py")
+    fw_root = _fake_framework(tmp_path, _LIVE_MANIFEST)
+    for skill in catalog_skills:
+        (fw_root / "features" / "common" / "skills" / skill).mkdir(parents=True)
+    hooks, ctx = _wiring(load_script, root, fw_root, target, _LIVE_MANIFEST)
+    return target, fw_root, hooks, ctx
+
+
+@pytest.mark.retired_prune
+def test_retired_hook_is_unwired_in_an_unvisited_event(tmp_path, load_script, root):
+    target, _fw, hooks, _ctx = _wire_live_stop(tmp_path, load_script, root)
+    _seed_settings(target, {"PostToolUse": [_command_entry(_dead_command(), "Bash")]})
+
+    hooks.wire()
+
+    assert _wired_scripts(target, "PostToolUse") == []
+    assert _wired_scripts(target, "Stop") == ["stop_hook.py"]
+
+
+@pytest.mark.retired_prune
+def test_retired_hook_removal_keeps_its_entry_siblings(tmp_path, load_script, root):
+    target, _fw, hooks, _ctx = _wire_live_stop(tmp_path, load_script, root)
+    mine = {"type": "command", "command": "echo mine"}
+    kept_empty = {"matcher": "Edit", "hooks": []}
+    _seed_settings(target, {"PostToolUse": [
+        {"matcher": "Bash", "hooks": [{"type": "command", "command": _dead_command()}, mine]},
+        _command_entry(_dead_command(script="y_hook.py")),
+        kept_empty,
+    ]})
+
+    hooks.wire()
+
+    assert _settings_hooks(target)["PostToolUse"] == [
+        {"matcher": "Bash", "hooks": [mine]}, kept_empty]
+
+
+@pytest.mark.retired_prune
+@pytest.mark.parametrize("shape", sorted(_SHAPES))
+def test_retired_hook_every_command_shape(tmp_path, load_script, root, shape):
+    target, _fw, hooks, _ctx = _wire_live_stop(tmp_path, load_script, root)
+    _seed_settings(target, {"PreToolUse": [_command_entry(_SHAPES[shape], "Bash")]})
+
+    hooks.wire()
+
+    assert _settings_hooks(target).get("PreToolUse", []) == []
+
+
+@pytest.mark.retired_prune
+def test_retired_hook_of_a_catalog_skill_is_kept(tmp_path, load_script, root):
+    target, _fw, hooks, _ctx = _wire_live_stop(tmp_path, load_script, root,
+                                               catalog_skills=("gone",))
+    entry = _command_entry(_dead_command(), "Bash")
+    _seed_settings(target, {"PostToolUse": [entry]})
+
+    hooks.wire()
+
+    assert _settings_hooks(target)["PostToolUse"] == [entry]
+
+
+@pytest.mark.retired_prune
+def test_retired_hook_with_its_script_present_is_kept(tmp_path, load_script, root):
+    target, _fw, hooks, _ctx = _wire_live_stop(tmp_path, load_script, root)
+    _skill_scripts(target, "mine", "x_hook.py")
+    entry = _command_entry(_dead_command(skill="mine"), "Bash")
+    _seed_settings(target, {"PostToolUse": [entry]})
+
+    hooks.wire()
+
+    assert _settings_hooks(target)["PostToolUse"] == [entry]
+
+
+@pytest.mark.retired_prune
+def test_retired_hook_without_a_project_script_is_kept(tmp_path, load_script, root):
+    target, _fw, hooks, _ctx = _wire_live_stop(tmp_path, load_script, root)
+    cached = ('python3 "/home/u/.claude/plugins/cache/ai-badger/features/common/skills/'
+              'gone/scripts/x_hook.py"')
+    entry = _command_entry(cached, "Bash")
+    _seed_settings(target, {"PostToolUse": [entry]})
+
+    hooks.wire()
+
+    assert _settings_hooks(target)["PostToolUse"] == [entry]
+
+
+@pytest.mark.retired_prune
+def test_retired_hook_third_party_is_kept(tmp_path, load_script, root):
+    target, _fw, hooks, _ctx = _wire_live_stop(tmp_path, load_script, root)
+    entries = [_command_entry("echo mine", "Bash"),
+               _command_entry(f'python3 "{_PD}/scripts/own_hook.py"')]
+    _seed_settings(target, {"PostToolUse": entries})
+
+    hooks.wire()
+
+    assert _settings_hooks(target)["PostToolUse"] == entries
+
+
+@pytest.mark.retired_prune
+def test_retired_hook_note_once_per_script(tmp_path, load_script, root):
+    target, fw_root, hooks, ctx = _wire_live_stop(tmp_path, load_script, root)
+    _seed_settings(target, {
+        "PostToolUse": [_command_entry(_dead_command(), "Bash"),
+                        _command_entry(_dead_command(script="y_hook.py"), "Edit")],
+        "PreToolUse": [_command_entry(_dead_command(), "Bash")],
+    })
+
+    hooks.wire()
+
+    for script_id in ("gone/scripts/x_hook.py", "gone/scripts/y_hook.py"):
+        assert len([n for n in ctx.notes if script_id in n]) == 1
+    second_hooks, second_ctx = _wiring(load_script, root, fw_root, target, _LIVE_MANIFEST)
+    second_hooks.wire()
+    assert not [n for n in second_ctx.notes if "gone/scripts" in n]
+
+
+@pytest.mark.retired_prune
+def test_retired_hook_prune_runs_when_nothing_is_wired(tmp_path, load_script, root):
+    target = tmp_path / "proj"
+    target.mkdir()
+    fw_root = _fake_framework(tmp_path, [])
+    hooks, _ctx = _wiring(load_script, root, fw_root, target, [])
+    mine = _command_entry("echo mine", "Bash")
+    _seed_settings(target, {"PostToolUse": [_command_entry(_dead_command(), "Bash"), mine]})
+
+    hooks.wire()
+
+    assert _settings_hooks(target)["PostToolUse"] == [mine]
