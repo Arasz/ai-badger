@@ -459,6 +459,11 @@
           "scope": "default"
         },
         {
+          "name": "run-manual-checklist",
+          "path": "features/common/skills/run-manual-checklist",
+          "scope": "optIn"
+        },
+        {
           "name": "scripts-tooling-refactor",
           "path": "features/common/skills/scripts-tooling-refactor",
           "scope": "default"
