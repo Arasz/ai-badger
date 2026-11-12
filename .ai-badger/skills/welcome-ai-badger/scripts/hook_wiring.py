@@ -113,11 +113,23 @@ def drop_declined(existing_hooks: Dict[str, Any], declined: Set[str]) -> List[st
     return dropped
 
 
+def _executed_script(command: str) -> Optional[str]:
+    """The first project-relative path in a command: the script it runs, not a later argument."""
+    marker = PROJECT_DIR_VAR + "/"
+    idx = command.find(marker)
+    if idx == -1:
+        return None
+    rest = command[idx + len(marker):]
+    for closer in ('"', "'", " "):
+        rest = rest.split(closer, 1)[0]
+    return rest or None
+
+
 def _retired(command: Any, root: Path, target: Path) -> Optional[str]:
     """The script id of an owned hook whose skill has no catalog source and whose script is gone."""
     script_id = skill_script_id(command) if isinstance(command, str) else None
-    script = project_script(command) if script_id else None
-    if script is None or (target / script).exists():
+    script = _executed_script(command) if script_id else None
+    if script is None or not script.endswith(f"skills/{script_id}") or (target / script).exists():
         return None
     skill = script_id.split("/")[0]
     if any((d / "skills" / skill).is_dir() for d in (root / "features").iterdir()):
@@ -422,7 +434,8 @@ class HookWiring:
         # Nothing to wire, nothing declined and nothing retired: leave the file alone.
         if not (to_wire or retired):
             return
-        unwired = drop_declined(existing_hooks, self.ctx.excluded["skills"])
+        declined = self.ctx.excluded["skills"]
+        unwired = drop_declined(existing_hooks, declined) if declined else []
         merge_hooks(existing_hooks, settings_hooks)
 
         settings["hooks"] = existing_hooks

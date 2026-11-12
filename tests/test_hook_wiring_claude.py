@@ -721,3 +721,28 @@ def test_retired_hook_prune_runs_when_nothing_is_wired(tmp_path, load_script, ro
     hooks.wire()
 
     assert _settings_hooks(target)["PostToolUse"] == [mine]
+
+
+@pytest.mark.retired_prune
+def test_retired_hook_judged_by_the_executed_script_not_a_later_argument(tmp_path, load_script, root):
+    target, _fw, hooks, _ctx = _wire_live_stop(tmp_path, load_script, root)
+    command = (f'python3 "{_PD}/scripts/check.py" '
+               f'"{_PD}/.ai-badger/skills/gone/scripts/x_hook.py"')
+    entry = _command_entry(command, "Bash")
+    _seed_settings(target, {"PostToolUse": [entry]})
+
+    hooks.wire()
+
+    assert _settings_hooks(target)["PostToolUse"] == [entry]
+
+
+@pytest.mark.retired_prune
+def test_retired_prune_survives_a_malformed_entry_when_nothing_is_declined(tmp_path, load_script,
+                                                                            root):
+    target, _fw, hooks, _ctx = _wire_live_stop(tmp_path, load_script, root)
+    bad = {"matcher": "Edit", "hooks": "bad"}
+    _seed_settings(target, {"PostToolUse": [bad, _command_entry(_dead_command(), "Bash")]})
+
+    hooks.wire()
+
+    assert _settings_hooks(target)["PostToolUse"] == [bad]
