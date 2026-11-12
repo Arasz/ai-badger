@@ -11,6 +11,7 @@ import json
 import subprocess
 import sys
 from pathlib import Path
+from typing import Optional
 
 ROOT = Path(__file__).resolve().parents[2]
 OUT = Path(__file__).resolve().with_name("retired-semantica-shapes.json")
@@ -36,7 +37,7 @@ DECORATIONS = {".mcp.json": {"tools": ["*"]}, ".github/mcp.json": {"tools": ["*"
                ".pi/mcp.json": {"exposure": "direct"}}
 
 
-def git_show(rev: str, path: str):
+def git_show(rev: str, path: str) -> Optional[str]:
     """The text of *path* at *rev*, or None when that commit has no such file."""
     done = subprocess.run(["git", "-C", str(ROOT), "show", f"{rev}:{path}"],
                           capture_output=True, text=True, check=False)
@@ -65,13 +66,13 @@ def render(srv: dict, dest: str) -> dict:
     return entry
 
 
-def committed(rev: str, path: str):
+def committed(rev: str, path: str) -> Optional[dict]:
     """The server's entry in the committed *path* at *rev*, or None."""
     text = git_show(rev, path)
     return None if text is None else json.loads(text).get("mcpServers", {}).get(NAME)
 
 
-def main_checkout_mcp_json():
+def main_checkout_mcp_json() -> Optional[dict]:
     """The entry in the main checkout's .mcp.json (read only), or None."""
     common = subprocess.run(["git", "-C", str(ROOT), "rev-parse", "--path-format=absolute",
                              "--git-common-dir"], capture_output=True, text=True, check=True)
