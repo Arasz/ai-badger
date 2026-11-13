@@ -1,7 +1,7 @@
 {
   "$schema": "./schemas/manifest.schema.json",
   "frameworkVersion": "0.220.3",
-  "frameworkCommit": "5b06d7072a30f2ea3921bf62195d36cfa6a8efa5",
+  "frameworkCommit": "a10607fc69597b11cdbb2cf81710f0407db8aed6",
   "frameworkDirty": true,
   "frameworkRoot": ".",
   "generatedAt": null,
@@ -1595,12 +1595,12 @@
       "source": "features/common/skills/welcome-ai-badger",
       "target": ".ai-badger/skills/welcome-ai-badger",
       "frameworkVersion": "0.220.3",
-      "hash": "21bdaed0a7ba23c8e879b3f9a853662ee34697dc171149cfe42f31085fb93462",
+      "hash": "7c625e0415e515c7573901d277c5bac9d21a4ed68616cf17cfe43f986d99b6a9",
       "dirMeta": {
         "file_count": 32,
         "dir_count": 2
       },
-      "sourceHash": "21bdaed0a7ba23c8e879b3f9a853662ee34697dc171149cfe42f31085fb93462",
+      "sourceHash": "7c625e0415e515c7573901d277c5bac9d21a4ed68616cf17cfe43f986d99b6a9",
       "sourceMeta": {
         "file_count": 32,
         "dir_count": 2
@@ -1732,10 +1732,32 @@
       "stack": "claude",
       "name": "CLAUDE.md.tmpl",
       "source": "features/claude/templates/CLAUDE.md.tmpl",
+      "target": ".ai-badger/CLAUDE.md",
+      "frameworkVersion": "0.220.3",
+      "hash": "4b4678f01ec73ad239bc1fbc9f904f59edd466b1adfc65a0cd8f662240e58353",
+      "outputHash": "19aaaccc41f270b1d70c0241570c83dd782a87b01b6616755d73f0da3882b0a3",
+      "seedOnce": false
+    },
+    {
+      "feature": "templates",
+      "stack": "claude",
+      "name": "CLAUDE.md.tmpl",
+      "source": "features/claude/templates/CLAUDE.md.tmpl",
       "target": "CLAUDE.md",
       "frameworkVersion": "0.220.3",
       "hash": "4b4678f01ec73ad239bc1fbc9f904f59edd466b1adfc65a0cd8f662240e58353",
       "outputHash": "f71a1a3fa9d5e6a83bd62652c72fe48f4e2d3dc2b252227e52943bcca8fd1a60",
+      "seedOnce": false
+    },
+    {
+      "feature": "templates",
+      "stack": "copilot",
+      "name": "copilot-instructions.md.tmpl",
+      "source": "features/copilot/templates/copilot-instructions.md.tmpl",
+      "target": ".ai-badger/copilot-instructions.md",
+      "frameworkVersion": "0.220.3",
+      "hash": "4b4678f01ec73ad239bc1fbc9f904f59edd466b1adfc65a0cd8f662240e58353",
+      "outputHash": "e8f32cc8c328f40d5f42bbc6db8784322361d57c1e0fa253b27c1c300c103681",
       "seedOnce": false
     },
     {
@@ -1750,6 +1772,107 @@
       "seedOnce": false
     },
     {
+      "feature": "instructions",
+      "stack": "common",
+      "name": "documentation.instructions",
+      "source": "features/common/instructions/documentation.instructions.md",
+      "target": ".github/instructions/documentation.instructions.md",
+      "frameworkVersion": "0.220.3",
+      "hash": "06cb5308fa64107c49593cebfaff1e88e7649a7838f4e8fa98cee5b082508163",
+      "outputHash": "dd3323894e34de20733dfdad3f78f7e8a6dd240950eca2b6287639728e5e8470"
+    },
+    {
+      "feature": "instructions",
+      "stack": "python",
+      "name": "python.instructions",
+      "source": "features/python/instructions/python.instructions.md",
+      "target": ".github/instructions/python.instructions.md",
+      "frameworkVersion": "0.220.3",
+      "hash": "54d87946cc16b321829b32962aa2700d67a379803614dfb8a32ca72a156a0e97",
+      "outputHash": "71af3ab80955b8939c27e6b40dbfbb7763a30c7a4fb682d0ccd154456e5ba513"
+    },
+    {
+      "feature": "instructions",
+      "stack": "js",
+      "name": "javascript.instructions",
+      "source": "features/js/instructions/javascript.instructions.md",
+      "target": ".github/instructions/javascript.instructions.md",
+      "frameworkVersion": "0.220.3",
+      "hash": "aee34b31f88b32868758abe80d1f4676e9cc4268b83a71eebe22dacc2ceeb59c",
+      "outputHash": "8c15f295cb7f0b919f364366fa97209858be6128aca476684f0920afa21a980f"
+    },
+    {
+      "feature": "instructions",
+      "stack": "github",
+      "name": "github-actions.instructions",
+      "source": "features/github/instructions/github-actions.instructions.md",
+      "target": ".github/instructions/github-actions.instructions.md",
+      "frameworkVersion": "0.220.3",
+      "hash": "dddff56e7b9d977c6aad71dcb7d5bade6a20358f8aa869b6a4a5d4d0a7af8918",
+      "outputHash": "6749d3286ca6ad91eb39011f3867aa8839e8f070b664b6c5756459fc65f5e63f"
+    },
+    {
+      "feature": "instructions",
+      "stack": "claude",
+      "name": "claude.instructions",
+      "source": "features/claude/instructions/claude.instructions.md",
+      "target": ".github/instructions/claude.instructions.md",
+      "frameworkVersion": "0.220.3",
+      "hash": "674561eff8a1d5559dcfdd6add91f5ae8577c3d523490382e8af13c0f36e835e",
+      "outputHash": "1635de1c06055c4d1121687aa26271a6d01771b593e58e5dbdef3660cb55ae52"
+    },
+    {
+      "feature": "instructions",
+      "stack": "pi",
+      "name": "pi.instructions",
+      "source": "features/pi/instructions/pi.instructions.md",
+      "target": ".github/instructions/pi.instructions.md",
+      "frameworkVersion": "0.220.3",
+      "hash": "4b3881d4b78b97fff93036401306f58e7540680346befe7e60f31ec39b3c39f5",
+      "outputHash": "5de215d5e0da078ffbf6427ddcee7da27b50c8f5ee84b5808a6b6110fd524cc5"
+    },
+    {
+      "feature": "instructions",
+      "stack": "ts",
+      "name": "typescript.instructions",
+      "source": "features/ts/instructions/typescript.instructions.md",
+      "target": ".github/instructions/typescript.instructions.md",
+      "frameworkVersion": "0.220.3",
+      "hash": "aadb2aba015502f276f48f0d19ae2635c9a42805f3a60db4f45cf82a3df7fdb1",
+      "outputHash": "1a63a79ada4e2ff4c07d99b18f0c47ffd51d34e526ac2f9d192e4d7de0ad0479"
+    },
+    {
+      "feature": "instructions",
+      "stack": "node",
+      "name": "node.instructions",
+      "source": "features/node/instructions/node.instructions.md",
+      "target": ".github/instructions/node.instructions.md",
+      "frameworkVersion": "0.220.3",
+      "hash": "669ad5c572f5f290b249375d9afe81acb500faa2d998e6beae8c6975e135412f",
+      "outputHash": "8f9602758064bea6018ab78ee62a7744b307cabab805ad8d5766cd35c3f0ce74"
+    },
+    {
+      "feature": "instructions",
+      "stack": "codex",
+      "name": "codex.instructions",
+      "source": "features/codex/instructions/codex.instructions.md",
+      "target": ".github/instructions/codex.instructions.md",
+      "frameworkVersion": "0.220.3",
+      "hash": "b2759f7e7101344c0c6367e23205b1f7f74c185bb661065b6cc219dbe5630048",
+      "outputHash": "345af6d69ffc319ab48b5e5c461d96630aae24e7f9accf0c2e40a6f5344c02f0"
+    },
+    {
+      "feature": "templates",
+      "stack": "pi",
+      "name": "AGENTS.override.md.tmpl",
+      "source": "features/pi/templates/AGENTS.override.md.tmpl",
+      "target": ".ai-badger/AGENTS.override.md",
+      "frameworkVersion": "0.220.3",
+      "hash": "371d107d906553aecb682a4882d08fc9f9942bec62909443a5345692ef303a14",
+      "outputHash": "2ee2bf2b5a4f1ee7e8075b94fbaa0cb1947924657533703479e1e8dc443dcd15",
+      "seedOnce": false
+    },
+    {
       "feature": "templates",
       "stack": "pi",
       "name": "AGENTS.override.md.tmpl",
@@ -1758,6 +1881,17 @@
       "frameworkVersion": "0.220.3",
       "hash": "371d107d906553aecb682a4882d08fc9f9942bec62909443a5345692ef303a14",
       "outputHash": "8f92b0c1cbde4012be1073fc62d9851f4f72131c2dc7bbf264a26d9f3a9f9e24",
+      "seedOnce": false
+    },
+    {
+      "feature": "templates",
+      "stack": "codex",
+      "name": "AGENTS.md.tmpl",
+      "source": "features/codex/templates/AGENTS.md.tmpl",
+      "target": ".ai-badger/AGENTS.md",
+      "frameworkVersion": "0.220.3",
+      "hash": "121ca4fb7fe205d9a0bb7c054d9ccb4ef51144ff4cf5b84c4a2dbfcadd0f6021",
+      "outputHash": "7acb9a3521446d64516fed9c29c769fa11670e7d921644bdcdcd8fd9bce1c21c",
       "seedOnce": false
     },
     {

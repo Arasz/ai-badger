@@ -85,6 +85,8 @@ class AgentFiles:
                 if carried is not None:
                     aib_dest.parent.mkdir(parents=True, exist_ok=True)
                     aib_dest.write_text(carried, encoding="utf-8")
+                    if is_managed_template:
+                        self.ctx.record_template(source, aib_dest)
 
             # Seed-once: skip if target already exists. Recorded here too — this run did not
             # write the target, but it is still ai-badger's own seed, not a hand-authored file.
@@ -119,7 +121,9 @@ class AgentFiles:
             if also_target:
                 also_dest = self.ctx.target / also_target
                 if managed:
-                    self.rendering.copy_with_header(also_dest, source_of_truth, content)
+                    if (self.rendering.copy_with_header(also_dest, source_of_truth, content)
+                            and is_managed_template):
+                        self.ctx.record_template(source, also_dest)
                 else:
                     also_dest.parent.mkdir(parents=True, exist_ok=True)
                     if is_template:
@@ -130,13 +134,22 @@ class AgentFiles:
             # Write per-instruction scoped copies (copilot's .github/instructions/)
             if instructions_scoped:
                 for p in instr_paths:
-                    self.rendering.copy_with_header(
-                        self.ctx.target / ".github" / "instructions" / p.name,
-                        f"instructions/{p.name}",
-                        p.read_text(encoding="utf-8")
-                    )
+                    scoped = self.ctx.target / ".github" / "instructions" / p.name
+                    if self.rendering.copy_with_header(scoped, f"instructions/{p.name}",
+                                                       p.read_text(encoding="utf-8")):
+                        self._record_scoped_instruction(p.name, scoped)
 
             self._detect_nonstandard_agent_files(file_entry["target"])
+
+    def _record_scoped_instruction(self, file_name: str, dest: Path) -> None:
+        """Record a per-instruction copy under its instruction's stack, so the prune removes it
+        when that stack leaves the config."""
+        for stack, data in (self.ctx.index.get("stacks") or {}).items():
+            for item in data.get("instructions") or []:
+                if Path(item.get("path", "")).name == file_name:
+                    self.ctx.record("instructions", stack, item["name"],
+                                    self.ctx.root / item["path"], dest)
+                    return
 
     def _detect_nonstandard_agent_files(self, target_rel: str) -> None:
         """Warn if non-standard equivalents of an agent file exist in the project."""

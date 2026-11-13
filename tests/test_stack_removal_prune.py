@@ -413,3 +413,40 @@ class TestARetiredFlatHookCopy:
         _scaffolded(make_scaffolder, _config(stacks=["python"]))
 
         assert kept.is_file()
+
+
+class TestDroppingAnAgentRemovesEveryCopy:
+    """An agent's discovery file has copies — the .ai-badger/ source of truth, an alias, the
+    Copilot per-instruction files. The prune must reach all of them, not only the primary."""
+
+    HERMES_COPIES = ("HERMES.md", ".hermes.md", ".ai-badger/HERMES.md")
+
+    def test_dropping_an_agent_removes_its_alias_and_source_of_truth_copy(self, make_scaffolder):
+        target, _ = _scaffolded(make_scaffolder, _config(stacks=["python"],
+                                                         agents=["claude", "hermes"]))
+        assert all((target / rel).is_file() for rel in self.HERMES_COPIES)
+
+        _scaffolded(make_scaffolder, _config(stacks=["python"], agents=["claude"]))
+
+        assert [rel for rel in self.HERMES_COPIES if (target / rel).exists()] == []
+
+    def test_an_edited_source_of_truth_copy_is_left_in_place(self, make_scaffolder):
+        target, _ = _scaffolded(make_scaffolder, _config(stacks=["python"],
+                                                         agents=["claude", "hermes"]))
+        edited = target / ".ai-badger" / "HERMES.md"
+        _test_write(edited, "# ours now\n", encoding="utf-8")
+
+        _, result = _scaffolded(make_scaffolder, _config(stacks=["python"], agents=["claude"]))
+
+        assert edited.read_text(encoding="utf-8") == "# ours now\n"
+        assert any(".ai-badger/HERMES.md" in n and "edited" in n for n in result["notes"])
+
+    def test_dropping_a_stack_removes_its_copilot_scoped_instruction(self, make_scaffolder):
+        scoped = ".github/instructions/typescript.instructions.md"
+        target, _ = _scaffolded(make_scaffolder, _config(stacks=["python", "ts"],
+                                                         agents=["claude", "copilot"]))
+        assert (target / scoped).is_file()
+
+        _scaffolded(make_scaffolder, _config(stacks=["python"], agents=["claude", "copilot"]))
+
+        assert not (target / scoped).exists()
