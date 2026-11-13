@@ -350,8 +350,9 @@ class McpTools:
         if self.ctx.mcp_described_filled:
             return
         described = []  # type: List[Dict[str, Any]]
+        declined = set(self.declined_servers())
         for srv in self.collect_catalog_mcp_servers():
-            if not self._server_available(srv):
+            if not self._server_available(srv) or srv.get("name") in declined:
                 continue
             name = srv.get("name")
             instructions = self._server_instructions(name) if name else ""

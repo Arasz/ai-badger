@@ -3,8 +3,8 @@
 Agent-instruction framework distributed through a Claude Code plugin and native repository scaffolds for Claude Code, Copilot, Hermes, pi and Codex. Python 3.10+ scripts (detect/scaffold/validate/index_build/drift) materialize a per-repo .ai-badger/ scaffold from a features/{stack|common}/{feature} catalog. engine/requirements.txt declares the runtime dependencies: jsonschema (required; validation refuses rather than silently passing), pyyaml (optional, guarded, and degrades to a printed note), and pydantic (required; the task-plan model and its schema generator); tomli supplies TOML parsing on Python 3.10. The task-graph plan server/CLI are PEP 723 scripts launched via `uv run --script`, so the consumer-side prerequisite is uv (it fetches pydantic>=2.14.3,<3 into its cache on first launch, with no pip install and no project-venv pollution). The plan DAG layer is stdlib graphlib; networkx is deliberately not used. Two .mjs helper scripts under skills/maintain-agent-instructions/.
 
 > Domain: Developer tooling: agent instruction catalogs and repo scaffolding.
-> Stacks: python, js, github, claude, hermes, pi, ts, node, changelog, codex
-> Scaffolded by ai-badger 0.220.2. Source of truth for this file: `.ai-badger/AGENTS.override.md`.
+> Stacks: python, js, github, claude, pi, ts, node, changelog, codex
+> Scaffolded by ai-badger 0.220.3. Source of truth for this file: `.ai-badger/AGENTS.override.md`.
 
 ## Commands
 
@@ -21,7 +21,6 @@ Before editing matching files, read the applicable scoped instruction file:
 - `**/*.js,**/*.mjs,**/*.cjs` → `.ai-badger/instructions/javascript.instructions.md`
 - `**/.github/workflows/*.yml,**/.github/workflows/*.yaml` → `.ai-badger/instructions/github-actions.instructions.md`
 - `**/CLAUDE.md,.claude/**` → `.ai-badger/instructions/claude.instructions.md`
-- `skills/**/SKILL.md,**/*.hermes.md,**/HERMES.md,.hermes/**` → `.ai-badger/instructions/hermes.instructions.md`
 - `**/AGENTS.override.md,**/CLAUDE.md,.pi/**` → `.ai-badger/instructions/pi.instructions.md`
 - `**/*.ts,**/*.tsx,**/tsconfig.json` → `.ai-badger/instructions/typescript.instructions.md`
 - `**/package.json,**/bun.lock,**/*.mjs,**/*.cjs` → `.ai-badger/instructions/node.instructions.md`
@@ -34,7 +33,6 @@ Additional invariants load contextually via these paths — see `.ai-badger/inva
 - Design, decomposition and ADRs — before any non-trivial multi-file change → `architect`
 - Test strategy, the failing test that precedes a change, and auditing whether an existing test can actually fail → `test-engineer`
 - Quality gate before merge, security review, and adversarially verifying a claim this session made about its own work → `code-reviewer`
-- Hermes skills, hooks and gateway configuration, and HERMES.md → `hermes-agent-author`
 - Long, multi-package or autonomous sessions — route work instead of doing it → `delegator`
 - Select models using the active harness; translate framework delegation aliases only when their native model identifiers are verified.
 - Parallel dispatches each name their own `isolation` — lanes sharing a tree share its build output.
@@ -59,12 +57,6 @@ A `!` before the colon (`f!:`, `queue!:`) makes any marker interrupt-grade: stop
 Grep/Glob/Read** — they cost fewer tokens and return structural context (callers, dependents,
 test coverage) that file scanning cannot. Start at `semantic_search_nodes_tool`; fall back to
 Grep/Glob/Read only where the graph doesn't reach. Each tool's own description covers the rest.
-
-<!-- Hermes MCP tools -->
-## MCP Tools: hermes
-
-Read operations use Hermes's session store and work without a running gateway; sending messages
-needs the gateway and its platform adapters. The server's own tool descriptions cover the rest.
 
 <!-- ai-raccoon MCP tools -->
 ## MCP Tools: ai-raccoon
