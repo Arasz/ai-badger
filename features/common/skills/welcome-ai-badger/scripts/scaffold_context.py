@@ -10,7 +10,8 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Set
 
 
-def _discard_template_record(source: Path, dest: Path, seed_once: bool = False) -> None:
+def _discard_template_record(source: Path, dest: Path, seed_once: bool = False,
+                             editable: bool = False) -> None:
     """Default provenance sink: a context with no manifest behind it records nothing."""
 
 

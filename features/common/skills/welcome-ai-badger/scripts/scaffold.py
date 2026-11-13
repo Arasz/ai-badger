@@ -362,11 +362,15 @@ class Scaffolder:
             self.record(feature, stack, item["name"], src, dest)
         return dest if dest is not None else dest_dir / src.name
 
-    def record_template(self, src: Path, dest: Path, seed_once: bool = False) -> None:
-        """Record a template's provenance; `seed_once` marks one the scaffold never rewrites."""
+    def record_template(self, src: Path, dest: Path, seed_once: bool = False,
+                        editable: bool = False) -> None:
+        """Record a template's provenance; `seed_once` marks one the scaffold never rewrites,
+        `editable` a source-of-truth copy the project is told to edit."""
         rel = src.relative_to(self.root / "features").parts
         self.record("templates", rel[0], Path(*rel[2:]).as_posix(), src, dest)
         self.entries[-1]["seedOnce"] = seed_once
+        if editable:
+            self.entries[-1]["editable"] = True
 
     def generated_config_records(self) -> List[Dict[str, Any]]:
         """Every generated-but-not-owned config path the manifest should carry (#194)."""

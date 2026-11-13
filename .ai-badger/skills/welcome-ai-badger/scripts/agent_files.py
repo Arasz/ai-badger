@@ -86,7 +86,7 @@ class AgentFiles:
                     aib_dest.parent.mkdir(parents=True, exist_ok=True)
                     aib_dest.write_text(carried, encoding="utf-8")
                     if is_managed_template:
-                        self.ctx.record_template(source, aib_dest)
+                        self.ctx.record_template(source, aib_dest, editable=True)
 
             # Seed-once: skip if target already exists. Recorded here too — this run did not
             # write the target, but it is still ai-badger's own seed, not a hand-authored file.

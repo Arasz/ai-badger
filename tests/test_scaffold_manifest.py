@@ -30,6 +30,11 @@ def test_scaffold_manifest_entries_have_expected_shape(make_scaffolder, load_scr
         # scaffold rewrites from one it seeds and then leaves to the project.
         if entry["feature"] == "templates":
             allowed_keys = allowed_keys | {"seedOnce"}
+            # An agent file's .ai-badger/ source-of-truth copy is marked editable: the guard
+            # allows the edit its header asks for.
+            if "editable" in entry:
+                assert entry["editable"] is True and entry["target"].startswith(".ai-badger/")
+                allowed_keys = allowed_keys | {"editable"}
         # hashes_source entries carry the written output's hash too (D11) — except a seed-once
         # entry recorded before its first copy, which has none yet. The set comes from the
         # registry, so a type that changes sides cannot leave this list stale.

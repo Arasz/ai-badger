@@ -1,7 +1,7 @@
 {
   "$schema": "./schemas/manifest.schema.json",
   "frameworkVersion": "0.220.3",
-  "frameworkCommit": "a10607fc69597b11cdbb2cf81710f0407db8aed6",
+  "frameworkCommit": "aba9cb4321b9f6d7d9c759a4141808c7b8a7a9ab",
   "frameworkDirty": true,
   "frameworkRoot": ".",
   "generatedAt": null,
@@ -1595,12 +1595,12 @@
       "source": "features/common/skills/welcome-ai-badger",
       "target": ".ai-badger/skills/welcome-ai-badger",
       "frameworkVersion": "0.220.3",
-      "hash": "7c625e0415e515c7573901d277c5bac9d21a4ed68616cf17cfe43f986d99b6a9",
+      "hash": "5aa78f407bdbb644bb2b2cc35f1eb94f6d2f2e5c06a40514c2964902b6703af3",
       "dirMeta": {
         "file_count": 32,
         "dir_count": 2
       },
-      "sourceHash": "7c625e0415e515c7573901d277c5bac9d21a4ed68616cf17cfe43f986d99b6a9",
+      "sourceHash": "5aa78f407bdbb644bb2b2cc35f1eb94f6d2f2e5c06a40514c2964902b6703af3",
       "sourceMeta": {
         "file_count": 32,
         "dir_count": 2
@@ -1736,7 +1736,8 @@
       "frameworkVersion": "0.220.3",
       "hash": "4b4678f01ec73ad239bc1fbc9f904f59edd466b1adfc65a0cd8f662240e58353",
       "outputHash": "19aaaccc41f270b1d70c0241570c83dd782a87b01b6616755d73f0da3882b0a3",
-      "seedOnce": false
+      "seedOnce": false,
+      "editable": true
     },
     {
       "feature": "templates",
@@ -1758,7 +1759,8 @@
       "frameworkVersion": "0.220.3",
       "hash": "4b4678f01ec73ad239bc1fbc9f904f59edd466b1adfc65a0cd8f662240e58353",
       "outputHash": "e8f32cc8c328f40d5f42bbc6db8784322361d57c1e0fa253b27c1c300c103681",
-      "seedOnce": false
+      "seedOnce": false,
+      "editable": true
     },
     {
       "feature": "templates",
@@ -1870,7 +1872,8 @@
       "frameworkVersion": "0.220.3",
       "hash": "371d107d906553aecb682a4882d08fc9f9942bec62909443a5345692ef303a14",
       "outputHash": "2ee2bf2b5a4f1ee7e8075b94fbaa0cb1947924657533703479e1e8dc443dcd15",
-      "seedOnce": false
+      "seedOnce": false,
+      "editable": true
     },
     {
       "feature": "templates",
@@ -1892,7 +1895,8 @@
       "frameworkVersion": "0.220.3",
       "hash": "121ca4fb7fe205d9a0bb7c054d9ccb4ef51144ff4cf5b84c4a2dbfcadd0f6021",
       "outputHash": "7acb9a3521446d64516fed9c29c769fa11670e7d921644bdcdcd8fd9bce1c21c",
-      "seedOnce": false
+      "seedOnce": false,
+      "editable": true
     },
     {
       "feature": "templates",

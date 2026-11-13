@@ -95,6 +95,10 @@
             "type": "boolean",
             "description": "True where the scaffolder seeds this target once and never rewrites it (.ai-badger/state.json, .ai-badger/agent-instructions/model.json, any scaffolding.json entry marked seedOnce), so the project owns it thereafter. Every other entry is rewritten on the next run, which is what generated_file_guard.py refuses an edit to. Absent on manifests written before 0.101.0: the guard reads absence as regenerated and refuses, because a wrong refusal is loud, overridable and healed by one re-scaffold, while a wrong exemption is the silent loss this guard exists to prevent."
           },
+          "editable": {
+            "type": "boolean",
+            "description": "True on an agent file's .ai-badger/ source-of-truth copy (scaffolding.json aibCopy): the file the discovery copies' header tells the project to edit, and whose keep regions every scaffold carries. Recorded so the prune can remove it when its agent or stack leaves the config; generated_file_guard.py allows edits to it."
+          },
           "projectOwned": {
             "type": "array",
             "items": { "type": "string", "minLength": 1 },
