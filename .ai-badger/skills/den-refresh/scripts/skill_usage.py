@@ -47,8 +47,9 @@ SLASH_TOOL = "SlashCommand"
 COMMAND_NAME_RE = re.compile(r"<command-name>/([A-Za-z0-9:_-]+)</command-name>")
 # Cheap pre-filter: json.loads on 200MB of transcripts costs seconds, `in` costs milliseconds.
 INTERESTING = ('"' + SKILL_TOOL + '"', '"' + SLASH_TOOL + '"', "<command-name>")
-TIMESTAMP_KEY = '"timestamp"'
-MAX_TIMESTAMP_CHARS = 32
+# A `"timestamp"` key paired with an ISO date. Content can hold the bare word too — a schema's
+# `["timestamp", "contentHash"]` — and the next quoted string after it is not a timestamp.
+TIMESTAMP_RE = re.compile(r'"timestamp"\s*:\s*"(\d{4}-\d{2}-\d{2}T[^"]{0,24})"')
 
 
 def _mangled(path) -> str:
@@ -137,14 +138,8 @@ def _bare(name: str) -> str:
 
 def _stamp(line: str) -> str:
     """A record's timestamp, read without parsing the line — most lines are large."""
-    at = line.find(TIMESTAMP_KEY)
-    if at < 0:
-        return ""
-    opening = line.find('"', at + len(TIMESTAMP_KEY))
-    closing = line.find('"', opening + 1) if opening > 0 else -1
-    if closing < 0 or closing - opening > MAX_TIMESTAMP_CHARS:
-        return ""
-    return line[opening + 1:closing]
+    match = TIMESTAMP_RE.search(line)
+    return match.group(1) if match else ""
 
 
 def _days(first: str, last: str) -> Optional[float]:

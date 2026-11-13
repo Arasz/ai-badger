@@ -1,7 +1,8 @@
 {
   "$schema": "./schemas/index.schema.json",
-  "frameworkVersion": "0.220.1",
+  "frameworkVersion": "0.220.2",
   "stacks": {
+    "ai-raccoon": {},
     "angular": {
       "personas": [
         {
