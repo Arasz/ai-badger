@@ -19,6 +19,7 @@ When cutting a release:
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
+| 0.220.2 | [den-refresh's skill-usage window reads real timestamps](0.220.2-skill-usage-window-reads-real-timestamps.md) |
 | 0.220.1 | [run-manual-checklist: facts ignore Git overrides, runs are never replaced](0.220.1-checklist-fact-env-and-exclusive-runs.md) |
 | 0.220.0 | [The manual checklist is generic; each project owns its checks](0.220.0-generic-manual-checklist.md) |
 | 0.219.0 | [A re-scaffold removes what ai-badger wrote for a retired catalog entry](0.219.0-scaffold-prunes-retired-catalog-entries.md) |

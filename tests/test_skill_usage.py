@@ -316,3 +316,21 @@ def test_the_limits_name_what_neither_channel_can_see(tmp_path, load_script):
 
     assert any("Claude Code" in limit for limit in report["limits"])
     assert any("hook" in limit for limit in report["limits"])
+
+
+def test_a_timestamp_word_inside_record_content_never_becomes_the_window(tmp_path, load_script):
+    """A `"timestamp"` string in a tool result is not the record's own timestamp."""
+    usage = _load(load_script)
+    project = tmp_path / "proj"
+    project.mkdir()
+    noise = {"toolUseResult": {"required": ["timestamp", "contentHash"]},
+             "type": "user", "timestamp": "2026-07-21T10:00:00.000Z", "cwd": str(project)}
+    _transcript(_store(tmp_path / "home", project),
+                [_skill_call("task", cwd=project, ts="2026-07-11T10:00:00.000Z"), noise])
+
+    report = usage.report(project, DELIVERED, store=tmp_path / "home" / ".claude" / "projects",
+                          hooks=NO_HOOKS)
+
+    assert report["window"]["from"] == "2026-07-11T10:00:00.000Z"
+    assert report["window"]["to"] == "2026-07-21T10:00:00.000Z"
+    assert report["window"]["days"] == 10.0
