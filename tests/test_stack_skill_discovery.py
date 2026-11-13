@@ -33,7 +33,7 @@ def _scaffolded(make_scaffolder, config, skills=("task",)):
 
 
 # ------------------------------------------------------------------- delivery vs discovery
-@pytest.mark.parametrize("stack", ["dotnet", "mcp", "ai-raccoon"])
+@pytest.mark.parametrize("stack", ["dotnet", "mcp"])
 def test_every_skill_a_configured_stack_delivers_is_discoverable(make_scaffolder, root, stack):
     """The defect, stated as the invariant it breaks.
 

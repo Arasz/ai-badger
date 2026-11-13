@@ -94,11 +94,11 @@ class TestPinnedScopes:
         assert bl.skill_scope_in(
             root / "features" / "common" / "skills" / name) == bl.SKILL_SCOPE_OPT_IN
 
-    def test_the_opt_in_tier_is_the_sqlite_pair(self, root, bl):
+    def test_the_opt_in_tier_is_the_sqlite_pair_and_the_manual_checklist(self, root, bl):
         """A new `optIn` skill is a decision, not an accident: it must arrive with this test
-        updated on purpose (ADR-0029)."""
+        updated on purpose (ADR-0029; run-manual-checklist needs a project checks file, ADR-0050)."""
         assert bl.opt_in_skills_in(root / "features" / "common" / "skills") == \
-            sorted(SQLITE_SKILLS)
+            sorted(SQLITE_SKILLS + ("run-manual-checklist",))
 
     @pytest.mark.parametrize("name", DOCUMENTATION_SKILLS)
     def test_every_documentation_member_travels_inside_the_gateway(self, root, name):

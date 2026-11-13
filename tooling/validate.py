@@ -71,6 +71,9 @@ FEATURE_JSON_WITHOUT_SCHEMA: Dict[str, str] = {
         "gateway manifest (ADR-0021); its structure — kind, members, paths, purpose "
         "byte-equality, orphans — is validated by skills_lint rule 13, and a JSON Schema here "
         "would be a second copy of that shape",
+    "features/*/skills/run-manual-checklist/examples/checks.json":
+        "validated by run-manual-checklist scripts/checklist.py check; "
+        "tests/test_checklist.py runs it",
     "features/*/tsconfig.json":
         "TypeScript compiler configuration for a feature's own type-check gate; its shape is "
         "the TypeScript vendor's contract and tsc itself is the validator that reads it",
@@ -103,11 +106,6 @@ FEATURE_JSON_WITHOUT_SCHEMA: Dict[str, str] = {
     "features/*/templates/state.json":
         "the seed body of a scaffolded project's .ai-badger/state.json; owned by the tracker "
         "that reads it in the consumer project, and it carries no framework-side contract",
-    "features/*/skills/*/templates/*.json":
-        "a seed body the skill tells its reader to copy out and fill in, not framework input: "
-        "the filled copy lives in the consumer project and the blank one is only ever read by "
-        "the human following the skill. Its shape is pinned by that skill's own tests, which "
-        "assert what a schema cannot — that a field stays unanswerable-by-default",
     "features/*/skills/*/schemas/*.json":
         "vendored Archify schema documents (ADR-0030), byte-identical to the pinned upstream "
         "release: the skill's own generated validators and `archify validate` are their "

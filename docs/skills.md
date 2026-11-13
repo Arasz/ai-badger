@@ -1,24 +1,31 @@
 # Skills
 
-This page catalogs 52 skills — everything under `features/common/skills/` and
+<!-- coderabbit-ai-generated:v1 -->
+
+<!-- coderabbit-ai-generated-section:v1:cd586dd3736eda90c89ddc2dfde7553a50db10b06644f44bb593e1ab56c696df -->
+
+This page catalogs 53 skills — everything under `features/common/skills/` and
 `features/claude/skills/`.
-51 live under `features/common/skills/` and split by the `scope:` each declares in its own
+52 live under `features/common/skills/` and split by the `scope:` each declares in its own
 `SKILL.md` frontmatter ([ADR-0018](adr/0018-where-the-skill-routing-declaration-lives.md)):
 **49 are `default`** and arrive in every scaffolded project without being asked for, and
-**2 are `optIn`** — the sqlite pair, which stays out of the default set because it is specific
-to a SQLite-backed project ([ADR-0029](adr/0029-sqlite-skills-stay-opt-in.md)). Everything else
+**3 are `optIn`** — the sqlite pair, which stays out of the default set because it is specific
+to a SQLite-backed project ([ADR-0029](adr/0029-sqlite-skills-stay-opt-in.md)), and
+`run-manual-checklist`, which needs a project-owned checks file ([ADR-0050](adr/0050-manual-checks-are-project-owned.md)). Everything else
 moved to `default` in 0.169.0 ([ADR-0028](adr/0028-all-catalog-skills-ship-by-default.md)); a
 project that wants less declines by name in `config.exclude`, and `config.include` asks for the
-opt-in pair. The last one,
+opt-in skills. The last one,
 `auto-wm`, sits under `features/claude/skills/`, stack-local to the `claude` agent
 ([ADR-0010](adr/0010-stack-local-skill-discovery.md)) and therefore **claude-only**: it does not
 reach a Copilot or Hermes project.
 
-**These 52 are not the whole tree.** `features/*/skills/*/SKILL.md` matches **58** files:
-the 52 above plus 6 more that belong to a single stack and arrive only with it — the
+<!-- /coderabbit-ai-generated:v1 -->
+
+**These 53 are not the whole tree.** `features/*/skills/*/SKILL.md` matches **58** files:
+the 53 above plus 5 more that belong to a single stack and arrive only with it — the
 `dotnet-workload` gateway under
-`features/dotnet/skills/`, 2 under `features/hermes/skills/`, 1 under `features/mcp/skills/`, 1 under `features/ai-raccoon/skills/` and 1 under `features/github/skills/`.
-Those 6 have no row below and are documented by their own `SKILL.md`. Derive the number rather
+`features/dotnet/skills/`, 2 under `features/hermes/skills/`, 1 under `features/mcp/skills/` and 1 under `features/github/skills/`.
+Those 5 have no row below and are documented by their own `SKILL.md`. Derive the number rather
 than trusting this sentence: `python3 gates/skills_lint.py` prints how many `SKILL.md` files the
 catalog holds.
 
@@ -36,12 +43,26 @@ which and which arrive unasked; the per-skill sections say what changes on disk 
 
 ## Install modes
 
+<!-- coderabbit-ai-generated:v1 -->
+
+<!-- coderabbit-ai-generated-section:v1:88edb6c3a468c8280066a9ce99abe995ecafbc8576a88c75ab80c87932dfbe66 -->
+
+<!-- coderabbit-ai-generated:v1 -->
+
+<!-- coderabbit-ai-generated-section:v1:1781569b46f07581ecf10bbb271f25a3bb21846102c55adba8be7d685f384b50 -->
+
 The whole common catalog is `default` since 0.169.0
 ([ADR-0028](adr/0028-all-catalog-skills-ship-by-default.md)): installing the plugin delivers
-every skill unasked, and `config.exclude.skills` declines one by name. Two things sit outside
-that set. The sqlite pair stays `optIn` because a repo with no SQLite database should not receive
-it unasked ([ADR-0029](adr/0029-sqlite-skills-stay-opt-in.md)), and `auto-wm` is stack-local to
+every skill unasked, and `config.exclude.skills` declines one by name.
+The sqlite pair stays `optIn` because a repo with no SQLite database should not receive
+it unasked ([ADR-0029](adr/0029-sqlite-skills-stay-opt-in.md)).
+`run-manual-checklist` also stays `optIn`: it needs a project-owned checks file
+([ADR-0050](adr/0050-manual-checks-are-project-owned.md)). The `auto-wm` skill is stack-local to
 `claude` rather than opt-in, so it reaches a project only when Claude is one of its stacks.
+
+<!-- /coderabbit-ai-generated:v1 -->
+
+<!-- /coderabbit-ai-generated:v1 -->
 
 Claude Code users add the framework as a plugin:
 
@@ -95,8 +116,14 @@ declaring a new skill's scope — is in
 
 ## At a glance
 
+<!-- coderabbit-ai-generated:v1 -->
+
+<!-- coderabbit-ai-generated-section:v1:2339751ee1164b9f72a3b6a1449aebec3367d1880bfdcf90a55566c05ea0d721 -->
+
 `Ships` is the scope: **default** arrives unasked, **opt-in** only when `config.include.skills`
-names it (the sqlite pair today), **claude-only** when the stack decides.
+names it (the sqlite pair and `run-manual-checklist`), **claude-only** when the stack decides.
+
+<!-- /coderabbit-ai-generated:v1 -->
 
 | Skill | Purpose | Ships | Invoked how |
 |---|---|---|---|
@@ -151,6 +178,7 @@ names it (the sqlite pair today), **claude-only** when the stack decides.
 | [pre-push-gate-debugging](#pre-push-gate-debugging) | Debug a blocked pre-push quality gate one lane at a time | default | by name |
 | [get-raw-text-search](#get-raw-text-search) | Retrieve the raw output of an asynchronous memory-first text-search capture by pattern or pattern hash | default | by name |
 | [sqlite-schema-review](#sqlite-schema-review) | Review SQLite DDL and migrations against scratch-database evidence | opt-in | by name |
+| [run-manual-checklist](#run-manual-checklist) | Hand-verify a live build against the project's own checks file, with scripts that validate and summarise the run | opt-in | by name |
 | [sqlite-bank-space-diagnosis](#sqlite-bank-space-diagnosis) | Diagnose a bloated SQLite file and its WAL read-only before reclaiming | opt-in | by name |
 
 ---
@@ -999,6 +1027,17 @@ they are specific to a SQLite-backed project, so they are not written into a rep
 `config.include.skills` names them. Ask for one with the edit at the top of this page, or
 decline it explicitly — and note that `den-refresh` lists any opt-in skill a project has not
 installed, so nobody has to know these exist in advance.
+
+### run-manual-checklist
+
+[`SKILL.md`](../features/common/skills/run-manual-checklist/SKILL.md)
+
+**What it is.** The general rules for a hand-run pass over a live build: record the command and
+the evidence behind every item, derive facts instead of pinning them, make every item able to
+fail, and never inherit an earlier verdict. The checks belong to the project, in a checks file it keeps
+in its own docs; the skill requires that file's path, and `init` writes the first one.
+`scripts/checklist.py` validates the checks file (`check`), starts a run and derives its facts
+(`new-run`), and validates and summarises a filled run (`report`).
 
 ### sqlite-schema-review
 

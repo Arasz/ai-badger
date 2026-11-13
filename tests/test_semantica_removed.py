@@ -30,7 +30,7 @@ HISTORY = (
     "docs/work/",
     ".ai-badger/state.json",
     "features/common/retrieval/eval/eval_index.json",
-    "features/ai-raccoon/skills/ai-raccoon-manual-checklist/",
+    "tests/fixtures/checklist/",
     "tests/fixtures/retired-semantica-shapes.json",
     "tests/fixtures/build_retired_semantica_shapes.py",
     "tests/test_stack_mcp_retired_catalog.py",
