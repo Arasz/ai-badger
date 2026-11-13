@@ -597,3 +597,45 @@ def test_standalone_checklist_ignores_git_repository_overrides(repo, tmp_path, m
     assert run["run"]["branch"] == "feature/x"
     assert len(run["run"]["commit"]) == 40
     assert run["derived"] == {"count": "3"}
+
+
+# ------------------------------------------------- fact env, exclusive write, findings shape
+def test_new_run_fact_ignores_an_inherited_git_dir(repo, tmp_path):
+    other = tmp_path / "other"
+    other.mkdir()
+    for cmd in (["init", "-q"], ["-c", "user.email=t@example.com", "-c", "user.name=t",
+                                 "commit", "-q", "--allow-empty", "-m", "other"]):
+        subprocess.run(["git", "-C", str(other), *cmd], check=True, capture_output=True)
+    checks = make_checks(repo, facts={"head": {"command": "git rev-parse HEAD"}})
+    env = {**__import__("os").environ, "GIT_DIR": str(other / ".git")}
+    done = subprocess.run([sys.executable, str(SCRIPT), "new-run", str(checks), "--slug", "smoke",
+                           "--date", "2026-11-12"], capture_output=True, text=True, env=env,
+                          check=False)
+    assert done.returncode == 0, done.stderr
+    run = json.loads((repo / "results/2026-11-12-smoke.json").read_text(encoding="utf-8"))
+    assert run["derived"]["head"] == run["run"]["commit"]
+
+
+def test_new_run_never_replaces_a_run_written_while_facts_ran(repo):
+    racer = "mkdir -p results && echo '{\"other\": 1}' > results/2026-11-12-smoke.json && printf 3"
+    result = new_run(repo, checks=make_checks(repo, facts={"count": {"command": racer}}))
+    assert result.returncode == 2
+    assert "exists" in result.stderr
+    assert json.loads((repo / "results/2026-11-12-smoke.json").read_text()) == {"other": 1}
+
+
+@pytest.mark.parametrize("findings", ["a sentence", 5, [3], [""], [{}]])
+def test_report_findings_must_be_a_list_of_entries(tmp_path, findings):
+    result = report(tmp_path, run_data(**{}) | {"findings-against-prior-runs": findings})
+    assert result.returncode == 1, result.stdout
+    assert "findings-against-prior-runs" in result.stderr
+    assert "Traceback" not in result.stderr
+
+
+def test_report_renders_a_finding_object_by_its_fields(tmp_path):
+    finding = {"prior-run": "r1", "prior-claim": "pass", "what-is-actually-true": "it never ran",
+               "evidence": "log", "so-what": "rerun"}
+    result = report(tmp_path, run_data() | {"findings-against-prior-runs": [finding]})
+    assert result.returncode == 0, result.stderr
+    assert "r1" in result.stdout and "it never ran" in result.stdout
+    assert "{'prior-run'" not in result.stdout
