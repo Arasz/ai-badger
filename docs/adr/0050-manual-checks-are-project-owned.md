@@ -1,10 +1,10 @@
 # ADR-0050 — Manual checks belong to the project; the checklist skill is generic
 
 **Date:** 2026-11-12
-**Status:** Proposed
+**Status:** Accepted (2026-11-13, 0.220.0)
 **Author:** Rafał Araszkiewicz (Arasz) with Claude Code
 **Extends:** —
-**Research:** task plan `aib-generic-manual-checklist-project-checks` (task tracking, not committed) and its owner gate, whose answers are recorded under Decision
+**Research:** task plan `aib-generic-manual-checklist-project-checks` (task tracking, not committed). The owner gate's six choices were not answered on the form; the owner accepted the shipped defaults by merging #672 and confirming on 2026-11-13.
 
 ## Context
 
