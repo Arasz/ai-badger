@@ -26,6 +26,11 @@ MANIFEST = ".ai-badger/manifest.json"
 # refusal that self-heals on the next scaffold, not a silent exemption the push gate then rejects.
 SEED_ONCE = "seedOnce"
 
+# An agent file's `.ai-badger/` source-of-truth copy is the one its discovery copies' header
+# tells people to edit: the scaffold carries its keep regions. It is recorded only so a dropped
+# agent's copy can be pruned, so an edit to it is allowed.
+EDITABLE = "editable"
+
 # A skill is one manifest entry for a whole directory, and not everything inside it is the
 # framework's: `skill_delivery` stashes `project-local.md` and its SEED_ONCE_SKILL_FILES across
 # the copytree, which is why `scaffold_freshness_guard` passes a project that edits them. The
@@ -105,7 +110,7 @@ def manifest_source(root: Path, rel: PurePosixPath) -> Optional[str]:
     best_target = ""
     best_entry: Optional[Dict[str, Any]] = None
     for entry in manifest_entries(root):
-        if not isinstance(entry, dict) or entry.get(SEED_ONCE):
+        if not isinstance(entry, dict) or entry.get(SEED_ONCE) or entry.get(EDITABLE):
             continue
         target, source = entry.get("target"), entry.get("source")
         if not isinstance(target, str) or not isinstance(source, str) or not _under(rel, target):

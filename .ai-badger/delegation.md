@@ -1,10 +1,10 @@
 # Delegation map — ai-badger
 
-> Scaffolded by ai-badger 0.220.2. Regenerated on every scaffold; do not edit.
+> Scaffolded by ai-badger 0.220.3. Regenerated on every scaffold; do not edit.
 
 ## Stacks
 
-python, js, github, claude, hermes, pi, ts, node, changelog, codex
+python, js, github, claude, pi, ts, node, changelog, codex
 
 ## Personas available here
 
@@ -12,7 +12,6 @@ python, js, github, claude, hermes, pi, ts, node, changelog, codex
 - `architect` — Architecture and decomposition specialist. Level: high, Lane: opus.
 - `code-reviewer` — Quality and security review gate. Level: high, Lane: opus.
 - `delegator` — Work-routing lead for multi-package sessions. Level: high, Lane: opus.
-- `hermes-agent-author` — Hermes Agent skill and configuration author. Level: medium, Lane: sonnet.
 - `qa` — Test-quality authority. Level: high, Lane: opus.
 - `test-engineer` — Testing specialist. Level: medium, Lane: sonnet.
 
@@ -21,7 +20,6 @@ python, js, github, claude, hermes, pi, ts, node, changelog, codex
 - Design, decomposition and ADRs — before any non-trivial multi-file change → `architect`
 - Test strategy, the failing test that precedes a change, and auditing whether an existing test can actually fail → `test-engineer`
 - Quality gate before merge, security review, and adversarially verifying a claim this session made about its own work → `code-reviewer`
-- Hermes skills, hooks and gateway configuration, and HERMES.md → `hermes-agent-author`
 - Long, multi-package or autonomous sessions — route work instead of doing it → `delegator`
 
 ## Parallel dispatch
@@ -77,6 +75,5 @@ prescriptive persona descriptions are appropriate.
 ## MCP servers reachable here
 
 - `code-review-graph` — This project has a knowledge graph
-- `hermes` — Read operations use Hermes's session store and work without a running gateway; sending messages needs the gateway and its platform adapters
 - `playwright` — Browser automation over accessibility snapshots: browser_navigate, then browser_snapshot for element refs, then browser_click/browser_type on those refs
 - `task-graph` — task-graph owns the decomposed task plan — a DAG of steps carrying status, acceptance criteria and evidence, persisted beside the task tracker in the project's tracking.db

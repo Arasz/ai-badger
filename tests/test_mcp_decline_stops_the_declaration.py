@@ -168,3 +168,14 @@ def test_the_adjustment_context_carries_the_declarations_and_the_declines(make_s
     assert seen["mcp_declarations"]["srv"]["command"] == "echo srv"
     assert seen["mcp_declined"] == ["rider"]
     assert seen["mcp_servers"] == ["srv"]
+
+
+def test_a_declined_server_gets_no_instructions_section(make_scaffolder, tmp_path):
+    """The agent files must not teach a server the project refused."""
+    _declare(tmp_path, {"name": "keep", "command": "echo keep"},
+             {"name": "drop", "command": "echo drop"})
+    scaf = _scaf(make_scaffolder, tmp_path, _config(decline=["drop"]))
+
+    scaf.mcp.fill_mcp_described()
+
+    assert [srv["name"] for srv in scaf.ctx.mcp_described] == ["keep"]

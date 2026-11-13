@@ -239,7 +239,7 @@ def test_a_hand_edited_tool_block_is_reported_by_the_freshness_guard(fresh_with_
 
     assert done.returncode == 1, done.stdout + done.stderr
     assert ".ai-badger/CLAUDE.md" in done.stdout
-    assert ".ai-badger/CLAUDE.md  (content differs, regenerates differently)" in done.stdout
+    assert ".ai-badger/CLAUDE.md  (content differs, hand-edited)" in done.stdout
 
 
 def _backup_count(target: Path) -> int:

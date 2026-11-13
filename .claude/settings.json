@@ -289,6 +289,9 @@
       "mcp__ai-raccoon__*",
       "mcp__playwright__*",
       "mcp__task-graph__*"
+    ],
+    "deny": [
+      "mcp__hermes__*"
     ]
   },
   "enabledMcpjsonServers": [
@@ -297,5 +300,8 @@
     "ai-raccoon",
     "playwright",
     "task-graph"
+  ],
+  "disabledMcpjsonServers": [
+    "hermes"
   ]
 }

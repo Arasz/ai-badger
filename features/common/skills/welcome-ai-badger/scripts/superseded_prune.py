@@ -10,7 +10,7 @@ from __future__ import annotations
 import shutil
 from typing import Any, Dict, List, Optional
 
-from _shared import _within
+from _shared import MalformedKeepRegion, _within, extract_keep_regions
 from scaffold_context import ScaffoldContext
 
 # Flat `.ai-badger/hooks/` copies of scripts the framework retired or moved into a skill's
@@ -58,11 +58,26 @@ class SupersededPrune:
             if edited:
                 self.ctx.notes.append(f"{rel} was edited here — left in place ({reason})")
                 continue
+            if not directory and self._holds_keep_regions(path):
+                self.ctx.notes.append(f"{rel} holds ai-badger:keep regions — left in place "
+                                      f"({reason})")
+                continue
             if directory:
                 shutil.rmtree(path)
             else:
                 path.unlink()
             self.ctx.notes.append(f"removed {rel} — {reason}")
+
+    @staticmethod
+    def _holds_keep_regions(path) -> bool:
+        """True when the file carries project text in keep regions; a refresh copies those into
+        the rewrite, so a matching outputHash does not mean the file holds nothing of theirs."""
+        try:
+            return bool(extract_keep_regions(path.read_text(encoding="utf-8", errors="ignore")))
+        except MalformedKeepRegion:
+            return True
+        except OSError:
+            return False
 
     def _prune_retired_hook_copies(self) -> None:
         """Delete each :data:`RETIRED_HOOK_COPIES` file from `.ai-badger/hooks/`, naming it."""

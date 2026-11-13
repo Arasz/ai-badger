@@ -3,10 +3,6 @@
 command = "code-review-graph"
 args = ["serve"]
 
-[mcp_servers."hermes"]
-command = "hermes"
-args = ["mcp", "serve"]
-
 [mcp_servers."playwright"]
 command = "npx"
 args = ["-y", "@playwright/mcp@latest"]

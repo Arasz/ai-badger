@@ -70,8 +70,7 @@ def test_this_repo_declares_the_changelog_stack(root):
 
 
 def test_this_repos_agent_files_still_carry_the_concrete_convention(root):
-    for rel in ("CLAUDE.md", "HERMES.md", ".hermes.md", ".github/copilot-instructions.md",
-               ".ai-badger/CLAUDE.md", ".ai-badger/HERMES.md",
-               ".ai-badger/copilot-instructions.md"):
+    for rel in ("CLAUDE.md", ".github/copilot-instructions.md", ".ai-badger/CLAUDE.md",
+                ".ai-badger/copilot-instructions.md"):
         text = (root / rel).read_text(encoding="utf-8")
         assert "docs/changelog/{version}-{slug}.md" in text, rel

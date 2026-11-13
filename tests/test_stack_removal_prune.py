@@ -413,3 +413,76 @@ class TestARetiredFlatHookCopy:
         _scaffolded(make_scaffolder, _config(stacks=["python"]))
 
         assert kept.is_file()
+
+
+class TestDroppingAnAgentRemovesEveryCopy:
+    """An agent's discovery file has copies — the .ai-badger/ source of truth, an alias, the
+    Copilot per-instruction files. The prune must reach all of them, not only the primary."""
+
+    HERMES_COPIES = ("HERMES.md", ".hermes.md", ".ai-badger/HERMES.md")
+
+    def test_dropping_an_agent_removes_its_alias_and_source_of_truth_copy(self, make_scaffolder):
+        target, _ = _scaffolded(make_scaffolder, _config(stacks=["python"],
+                                                         agents=["claude", "hermes"]))
+        assert all((target / rel).is_file() for rel in self.HERMES_COPIES)
+
+        _scaffolded(make_scaffolder, _config(stacks=["python"], agents=["claude"]))
+
+        assert [rel for rel in self.HERMES_COPIES if (target / rel).exists()] == []
+
+    def test_an_edited_source_of_truth_copy_is_left_in_place(self, make_scaffolder):
+        target, _ = _scaffolded(make_scaffolder, _config(stacks=["python"],
+                                                         agents=["claude", "hermes"]))
+        edited = target / ".ai-badger" / "HERMES.md"
+        _test_write(edited, "# ours now\n", encoding="utf-8")
+
+        _, result = _scaffolded(make_scaffolder, _config(stacks=["python"], agents=["claude"]))
+
+        assert edited.read_text(encoding="utf-8") == "# ours now\n"
+        assert any(".ai-badger/HERMES.md" in n and "edited" in n for n in result["notes"])
+
+    def test_dropping_a_stack_removes_its_copilot_scoped_instruction(self, make_scaffolder):
+        scoped = ".github/instructions/typescript.instructions.md"
+        target, _ = _scaffolded(make_scaffolder, _config(stacks=["python", "ts"],
+                                                         agents=["claude", "copilot"]))
+        assert (target / scoped).is_file()
+
+        _scaffolded(make_scaffolder, _config(stacks=["python"], agents=["claude", "copilot"]))
+
+        assert not (target / scoped).exists()
+
+
+GUARD = "features/common/skills/welcome-ai-badger/scripts/generated_file_guard.py"
+
+
+class TestTheSourceOfTruthCopyStaysTheProjects:
+    """`.ai-badger/<AGENT>.md` is the file the header tells people to edit. Recording it so the
+    prune can reach it must not make it a protected generated file, nor let the prune delete
+    project text that a refresh carried into it."""
+
+    KEEP = "<!-- ai-badger:keep-start -->\nOur own rule.\n<!-- ai-badger:keep-end -->\n"
+
+    def test_the_edit_guard_allows_an_edit_to_the_source_of_truth_copy(self, make_scaffolder,
+                                                                       load_script):
+        target, _ = _scaffolded(make_scaffolder, _config(stacks=["python"],
+                                                         agents=["claude", "hermes"]))
+        guard = load_script(GUARD)
+
+        assert guard.refusal(target / ".ai-badger" / "CLAUDE.md") is None
+        assert guard.refusal(target / ".ai-badger" / "HERMES.md") is None
+        assert guard.refusal(target / "CLAUDE.md") is not None
+
+    def test_a_keep_region_carried_by_a_refresh_survives_the_agents_removal(self,
+                                                                            make_scaffolder):
+        hermes = _config(stacks=["python"], agents=["claude", "hermes"])
+        target, _ = _scaffolded(make_scaffolder, hermes)
+        source = target / ".ai-badger" / "HERMES.md"
+        _test_write(source, source.read_text(encoding="utf-8") + "\n" + self.KEEP,
+                    encoding="utf-8")
+        _scaffolded(make_scaffolder, hermes)
+        assert "Our own rule." in source.read_text(encoding="utf-8")
+
+        _, result = _scaffolded(make_scaffolder, _config(stacks=["python"], agents=["claude"]))
+
+        assert "Our own rule." in source.read_text(encoding="utf-8")
+        assert any(".ai-badger/HERMES.md" in n and "keep" in n for n in result["notes"])

@@ -19,16 +19,6 @@
         "*"
       ]
     },
-    "hermes": {
-      "command": "hermes",
-      "args": [
-        "mcp",
-        "serve"
-      ],
-      "tools": [
-        "*"
-      ]
-    },
     "task-graph": {
       "command": "uv",
       "args": [
