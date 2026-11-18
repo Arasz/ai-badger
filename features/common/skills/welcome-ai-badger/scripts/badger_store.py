@@ -339,6 +339,20 @@ _DDL = (
         updated_at TEXT NOT NULL
     )
     """,
+    # Review-flow state, born in SQLite. Like test_economy it lands here with no
+    # SCHEMA_VERSION bump: older store copies ignore an extra table, a bump would lock them out.
+    """
+    CREATE TABLE IF NOT EXISTS review_flows (
+        flow_id    TEXT PRIMARY KEY,
+        revision   INTEGER NOT NULL,
+        payload    TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        CHECK (json_valid(payload)),
+        CHECK (revision >= 0)
+    )
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_review_flows_updated_at ON review_flows(updated_at)",
 )
 
 
@@ -886,6 +900,22 @@ class PlanConflict(RuntimeError):
         )
 
 
+class FlowConflict(RuntimeError):
+    """A review-flow CAS write lost: the row is not at the revision the caller read.
+
+    ``current_revision`` is the revision found at refusal time (None only when the row
+    vanished under the write), so a caller can re-read and retry.
+    """
+
+    def __init__(self, flow_id: str, current_revision: Optional[int]) -> None:
+        self.flow_id = flow_id
+        self.current_revision = current_revision
+        super().__init__(
+            f"review flow {flow_id!r} is at revision {current_revision}; the write expected a "
+            f"different one — re-read with flow_row and retry"
+        )
+
+
 class Store:  # pylint: disable=too-many-public-methods  # one accessor per store surface
     """One open SQLite store: the raw connection plus KV accessors and lazy family migration.
 
@@ -1297,6 +1327,52 @@ class Store:  # pylint: disable=too-many-public-methods  # one accessor per stor
                 "SELECT revision FROM plans WHERE task_id = ?", (task_id,)
             ).fetchone()
             raise PlanConflict(task_id, current[0] if current is not None else None)
+        return existing[0] + 1
+
+    def flow_row(self, flow_id: str) -> Optional[dict]:
+        """One review_flows row as a column-keyed dict, or None when no such flow exists.
+
+        The payload comes back verbatim; the store never decodes it.
+        """
+        row = self.conn.execute(
+            "SELECT flow_id, revision, payload, created_at, updated_at"
+            " FROM review_flows WHERE flow_id = ?",
+            (flow_id,),
+        ).fetchone()
+        if row is None:
+            return None
+        return {"flow_id": row[0], "revision": row[1], "payload": row[2],
+                "created_at": row[3], "updated_at": row[4]}
+
+    def flow_upsert(self, flow_id: str, payload: str,
+                    expected_revision: Optional[int] = None) -> int:
+        """Create a flow at revision 0 or CAS-update it to the next revision; return it.
+
+        An absent row inserts at revision 0. A present row requires the revision the
+        caller read (None never matches); zero rows updated raises ``FlowConflict``.
+        Caller-managed transactions, like ``plan_upsert``.
+        """
+        now = _now()
+        existing = self.conn.execute(
+            "SELECT revision FROM review_flows WHERE flow_id = ?", (flow_id,)
+        ).fetchone()
+        if existing is None:
+            self.conn.execute(
+                "INSERT INTO review_flows(flow_id, revision, payload, created_at, updated_at)"
+                " VALUES (?, 0, ?, ?, ?)",
+                (flow_id, payload, now, now),
+            )
+            return 0
+        cursor = self.conn.execute(
+            "UPDATE review_flows SET revision = revision + 1, payload = ?, updated_at = ?"
+            " WHERE flow_id = ? AND revision = ?",
+            (payload, now, flow_id, expected_revision),
+        )
+        if cursor.rowcount == 0:
+            current = self.conn.execute(
+                "SELECT revision FROM review_flows WHERE flow_id = ?", (flow_id,)
+            ).fetchone()
+            raise FlowConflict(flow_id, current[0] if current is not None else None)
         return existing[0] + 1
 
     def usage_upsert(self, entry: dict) -> None:
