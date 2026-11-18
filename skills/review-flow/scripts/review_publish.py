@@ -343,4 +343,9 @@ def publish(runner: Runner, state: dict, remotes: list[str], dry_run: bool = Fal
     login = _get(runner, "user")["login"]
     head = read_head(runner, state["repo"], state["pr"])
     existing = read_existing(runner, state["repo"], state["pr"], login)
-    return apply(runner, plan_publish(state, existing, head), dry_run)
+    results = apply(runner, plan_publish(state, existing, head), dry_run)
+    if not dry_run and existing["summary"] is not None and not any(
+            result["op"] in ("create_summary", "update_summary") for result in results):
+        results.append({"op": "existing_summary", "dry_run": False,
+                        "response": {"id": existing["summary"]["id"]}})
+    return results
