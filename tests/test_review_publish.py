@@ -167,7 +167,7 @@ def make_state(findings=None, head=HEAD1, n=1, **over):
                     finding(FP_C, "src/c.py", 5, 5, in_diff=False)]
     state = {
         "repo": REPO, "pr": PR, "now": NOW,
-        "round": {"n": n, "head_sha": head, "findings": findings,
+        "round": {"n": n, "head_sha": head, "findings": findings, "verdict": "Fix before merge",
                   "lanes": {"qa": {"status": "done", "error": None},
                             "business": {"status": "done", "error": None}}},
         "flow": {"ac_source": "pasted"},
@@ -316,6 +316,8 @@ def test_unchanged_anchored_lines_not_resolved():
         {k: r[k] for k in ("op", "fingerprint")} for r in results if "fingerprint" in r]
     summary = fake.issue_comments[-1]["body"]
     assert "Not re-reported (1)" in summary and FP_B in summary
+    assert summary.index("Not re-reported (1)") < summary.index("<!-- ai-badger-review:state ")
+    assert summary.count("Not re-reported") == 1
     del fake.calls[:]
     run(fake, state)
     assert write_endpoints(fake) == []
@@ -435,3 +437,28 @@ def test_fetch_threads_returns_replies_by_fingerprint():
         (FP_A, "alice", "OWNER", reply["id"]), (FP_B, "mallory", "NONE", replies[1]["comment_id"])]
     assert replies[0]["thread_id"] == f"T_{own_a['id']}"
     assert replies[0]["body"] == "Not reachable: guarded upstream."
+
+
+def test_summary_verdict_comes_from_the_round_state():
+    fake = FakeGitHub()
+    state = make_state()
+    state["round"]["verdict"] = "Block"
+    run(fake, state)
+    assert "## Review verdict: Block\n" in fake.issue_comments[-1]["body"]
+
+
+def test_publish_passes_not_reported_to_the_renderer_without_splicing(monkeypatch):
+    seen = []
+    real = publish.render_summary
+
+    def spy(rnd, flow, now):
+        seen.append(list(rnd.get("not_reported") or []))
+        return real(rnd, flow, now)
+
+    monkeypatch.setattr(publish, "render_summary", spy)
+    fake = FakeGitHub()
+    run(fake, make_state())
+    fake.head = HEAD2
+    run(fake, round_two(changed_ranges={"src/a.py": [(11, 11)]}))
+    assert seen == [[], [FP_B]]
+    assert not hasattr(publish, "_with_not_reported")

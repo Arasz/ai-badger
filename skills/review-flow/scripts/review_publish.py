@@ -239,16 +239,6 @@ def _same_summary(old, new):
     return _UPDATED.sub("", old.replace("\r\n", "\n")) == _UPDATED.sub("", new)
 
 
-def _with_not_reported(summary, fingerprints):
-    if not fingerprints:
-        return summary
-    head, sep, tail = summary.rpartition("\n\n<!-- ai-badger-review:state ")
-    lines = "\n".join(f"- `{fp}`" for fp in fingerprints)
-    section = (f"<details><summary>Not re-reported ({len(fingerprints)})</summary>\n\n"
-               f"{lines}\n\n</details>")
-    return f"{head}\n\n{section}{sep}{tail}"
-
-
 def _write(op, method, endpoint, payload, **extra):
     return {"op": op, "method": method, "endpoint": endpoint, "payload": payload, **extra}
 
@@ -307,7 +297,7 @@ def plan_publish(state: dict, existing: dict, head_sha: str) -> list[dict]:
             actions.append(_write("resolve", "POST", "graphql",
                                   {"query": RESOLVE_MUTATION,
                                    "variables": {"threadId": thread["id"]}}, fingerprint=fp))
-    summary = _with_not_reported(render_summary(rnd, state["flow"], state["now"]), not_reported)
+    summary = render_summary({**rnd, "not_reported": not_reported}, state["flow"], state["now"])
     old = existing["summary"]
     if old is None:
         actions.append(_write("create_summary", "POST", f"{base}/issues/{pr}/comments",

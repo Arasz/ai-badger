@@ -95,6 +95,8 @@ def summary_inputs():
             "quality": {"status": "done", "error": None},
         },
         "findings": findings,
+        "verdict": "Fix before merge",
+        "not_reported": ["aaaa1111bbbb2222"],
     }
     flow = {
         "repo": "acme/shop",
@@ -244,7 +246,7 @@ def test_combined_hostile_tokens_parse_clean():
     flow["tools"] = [HOSTILE]
     out = render.render_summary(round_, flow, NOW)
     parsed = scan(out)
-    assert parsed.opened == parsed.closed == 5
+    assert parsed.opened == parsed.closed == 6
     assert len(parsed.comments) == 2
     assert out.count("<!-- ai-badger-review:") == 2
     assert out.startswith("<!-- ai-badger-review:summary v1 -->\n")
@@ -277,15 +279,49 @@ def test_defensive_badge_rendered():
     assert badge == "**MAJOR** · qa, quality · null_deref"
 
 
-def test_failed_lane_never_safe_to_merge():
+@pytest.mark.parametrize("verdict", ["Block", "Fix before merge", "Safe to merge"])
+def test_summary_verdict_is_read_from_the_round(verdict):
+    round_, flow = summary_inputs()
+    out = render.render_summary(dict(round_, verdict=verdict), flow, NOW)
+    assert f"## Review verdict: {verdict}\n" in out
+    assert f'"verdict":"{verdict}"' in out.rstrip().splitlines()[-1]
+
+
+@pytest.mark.parametrize("verdict", [None, "Needs changes", "Incomplete review", "safe to merge",
+                                     "Block -->"])
+def test_unknown_verdict_is_refused(verdict):
+    round_, flow = summary_inputs()
+    with pytest.raises(render.RenderRefused):
+        render.render_summary(dict(round_, verdict=verdict), flow, NOW)
+
+
+def test_renderer_computes_no_verdict_of_its_own():
     round_, flow = summary_inputs()
     round_["findings"] = []
-    out = render.render_summary(round_, flow, NOW)
-    assert "Safe to merge" not in out
-    assert "## Review verdict: Incomplete review" in out
     for lane in round_["lanes"].values():
         lane["status"], lane["error"] = "done", None
-    assert "## Review verdict: Safe to merge" in render.render_summary(round_, flow, NOW)
+    out = render.render_summary(dict(round_, verdict="Block"), flow, NOW)
+    assert "## Review verdict: Block\n" in out
+
+
+def test_not_reported_section_lists_each_fingerprint_before_the_state_marker():
+    round_, flow = summary_inputs()
+    round_["not_reported"] = ["aaaa1111bbbb2222", "cccc3333dddd4444"]
+    out = render.render_summary(round_, flow, NOW)
+    section = out.split("<details><summary>Not re-reported (2)</summary>\n\n", 1)[1]
+    assert section.startswith("- `aaaa1111bbbb2222`\n- `cccc3333dddd4444`\n\n</details>\n\n"
+                              "<!-- ai-badger-review:state ")
+    round_["not_reported"] = []
+    assert "Not re-reported" not in render.render_summary(round_, flow, NOW)
+    del round_["not_reported"]
+    assert "Not re-reported" not in render.render_summary(round_, flow, NOW)
+
+
+def test_hostile_not_reported_fingerprint_is_refused():
+    round_, flow = summary_inputs()
+    round_["not_reported"] = ["aaaa1111bbbb2222 --> <!--"]
+    with pytest.raises(render.RenderRefused):
+        render.render_summary(round_, flow, NOW)
 
 
 def test_summary_counts_use_effective_severity_and_skip_dropped():
@@ -311,3 +347,8 @@ def test_inputs_are_not_mutated():
     before = copy.deepcopy((round_, flow))
     render.render_summary(round_, flow, NOW)
     assert (round_, flow) == before
+
+
+def test_verdict_words_are_the_model_verdict_values(load_script):
+    model = load_script("features/common/skills/review-flow/scripts/review_flow_model.py")
+    assert render.VERDICTS == tuple(v.value for v in model.Verdict)

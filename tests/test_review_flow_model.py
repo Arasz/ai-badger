@@ -432,11 +432,13 @@ def test_model_built_finding_renders_inline(m, load_script):
     assert f"fp={finding.fingerprint}" in body
     assert body.splitlines()[1] == "**MINOR** · qa, quality · null_deref · DEFENSIVE"
     assert "1 evidence item" in body
+    round_ = m.Round.model_validate(_round(findings=[dumped]))
     summary = render.render_summary(
-        m.Round.model_validate(_round(findings=[dumped])).model_dump(mode="json"),
+        {**round_.model_dump(mode="json"), "verdict": m.verdict(round_).value},
         {"ac_source": "pasted"}, __import__("datetime").datetime(
             2026, 11, 18, tzinfo=__import__("datetime").timezone.utc))
     assert "Reviewed commit: `" + HEAD + "`" in summary
+    assert "## Review verdict: Safe to merge\n" in summary
 
 
 # ------------------------------------------------------------------ rules at load
