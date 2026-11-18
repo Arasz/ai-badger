@@ -430,6 +430,11 @@
           "scope": "default"
         },
         {
+          "name": "review-flow",
+          "path": "features/common/skills/review-flow",
+          "scope": "default"
+        },
+        {
           "name": "review-gate-diff-verification",
           "path": "features/common/skills/review-gate-diff-verification",
           "scope": "default"

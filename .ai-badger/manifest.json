@@ -1,7 +1,7 @@
 {
   "$schema": "./schemas/manifest.schema.json",
   "frameworkVersion": "0.220.3",
-  "frameworkCommit": "04b07924faad5967c94542c82a24d6092e5573a2",
+  "frameworkCommit": "9fa47c3c001b2019822370c21a052bc2dae5487e",
   "frameworkDirty": true,
   "frameworkRoot": ".",
   "generatedAt": null,
@@ -1291,6 +1291,27 @@
     {
       "feature": "skills",
       "stack": "common",
+      "name": "review-flow",
+      "source": "features/common/skills/review-flow",
+      "target": ".ai-badger/skills/review-flow",
+      "frameworkVersion": "0.220.3",
+      "hash": "2a730295e4d952977dcde5aa86e3bee3a581b8bb00e04577a68528186b11e9a8",
+      "dirMeta": {
+        "file_count": 2,
+        "dir_count": 1
+      },
+      "sourceHash": "2a730295e4d952977dcde5aa86e3bee3a581b8bb00e04577a68528186b11e9a8",
+      "sourceMeta": {
+        "file_count": 2,
+        "dir_count": 1
+      },
+      "projectOwned": [
+        "project-local.md"
+      ]
+    },
+    {
+      "feature": "skills",
+      "stack": "common",
       "name": "review-gate-diff-verification",
       "source": "features/common/skills/review-gate-diff-verification",
       "target": ".ai-badger/skills/review-gate-diff-verification",
@@ -2287,6 +2308,15 @@
     {
       "feature": "adjustments",
       "stack": "claude",
+      "name": "adjustments/.claude/skills/review-flow",
+      "source": "features/claude/adjustments/adjust_skills.py",
+      "target": ".claude/skills/review-flow",
+      "frameworkVersion": "0.220.3",
+      "hash": "02a4b86fbc983d9fb302f93eb674787a545d65c40204ac9c46bbaa452ce150d5"
+    },
+    {
+      "feature": "adjustments",
+      "stack": "claude",
       "name": "adjustments/.claude/skills/review-gate-diff-verification",
       "source": "features/claude/adjustments/adjust_skills.py",
       "target": ".claude/skills/review-gate-diff-verification",
@@ -2782,6 +2812,15 @@
       "name": "adjustments/.github/skills/review-changes",
       "source": "features/copilot/adjustments/adjust_skills.py",
       "target": ".github/skills/review-changes",
+      "frameworkVersion": "0.220.3",
+      "hash": "54042cfd8d94054ed08fc1d3f74694f3a35c01c6ddc7930cfff62d71eadcaa1c"
+    },
+    {
+      "feature": "adjustments",
+      "stack": "copilot",
+      "name": "adjustments/.github/skills/review-flow",
+      "source": "features/copilot/adjustments/adjust_skills.py",
+      "target": ".github/skills/review-flow",
       "frameworkVersion": "0.220.3",
       "hash": "54042cfd8d94054ed08fc1d3f74694f3a35c01c6ddc7930cfff62d71eadcaa1c"
     },
