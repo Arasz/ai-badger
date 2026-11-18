@@ -180,7 +180,7 @@ def normalise_severity(vocab: str, label: str) -> Severity:
 
 def normalise_anchor(text: str) -> str:
     """Anchor text as stored: whitespace runs collapsed to one space, cut to `ANCHOR_LIMIT`."""
-    anchor = " ".join(text.split())[:ANCHOR_LIMIT]
+    anchor = " ".join(text.split())[:ANCHOR_LIMIT].rstrip()
     if not anchor:
         raise ValueError("anchor is blank; omit it instead")
     return anchor
@@ -430,6 +430,7 @@ class LaneRun(BaseModel):
 
     status: Literal["pending", "done", "failed"]
     error: Optional[str] = None
+    submission_digest: Optional[str] = Field(default=None, pattern=DIGEST_PATTERN)
 
     @model_validator(mode="after")
     def _error(self) -> "LaneRun":
@@ -484,6 +485,7 @@ class Round(BaseModel):
     inputs: Dict[str, Any] = Field(default_factory=dict)
     accepted: List[Dict[str, Any]] = Field(default_factory=list)
     rules_digest: Optional[str] = Field(default=None, pattern=DIGEST_PATTERN)
+    scope_brief_digest: Optional[str] = Field(default=None, pattern=DIGEST_PATTERN)
     lanes: Dict[Lane, LaneRun]
     findings: List[Finding]
     replies: List[AuthorReply]
@@ -576,6 +578,14 @@ class ReviewFlow(BaseModel):
         unknown = sorted({t.round for t in self.history} - {r.n for r in self.rounds})
         if unknown:
             raise ValueError(f"history names round {unknown[0]}, which does not exist")
+        reached_round, reached_phase = 0, None
+        for move in self.history:
+            if move.round != reached_round:
+                if move.round != reached_round + 1 or (reached_round and
+                        reached_phase is not Phase.REPLY_ANALYSIS):
+                    raise ValueError("history must finish reply_analysis before opening the next round")
+                reached_round = move.round
+            reached_phase = move.target
         for round_ in self.rounds:
             _replays(round_, [t for t in self.history if t.round == round_.n])
         return self
@@ -729,8 +739,10 @@ def _glob_tokens(glob: str) -> List[Tuple[str, str]]:
 def _chars_meet(a: Tuple[str, str], b: Tuple[str, str]) -> bool:
     """Whether two one-character tokens accept a common character; a negated pair is assumed to."""
     a, b = sorted((a, b))  # kinds sort as ? < lit < notset < set
-    if a[0] == "?" or (a[0] == "notset" and b[0] == "set") or a[0] == b[0] == "notset":
+    if a[0] == "?" or a[0] == b[0] == "notset":
         return True
+    if a[0] == "notset" and b[0] == "set":
+        return bool(set(b[1]) - set(a[1]))
     if a[0] == "lit":
         return a[1] == b[1] if b[0] == "lit" else (a[1] in b[1]) == (b[0] == "set")
     return bool(set(a[1]) & set(b[1]))

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # /// script
 # requires-python = ">=3.10"
-# dependencies = ["pydantic>=2.14.3,<3"]
+# dependencies = ["pydantic>=2.14.3,<3", "jsonschema>=4.26.0"]
 # ///
 """review_flow_cli.py — the review-flow coordinator's verbs over one typed flow.
 
@@ -46,7 +46,7 @@ try:
 except ImportError as _exc:
     if __name__ == "__main__":
         _reason = " ".join(str(_exc).split())
-        print(f"review-flow cli cannot start: {_reason}; it needs pydantic>=2.14.3,<3 "
+        print(f"review-flow cli cannot start: {_reason}; it needs pydantic>=2.14.3,<3 and jsonschema>=4.26.0 "
               "(launch it with `uv run --script`)", file=sys.stderr)
         sys.exit(3)
     raise
@@ -331,7 +331,7 @@ class WorkerFinding(_Strict):
         """The model finding, with the fingerprint recomputed by the script."""
         data = self.model_dump(mode="json")
         data.update(fingerprint=model.fingerprint_of(self.kind, self.location.path,
-                                                     self.location.symbol),
+                                                     self.location.symbol, self.location.anchor),
                     lanes=[lane.value], source="lane", disposition=None)
         return model.Finding.model_validate(data)
 
@@ -871,7 +871,7 @@ def _brief_findings(kind: str, round_: "model.Round", rules_file, digest):
 
 
 def _brief(args: BriefArgs, env: Env) -> dict:
-    flow, _ = store.get(args.flow_id)
+    flow, revision = store.get(args.flow_id)
     current = flow.rounds[-1]
     if BRIEF_PHASE[args.kind] is not current.phase:
         raise VerbError("wrong_phase", f"a {args.kind} brief is for "
@@ -884,7 +884,17 @@ def _brief(args: BriefArgs, env: Env) -> dict:
     paths = list(context.get("changed_paths") or []) or \
         [unit["path"] for unit in (change or {}).get("units", [])]
     scoped = rules_mod.lane_rules(rules_file, paths, LANE_KINDS.get(args.kind, _ALL_KINDS))
-    findings, clusters = _brief_findings(args.kind, current, rules_file, digest)
+    if args.kind == "global_scope":
+        candidate = current.model_copy(update={"scope_brief_digest": digest})
+        findings, clusters = _brief_findings(args.kind, candidate, rules_file, digest)
+        def pin_brief(latest: model.ReviewFlow) -> model.ReviewFlow:
+            data = latest.rounds[-1].model_dump(mode="json")
+            data["scope_brief_digest"] = digest
+            return _with_round(latest, data)
+        flow, _, _ = store.update(args.flow_id, pin_brief, expected_revision=revision)
+        current = flow.rounds[-1]
+    else:
+        findings, clusters = _brief_findings(args.kind, current, rules_file, digest)
     replies = list(current.replies) if args.kind == "reply_analysis" else []
     sections = [("pr_title", context.get("pr_title", "")), ("pr_body", context.get("pr_body", ""))]
     sections += [(f"issue {item['ref']}", f"{item.get('title', '')}\n{item.get('body', '')}")
@@ -1273,8 +1283,14 @@ def _changed_ranges(flow: "model.ReviewFlow", env: Env) -> dict:
 
 def _publication(results: List[dict], now: datetime, flow=None, env: Optional[Env] = None) -> Optional[dict]:
     review = next((r for r in results if r["op"] == "create_review"), None)
-    summary = next((r for r in results if r["op"] in ("create_summary", "update_summary")), None)
-    if review is None and summary is None:
+    summary = next((r for r in results if r["op"] in (
+        "create_summary", "update_summary", "existing_summary")), None)
+    if review is None and (summary is None or summary["op"] == "existing_summary"):
+        if flow is None or env is None:
+            if summary is None:
+                return None
+            return {"review_id": None, "summary_comment_id": summary["response"]["id"],
+                    "event": "COMMENT", "at": _stamp(now)}
         current = flow.rounds[-1]
         login = _gh_json(env, ["api", "user"])["login"]
         existing = publisher.read_existing(env.gh, flow.repo, flow.pr, login)

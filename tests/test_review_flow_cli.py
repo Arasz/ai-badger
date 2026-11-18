@@ -750,7 +750,8 @@ def test_next_round_export_failure_can_replay_origin(cli, tmp_path, monkeypatch)
 
 
 @pytest.mark.parametrize("head", [HEAD, "f" * 40])
-def test_publication_recovers_only_current_round_ids(cli, tmp_path, monkeypatch, head):
+@pytest.mark.parametrize("results", [[], [{"op": "existing_summary", "response": {"id": 42}}]])
+def test_publication_recovers_only_current_round_ids(cli, tmp_path, monkeypatch, head, results):
     env = env_for(cli, tmp_path, gh=FakeGh([(("api", "user"), {"login": "bot"})]))
     create(cli, env)
     flow = cli.store.get(FLOW)[0]
@@ -760,7 +761,7 @@ def test_publication_recovers_only_current_round_ids(cli, tmp_path, monkeypatch,
     monkeypatch.setattr(cli.publisher, "_get_all", lambda *_: [{
         "id": 99, "commit_id": HEAD, "user": {"login": "bot"},
         "body": "ai-badger review, round 1: 2 new inline finding(s)."}])
-    receipt = cli._publication([], NOW, flow, env)
+    receipt = cli._publication(results, NOW, flow, env)
     if head == HEAD:
         assert receipt["review_id"] == 99 and receipt["summary_comment_id"] == 42
     else:
@@ -778,3 +779,74 @@ def test_store_inferred_roots_do_not_leak(cli, tmp_path, monkeypatch):
     other.mkdir()
     monkeypatch.chdir(other)
     assert cli.store.tracking_root() == other / ".ai-badger/task-tracking"
+
+
+@pytest.mark.parametrize("anchor", [None, "customer.id", "x" * 199 + " trailing"])
+def test_worker_finding_build_preserves_anchor_identity(cli, anchor):
+    data = worker_finding()
+    if anchor is not None:
+        data["location"]["anchor"] = anchor
+    built = cli.WorkerFinding.model_validate(data).build(cli.model.Lane.QA)
+    assert built.fingerprint == cli.model.fingerprint_of(
+        "null_deref", "src/pay/charge.py", "charge", anchor)
+    assert cli.model.Finding.model_validate_json(built.model_dump_json()) == built
+
+
+@pytest.mark.parametrize("hint", [None, "../../schemas/review-flow.schema.json"])
+def test_persisted_flow_uses_schema_alias(cli, tmp_path, hint):
+    env = env_for(cli, tmp_path)
+    create(cli, env)
+    flow, _ = cli.store.get(FLOW)
+    flow = flow.model_copy(update={"schema_": hint})
+    payload = json.loads(cli.store.payload_of(flow))
+    assert payload["$schema"] == hint
+    assert "schema_" not in payload
+    schema = json.loads((ROOT / "schemas/review-flow.schema.json").read_text())
+    jsonschema.validate(payload, schema)
+    assert cli.model.ReviewFlow.model_validate(payload).schema_ == hint
+
+
+def test_summary_only_receipt_can_be_submitted(cli, tmp_path):
+    env = env_for(cli, tmp_path)
+    drive(cli, env, tmp_path, "result")
+    receipt = cli._publication([{"op": "create_summary", "response": {"id": 77}}], NOW)
+    assert receipt["review_id"] is None
+    assert receipt["summary_comment_id"] == 77
+    code, payload = submit(cli, env, tmp_path, "result", {"publication": receipt})
+    assert code == 0, payload
+    assert cli.store.get(FLOW)[0].rounds[-1].published.review_id is None
+
+
+def test_publish_retry_recovers_existing_summary_receipt(cli):
+    from test_review_publish import FakeGitHub, REMOTES, make_state
+    fake = FakeGitHub()
+    state = make_state(findings=[])
+    first = cli.publisher.publish(fake, state, list(REMOTES))
+    receipt = cli._publication(first, NOW)
+    writes = len(fake.writes())
+    again = cli.publisher.publish(fake, state, list(REMOTES))
+    recovered = cli._publication(again, NOW)
+    assert len(fake.writes()) == writes
+    assert recovered is not None
+    assert recovered["review_id"] is None
+    assert recovered["summary_comment_id"] == receipt["summary_comment_id"]
+
+
+def test_global_scope_submit_refuses_changed_rules_after_brief(cli, tmp_path, monkeypatch):
+    env = env_for(cli, tmp_path)
+    drive(cli, env, tmp_path, "global_scope")
+    ok(cli, env, "brief", flow_id=FLOW, kind="global_scope",
+       out=str(tmp_path / "global.json"))
+    before = cli.store.get(FLOW)[0].model_dump(mode="json")
+    # The round pins the base snapshot. Simulate a replaced snapshot to exercise the
+    # digest guard independently of movement of the mutable base ref.
+    changed_rules = cli.model.RulesFile.model_validate_json(
+        rules_text(statement="Changed fact statement"))
+    digest = cli.hashlib.sha256(cli.rules_mod.dump(changed_rules).encode("utf-8")).hexdigest()
+    monkeypatch.setattr(cli, "_rules_at_base", lambda *_: (changed_rules, digest))
+    fp = cli.model.fingerprint_of("null_deref", "src/pay/charge.py", "charge")
+    code, payload = submit(cli, env, tmp_path, "global_scope", {"dispositions": {fp: {
+        "action": "drop", "ground": "fact_contradicts", "reason": "Original fact statement",
+        "basis": [{"type": "fact", "id": "F-1"}], "by": "worker"}}})
+    assert code == 1 and payload["code"] == "digest_changed", payload
+    assert cli.store.get(FLOW)[0].model_dump(mode="json") == before

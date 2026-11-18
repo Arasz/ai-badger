@@ -16,6 +16,7 @@ import sys
 from pathlib import Path
 from typing import Any, Callable, Iterator, Optional, Tuple
 
+import jsonschema
 from pydantic import ValidationError
 
 SCRIPT_DIR = Path(__file__).resolve().parent
@@ -141,7 +142,12 @@ def _transaction(write: bool = True) -> Iterator[Any]:
 
 def payload_of(flow: "model.ReviewFlow") -> str:
     """The canonical stored JSON of a flow."""
-    return flow.model_dump_json()
+    payload = flow.model_dump_json(by_alias=True)
+    try:
+        jsonschema.validate(json.loads(payload), model.ReviewFlow.model_json_schema())
+    except jsonschema.ValidationError as exc:
+        raise FlowInvalid(f"serialized flow fails the schema: {exc.message}") from exc
+    return payload
 
 
 def _decode(flow_id: str, payload: str) -> "model.ReviewFlow":

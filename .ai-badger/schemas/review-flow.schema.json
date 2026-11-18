@@ -429,6 +429,19 @@
           ],
           "default": null,
           "title": "Error"
+        },
+        "submission_digest": {
+          "anyOf": [
+            {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Submission Digest"
         }
       },
       "required": [
@@ -612,6 +625,19 @@
           ],
           "default": null,
           "title": "Rules Digest"
+        },
+        "scope_brief_digest": {
+          "anyOf": [
+            {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Scope Brief Digest"
         },
         "lanes": {
           "additionalProperties": {

@@ -431,3 +431,15 @@ def test_basis_must_cover_the_finding_it_disposes(rf):
     for basis in (("fact", "F-3"), ("rule", "R-2")):
         done = rf.submit_dispositions(flow, 1, {target.fingerprint: _drop(*basis)}, rules)
         assert done.rounds[-1].findings[0].disposition.basis[0].id == basis[1]
+
+
+def test_lane_exact_replay_survives_other_lane_merge(rf):
+    flow = flow_at(rf, "lanes", findings=[], lane_status={"qa": "pending", "quality": "pending"})
+    quality = finding(rf, lanes=("quality",), severity="minor", title="Quality finding")
+    qa = finding(rf, lanes=("qa",), severity="major", title="QA finding")
+    accepted = rf.submit_lane(flow, 1, rf.model.Lane.QUALITY, [quality])
+    merged = rf.submit_lane(accepted, 1, rf.model.Lane.QA, [qa])
+    replayed = rf.submit_lane(merged, 1, rf.model.Lane.QUALITY, [quality])
+    assert replayed.model_dump(mode="json") == merged.model_dump(mode="json")
+    changed = quality.model_copy(update={"title": "Changed quality finding"})
+    refused(rf, "lane_done", rf.submit_lane, merged, 1, rf.model.Lane.QUALITY, [changed])

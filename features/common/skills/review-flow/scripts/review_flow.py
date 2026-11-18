@@ -6,6 +6,8 @@ The verdict is `review_flow_model.verdict`; this module never computes another.
 """
 from __future__ import annotations
 
+import hashlib
+import json
 import sys
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -153,18 +155,19 @@ def _lane_disposition(_flow: "model.ReviewFlow", req: Request) -> Optional[str]:
 def _lane_done(flow: "model.ReviewFlow", req: Request) -> Optional[str]:
     if req.lane is None or flow.rounds[-1].lanes[req.lane].status != "done":
         return None
-    current = flow.rounds[-1]
-    own = {f.fingerprint for f in current.findings if req.lane in f.lanes}
-    replay = _lane_result(current, req.lane, req.findings, req.error)
-    if {f.fingerprint for f in req.findings} == own and replay == current.model_dump(mode="json"):
+    saved = flow.rounds[-1].lanes[req.lane].submission_digest
+    if saved is not None and saved == _submission_digest(req.findings, req.error):
         return None
     return f"lane {req.lane.value} is done; only an identical replay is accepted"
 
 
 def _digest_changed(flow: "model.ReviewFlow", req: Request) -> Optional[str]:
     current = flow.rounds[-1]
-    by_script = any(getattr(f.disposition, "by", None) == "script" for f in current.findings)
-    if by_script and current.rules_digest not in (None, req.rules_digest):
+    if current.scope_brief_digest not in (None, req.rules_digest):
+        return "rules changed since the global_scope brief; generate a new brief"
+    retained = any(getattr(f.disposition, "by", None) == "script" or
+                   isinstance(f.disposition, model.Keep) for f in current.findings)
+    if retained and current.rules_digest not in (None, req.rules_digest):
         return (f"round {current.n} was judged against rules {current.rules_digest[:12]}; "
                 f"a new digest {req.rules_digest[:12]} would keep the old dispositions")
     return None
@@ -329,11 +332,19 @@ def merge_findings(findings: Sequence["model.Finding"]) -> List[dict]:
     return merged
 
 
+def _submission_digest(findings: Sequence["model.Finding"], error: Optional[str]) -> str:
+    payload = {"findings": [f.model_dump(mode="json", by_alias=True) for f in findings],
+               "error": error}
+    return hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(",", ":"))
+                          .encode("utf-8")).hexdigest()
+
+
 def _lane_result(current: "model.Round", lane: "model.Lane", findings: Sequence["model.Finding"],
                  error: Optional[str]) -> dict:
     round_data = current.model_dump(mode="json")
     round_data["lanes"][lane.value] = {"status": "failed", "error": error} if error \
-        else {"status": "done", "error": None}
+        else {"status": "done", "error": None,
+              "submission_digest": _submission_digest(findings, error)}
     if not error:
         round_data["findings"] = merge_findings([*current.findings, *findings])
     return round_data
@@ -348,6 +359,8 @@ def submit_lane(flow: "model.ReviewFlow", round_n: int, lane: "model.Lane",
     """
     _enforce(flow, Request(op="submit", round_n=round_n, phase=Phase.LANES, lane=lane,
                            findings=tuple(findings), error=error))
+    if flow.rounds[-1].lanes[lane].status == "done":
+        return flow
     return _with_last_round(flow, _lane_result(flow.rounds[-1], lane, findings, error))
 
 
