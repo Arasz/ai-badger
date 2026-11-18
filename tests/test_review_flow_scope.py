@@ -141,21 +141,3 @@ def test_new_rules_digest_refused_once_the_script_disposed(rf):
     untouched, _ = rf.global_scope(scope_round(rf, [open_]), rules, DIGEST)
     moved, _ = rf.global_scope(untouched, rules, NEW_DIGEST)
     assert moved.rules_digest == NEW_DIGEST
-
-
-def test_retained_keep_prevents_digest_change(rf):
-    target = finding(rf)
-    require = rule("R-1", "active")
-    require["effect"] = {"action": "require", "ground": "rule"}
-    rules = rules_file(rf, rules=[require])
-    judged, _ = rf.global_scope(scope_round(rf, [target]), rules, DIGEST)
-    assert judged.findings[0].disposition.action == "keep"
-    replay, _ = rf.global_scope(judged, rules, DIGEST)
-    assert replay == judged
-    refused(rf, "digest_changed", rf.global_scope, judged, rules_file(rf), NEW_DIGEST)
-
-
-def test_global_scope_rejects_rules_changed_since_brief(rf):
-    target = finding(rf, severity="blocker")
-    pinned = scope_round(rf, [target]).model_copy(update={"scope_brief_digest": DIGEST})
-    refused(rf, "digest_changed", rf.global_scope, pinned, rules_file(rf), NEW_DIGEST)

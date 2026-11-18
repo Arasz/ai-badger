@@ -37,7 +37,7 @@ _UPDATED = re.compile(r"^- Updated: .*$", re.MULTILINE)
 THREADS_QUERY = (
     "query($owner:String!,$name:String!,$pr:Int!,$after:String){repository(owner:$owner,"
     "name:$name){pullRequest(number:$pr){reviewThreads(first:100,after:$after){pageInfo"
-    "{hasNextPage endCursor} nodes{id isResolved comments(first:100){nodes{fullDatabaseId body "
+    "{hasNextPage endCursor} nodes{id isResolved comments(first:100){nodes{databaseId body "
     "url createdAt authorAssociation author{login}}}}}}}}"
 )
 RESOLVE_MUTATION = (
@@ -216,7 +216,7 @@ def fetch_threads(runner: Runner, repo: str, pr: int, login: str) -> list[dict]:
             if author == login:
                 continue
             replies.append({"fingerprint": fp, "thread_id": thread["id"],
-                            "comment_id": int(comment["fullDatabaseId"]), "author": author,
+                            "comment_id": comment["databaseId"], "author": author,
                             "association": comment["authorAssociation"],
                             "body": comment["body"], "url": comment.get("url"),
                             "created_at": comment["createdAt"]})
@@ -343,9 +343,4 @@ def publish(runner: Runner, state: dict, remotes: list[str], dry_run: bool = Fal
     login = _get(runner, "user")["login"]
     head = read_head(runner, state["repo"], state["pr"])
     existing = read_existing(runner, state["repo"], state["pr"], login)
-    results = apply(runner, plan_publish(state, existing, head), dry_run)
-    if not dry_run and existing["summary"] is not None and not any(
-            result["op"] in ("create_summary", "update_summary") for result in results):
-        results.append({"op": "existing_summary", "dry_run": False,
-                        "response": {"id": existing["summary"]["id"]}})
-    return results
+    return apply(runner, plan_publish(state, existing, head), dry_run)

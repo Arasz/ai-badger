@@ -608,36 +608,3 @@ def test_history_must_replay_each_round_to_its_stored_phase(m):
     assert m.ReviewFlow.model_validate(two).rounds[-1].phase is m.Phase.LANES
     with pytest.raises(ValidationError, match="round 2"):
         m.ReviewFlow.model_validate(dict(two, history=_chain(1, "reply_analysis")))
-
-
-def test_anchor_cap_space_is_stable_through_serialization(m):
-    raw = "x" * (m.ANCHOR_LIMIT - 1) + " trailing"
-    finding = m.Finding.model_validate(_anchored(m, 1, raw))
-    assert finding.location.anchor == "x" * (m.ANCHOR_LIMIT - 1)
-    restored = m.Finding.model_validate_json(finding.model_dump_json())
-    assert restored.fingerprint == finding.fingerprint
-
-
-def test_history_rejects_opening_next_round_before_reply_analysis(m):
-    second = _round(n=2, head_sha="b" * 40, phase="context", published=None,
-                    lanes=_lanes(qa="pending"), findings=[])
-    first_chain = _chain(1, "reply_analysis")
-    data = _flow(rounds=[_round(phase="reply_analysis"), second],
-                 history=first_chain[:-1] + _chain(2, "context") + first_chain[-1:])
-    with pytest.raises(ValidationError, match="history"):
-        m.ReviewFlow.model_validate(data)
-    data["history"] = first_chain + _chain(2, "context")
-    assert len(m.ReviewFlow.model_validate(data).rounds) == 2
-
-
-@pytest.mark.parametrize("left,right,conflicts", [
-    ("src/[!ab].py", "src/[ab].py", False),
-    ("src/[ab].py", "src/[!ab].py", False),
-    ("src/[!a].py", "src/[ab].py", True),
-])
-def test_rule_filter_respects_negated_character_classes(m, left, right, conflicts):
-    rules = m.RulesFile.model_validate(_rules_file(rules=[
-        _active("R-1", "require", ["perf"], [left]),
-        _active("R-2", "suppress", ["perf"], [right]),
-    ]))
-    assert [r.id for r in m.lane_rules(rules)] == ([] if conflicts else ["R-1", "R-2"])

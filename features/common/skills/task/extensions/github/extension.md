@@ -1,7 +1,3 @@
-<!-- coderabbit-ai-generated:v1 -->
-
-<!-- coderabbit-ai-generated-section:v1:69bed688ec25d7400635effc86fa25823ee8cac52f72f488d370e47eb8486794 -->
-
 # task extension: github
 
 This is a **config-gated extension** of the base `task` skill (`skills/task/`), not a
@@ -46,9 +42,7 @@ end; these get squashed on merge). Push to the remote branch immediately after e
 
 Required, spans multiple turns. Runs after marking the draft PR ready for review. When the
 `review-flow` skill is installed, a self-review before `gh pr ready` may run it with
-a separate preflight `flow_id`. Collect findings from `result-build` and stop before
-submitting `result`. Its findings enter the triage below like any other review. Reserve the
-default flow ID for the publishable review after triage fixes change the head.
+`{"dry_run": true}` publish; its findings enter the triage below like any other review.
 
 ```bash
 gh pr ready <n>
@@ -99,6 +93,3 @@ gh pr merge <n> --squash
   the working directory's git remote in most setups; the explicit `gh api
   repos/{{owner}}/{{repo}}/...` calls above need the values spelled out because the REST API path
   requires them.
-
-
-<!-- /coderabbit-ai-generated:v1 -->

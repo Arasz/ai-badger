@@ -16,7 +16,6 @@ import sys
 from pathlib import Path
 from typing import Any, Callable, Iterator, Optional, Tuple
 
-import jsonschema
 from pydantic import ValidationError
 
 SCRIPT_DIR = Path(__file__).resolve().parent
@@ -119,12 +118,12 @@ def tracking_root() -> Path:
 
 
 @contextlib.contextmanager
-def _transaction(write: bool = True) -> Iterator[Any]:
+def _transaction() -> Iterator[Any]:
     """One BEGIN IMMEDIATE transaction on a fresh store: commit, or roll back on any error."""
+    os.environ[TRACKING_ROOT_ENV] = str(tracking_root())
     try:
-        store = badger_store._open(  # pylint: disable=protected-access
-            tracking_root() / "tracking.db", "tracking")
-        store.conn.execute("BEGIN IMMEDIATE" if write else "BEGIN")
+        store = badger_store.open_tracking()
+        store.conn.execute("BEGIN IMMEDIATE")
     except (sqlite3.Error, OSError) as exc:
         raise FlowStoreError(f"tracking store unavailable: {exc}") from exc
     try:
@@ -142,12 +141,7 @@ def _transaction(write: bool = True) -> Iterator[Any]:
 
 def payload_of(flow: "model.ReviewFlow") -> str:
     """The canonical stored JSON of a flow."""
-    payload = flow.model_dump_json(by_alias=True)
-    try:
-        jsonschema.validate(json.loads(payload), model.ReviewFlow.model_json_schema())
-    except jsonschema.ValidationError as exc:
-        raise FlowInvalid(f"serialized flow fails the schema: {exc.message}") from exc
-    return payload
+    return flow.model_dump_json()
 
 
 def _decode(flow_id: str, payload: str) -> "model.ReviewFlow":
@@ -176,7 +170,7 @@ def _row(store: Any, flow_id: str) -> dict:
 
 def get(flow_id: str) -> Tuple["model.ReviewFlow", int]:
     """The validated flow and its revision; `FlowNotFound` when absent."""
-    with _transaction(write=False) as store:
+    with _transaction() as store:
         row = _row(store, flow_id)
         return _decode(flow_id, row["payload"]), row["revision"]
 

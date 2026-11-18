@@ -429,19 +429,6 @@
           ],
           "default": null,
           "title": "Error"
-        },
-        "submission_digest": {
-          "anyOf": [
-            {
-              "pattern": "^[0-9a-f]{64}$",
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Submission Digest"
         }
       },
       "required": [
@@ -600,19 +587,6 @@
         "phase": {
           "$ref": "#/$defs/Phase"
         },
-        "inputs": {
-          "additionalProperties": true,
-          "title": "Inputs",
-          "type": "object"
-        },
-        "accepted": {
-          "items": {
-            "additionalProperties": true,
-            "type": "object"
-          },
-          "title": "Accepted",
-          "type": "array"
-        },
         "rules_digest": {
           "anyOf": [
             {
@@ -625,19 +599,6 @@
           ],
           "default": null,
           "title": "Rules Digest"
-        },
-        "scope_brief_digest": {
-          "anyOf": [
-            {
-              "pattern": "^[0-9a-f]{64}$",
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Scope Brief Digest"
         },
         "lanes": {
           "additionalProperties": {
