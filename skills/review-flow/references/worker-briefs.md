@@ -17,8 +17,9 @@ Rules for every worker:
 - Grade each `evidence` item `MEASURED`, `READ`, `INFERRED` or `UNVERIFIED`.
 
 Inputs that every brief carries: `flow_id`, `repo`, `pr`, `round`, `phase`, `head_sha`,
-`change_model`, `findings`, `acs`, `issue_refs`, `tools`, `facts`, `rules`, `truncated` and
-`data`.
+`change_model`, `findings`, `acs`, `issue_refs`, `tools`, `facts`, `rules`, `commands`,
+`truncated` and `data`. Only the `quality` brief fills `commands`: the project commands at the
+pinned base commit.
 
 A lane finding has this shape (model `WorkerFinding`):
 
@@ -98,8 +99,9 @@ Persona: `code-reviewer`
 
 Schema: `review-flow/lane-submission.v1` (model `LaneSubmission`)
 
-Skills: `code-review-checklist`, `code-review-evidence`, the `lint` command, and
-`code-review-graph`.
+Skills: `code-review-checklist`, `code-review-evidence`, the brief's `commands`, and
+`code-review-graph`. Without `code-review-checklist`, run the Phase 1 gates (build, test, lint,
+secrets) from the brief's `commands`, and say the checklist was absent.
 
 Task: find correctness, security and maintainability defects in the changed code. Rules in
 the brief cover `style`, `docs`, `dead_code`, `injection`, `input_validation`,

@@ -120,21 +120,30 @@ def tracking_root() -> Path:
 
 @contextlib.contextmanager
 def _transaction() -> Iterator[Any]:
-    """One BEGIN IMMEDIATE transaction on a fresh store: commit, or roll back on any error."""
+    """One BEGIN IMMEDIATE transaction on a fresh store: commit, or roll back on any error.
+
+    The tracking root env var is set only for the transaction, then restored."""
+    saved = os.environ.get(TRACKING_ROOT_ENV)
     os.environ[TRACKING_ROOT_ENV] = str(tracking_root())
     try:
-        store = badger_store.open_tracking()
-        store.conn.execute("BEGIN IMMEDIATE")
-    except (sqlite3.Error, OSError) as exc:
-        raise FlowStoreError(f"tracking store unavailable: {exc}") from exc
-    try:
-        yield store
-        store.conn.commit()
-    except BaseException:
-        store.conn.rollback()
-        raise
+        try:
+            store = badger_store.open_tracking()
+            store.conn.execute("BEGIN IMMEDIATE")
+        except (sqlite3.Error, OSError) as exc:
+            raise FlowStoreError(f"tracking store unavailable: {exc}") from exc
+        try:
+            yield store
+            store.conn.commit()
+        except BaseException:
+            store.conn.rollback()
+            raise
+        finally:
+            store.close()
     finally:
-        store.close()
+        if saved is None:
+            os.environ.pop(TRACKING_ROOT_ENV, None)
+        else:
+            os.environ[TRACKING_ROOT_ENV] = saved
 
 
 # ------------------------------------------------------------------ payloads

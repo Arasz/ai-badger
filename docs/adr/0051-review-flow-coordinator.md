@@ -101,16 +101,18 @@ Four existing severity vocabularies disagree (research §1.4), and no "learned r
    (`fact_contradicts | unreachable_in_production | rule | duplicate | out_of_scope`) and at
    least one basis ref to a fact or a rule. **DEFENSIVE rule:** ground
    `unreachable_in_production` requires the `DEFENSIVE` tag on the finding, and its effect must
-   be `downgrade`. **Fingerprint:** `sha256(kind|path|symbol)`, or
-   `sha256(kind|path|symbol|anchor)` when the finding sets `Location.anchor`, recomputed by the
-   validator; a worker cannot supply its own. `symbol` is required, with `<module>` as the
+   be `downgrade`. **Fingerprint:** `sha256(kind|path|symbol)`, or the sha256 of the JSON
+   array `[kind, path, symbol, anchor]` when the finding sets `Location.anchor` (so a `|` inside
+   a field cannot make two findings collide), recomputed by the validator; a worker cannot
+   supply its own. `symbol` is required, with `<module>` as the
    fallback. `anchor` is optional: the offending code text, whitespace-normalised and cut to 200
    characters. It keeps two defects in one function apart, and because it is code text rather
    than a line number or a title, it survives a line shift and a reworded title.
    `Finding.lanes` is a list of every lane that raised the finding.
 
-8. **Publishing.** Publish always posts a review whose `event` is always `COMMENT`. The flow
-   never approves and never requests changes.
+8. **Publishing.** Publish posts its inline findings as one review whose event is always
+   `COMMENT`; a round with no inline findings updates only the summary comment. The flow never
+   approves and never requests changes.
    - Inline comment: a human part of at most 4 lines (reason and severity), then a collapsed
      `<details>` agent block (reproduction path, wider context, proposed fix). The renderer
      refuses a longer human part; it never truncates.
@@ -154,8 +156,8 @@ The publisher and fetcher use only these calls. Each line was checked against th
 - `POST /repos/{owner}/{repo}/issues/{issue_number}/comments` — first summary — https://docs.github.com/en/rest/issues/comments#create-an-issue-comment
 - `PATCH /repos/{owner}/{repo}/issues/comments/{comment_id}` — edit the summary in place — https://docs.github.com/en/rest/issues/comments#update-an-issue-comment
 - `GET /user` — authenticated login (`login` is a required response field) for marker ownership — https://docs.github.com/en/rest/users/users#get-the-authenticated-user
-- GraphQL `PullRequest.reviewThreads` → `PullRequestReviewThread{id, isResolved, comments}` → `PullRequestReviewComment{author, authorAssociation, databaseId, body, url, createdAt}` (`body` to find the marker, `url` for a rule's thread origin, `createdAt` for the reply time) — https://docs.github.com/en/graphql/reference/pulls (`databaseId` is marked deprecated there for 64-bit ids)
-- GraphQL `PullRequestReviewComment.fullDatabaseId` as the replacement for `databaseId` — UNVERIFIED (not found on the fetched page section)
+- GraphQL `PullRequest.reviewThreads` → `PullRequestReviewThread{id, isResolved, comments}` → `PullRequestReviewComment{author, authorAssociation, fullDatabaseId, body, url, createdAt}` (`body` to find the marker, the thread root's `url` for a rule's thread origin, `createdAt` for the reply time) — https://docs.github.com/en/graphql/reference/pulls
+- GraphQL `PullRequestReviewComment.fullDatabaseId` (`BigInt`, sent as a JSON string) replaces `databaseId`, which is deprecated because it does not support 64-bit ids — MEASURED 2026-11-18 by schema introspection (`__type(name: "PullRequestReviewComment")`, `includeDeprecated: true`) and a live query that returned the value as a string — https://docs.github.com/en/graphql/reference/objects#pullrequestreviewcomment
 - GraphQL mutation `resolveReviewThread(input: {threadId})` returning `thread` — https://docs.github.com/en/graphql/reference/pulls
 
 ## Consequences
@@ -167,8 +169,8 @@ The publisher and fetcher use only these calls. Each line was checked against th
 - Positive: one severity enum ends the four-way vocabulary drift for this flow.
 - Negative: a new model, transition table, store adapter, renderer and publisher to maintain.
   The CLI duplicates part of the task-graph pattern instead of sharing code with it.
-- Negative: `databaseId` is deprecated in GraphQL; the thread-to-REST-comment join must move to a
-  replacement field when GitHub removes it.
+- Negative: the thread-to-REST-comment join depends on GraphQL `fullDatabaseId` matching the
+  REST comment id.
 - Neutral: no MCP server in v1, so agents call the CLI. An MCP twin can come later without a
   model change.
 - Neutral: cut from v1: Jira adapter code, committable suggestion blocks, auto-polling,

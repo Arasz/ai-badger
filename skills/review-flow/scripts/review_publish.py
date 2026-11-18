@@ -37,7 +37,7 @@ _UPDATED = re.compile(r"^- Updated: .*$", re.MULTILINE)
 THREADS_QUERY = (
     "query($owner:String!,$name:String!,$pr:Int!,$after:String){repository(owner:$owner,"
     "name:$name){pullRequest(number:$pr){reviewThreads(first:100,after:$after){pageInfo"
-    "{hasNextPage endCursor} nodes{id isResolved comments(first:100){nodes{databaseId body "
+    "{hasNextPage endCursor} nodes{id isResolved comments(first:100){nodes{fullDatabaseId body "
     "url createdAt authorAssociation author{login}}}}}}}}"
 )
 RESOLVE_MUTATION = (
@@ -59,7 +59,7 @@ class PublishRefused(Exception):
 
     exit_code = 2
 
-    def __init__(self, code: str, message: str = "", results: list | None = None):
+    def __init__(self, code: str, message: str = "", results: Optional[list] = None):
         super().__init__(f"{code}: {message}" if message else code)
         self.code = code
         self.results = results or []
@@ -76,7 +76,7 @@ class PublishFailed(Exception):
         self.error = error
 
 
-def parse_marker(body: str) -> dict | None:
+def parse_marker(body: str) -> Optional[dict]:
     """Marker at the very start of a comment body as {kind, fp, digest}, else None."""
     match = MARKER.match(body or "")
     return match.groupdict() if match else None
@@ -95,7 +95,7 @@ def parse_pages(text: str) -> list:
         items.extend(page)
 
 
-def gh_runner(argv: list[str], stdin: str | None) -> str:
+def gh_runner(argv: List[str], stdin: Optional[str]) -> str:
     """Real runner: ``gh <argv>``; a non-zero exit raises GhError with the HTTP status."""
     proc = subprocess.run(["gh", *argv], input=stdin, capture_output=True, text=True,
                           check=False)
@@ -112,7 +112,7 @@ def _check_target(repo, pr):
         raise PublishRefused("bad_input", f"pr is not a positive number: {pr!r}")
 
 
-def check_remote(repo: str, remotes: list[str]) -> None:
+def check_remote(repo: str, remotes: List[str]) -> None:
     """Refuse unless one cwd git remote URL points at ``repo`` on github.com."""
     for url in remotes:
         match = _REMOTE.search((url or "").strip())
@@ -157,15 +157,24 @@ def _own_marker(comment_body, author, login, kind):
     return marker
 
 
+def _comment_id(comment):
+    """The REST id of a GraphQL review comment; GitHub sends the BigInt as a string."""
+    value = comment.get("fullDatabaseId")
+    return int(value) if value is not None else None
+
+
 def _thread_root(thread, login):
-    """(fingerprint, root comment id) of a thread rooted at our own finding comment, else None."""
+    """(fingerprint, root comment id, root url) of a thread rooted at our own finding comment.
+
+    An empty tuple when the thread is not ours, so callers always get a sequence.
+    """
     comments = thread["comments"]["nodes"]
     if not comments:
-        return None
+        return ()
     root = comments[0]
     marker = _own_marker(root.get("body"), (root.get("author") or {}).get("login"), login,
                          "finding")
-    return (marker["fp"], root.get("databaseId")) if marker else None
+    return (marker["fp"], _comment_id(root), root.get("url")) if marker else ()
 
 
 def read_head(runner: Runner, repo: str, pr: int) -> str:
@@ -178,7 +187,8 @@ def read_existing(runner: Runner, repo: str, pr: int, login: str) -> dict:
     """Our own comments on the PR, found by marker AND author == ``login``.
 
     ``inline`` holds the newest finding comment per fingerprint, ``older`` the ones it replaced;
-    ``replied`` and ``threads`` are keyed by the root comment id.
+    ``replied`` and ``threads`` are keyed by the root comment id. An outdated comment has
+    ``line`` None, so it matches no current anchor and is posted again.
     """
     _check_target(repo, pr)
     inline, older, replied = {}, [], set()
@@ -193,8 +203,7 @@ def read_existing(runner: Runner, repo: str, pr: int, login: str) -> dict:
         if not marker:
             continue
         entry = {"id": comment["id"], "fp": marker["fp"], "digest": marker["digest"],
-                 "path": comment.get("path"),
-                 "line": comment.get("line") or comment.get("original_line")}
+                 "path": comment.get("path"), "line": comment.get("line")}
         current = inline.get(marker["fp"])
         if current is not None and current["id"] > entry["id"]:
             current, entry = entry, current
@@ -209,13 +218,16 @@ def read_existing(runner: Runner, repo: str, pr: int, login: str) -> dict:
     threads = {}
     for thread in _threads(runner, repo, pr):
         root = _thread_root(thread, login)
-        if root and root[1] not in threads:
-            threads[root[1]] = {"id": thread["id"], "resolved": bool(thread["isResolved"])}
+        if not root:
+            continue
+        _, root_id, _ = root
+        if root_id not in threads:
+            threads[root_id] = {"id": thread["id"], "resolved": bool(thread["isResolved"])}
     return {"login": login, "inline": inline, "older": older, "replied": replied,
             "summary": summary, "threads": threads}
 
 
-def fetch_threads(runner: Runner, repo: str, pr: int, login: str) -> list[dict]:
+def fetch_threads(runner: Runner, repo: str, pr: int, login: str) -> List[dict]:
     """Replies by others in threads rooted at our own finding comments, keyed by fingerprint."""
     _check_target(repo, pr)
     replies = []
@@ -229,10 +241,10 @@ def fetch_threads(runner: Runner, repo: str, pr: int, login: str) -> list[dict]:
             if author == login:
                 continue
             replies.append({"fingerprint": fp, "thread_id": thread["id"],
-                            "comment_id": comment["databaseId"], "author": author,
+                            "comment_id": _comment_id(comment), "author": author,
                             "association": comment["authorAssociation"],
                             "body": comment["body"], "url": comment.get("url"),
-                            "created_at": comment["createdAt"]})
+                            "thread_url": root[2], "created_at": comment["createdAt"]})
     return replies
 
 
@@ -280,7 +292,7 @@ def _anchor_of(finding):
     return loc["path"], int(loc["start"])
 
 
-def plan_publish(state: dict, existing: dict, head_sha: str) -> list[dict]:
+def plan_publish(state: dict, existing: dict, head_sha: str) -> List[dict]:
     """Actions that bring GitHub in line with ``state``; pure, makes every decision."""
     repo, pr = state.get("repo"), state.get("pr")
     _check_target(repo, pr)
@@ -356,8 +368,8 @@ def _argv(action):
 SUMMARY_OPS = ("create_summary", "update_summary")
 
 
-def apply(runner: Runner, actions: list[dict], dry_run: bool = False,
-          check_head: Callable[[], None] | None = None) -> list[dict]:
+def apply(runner: Runner, actions: List[dict], dry_run: bool = False,
+          check_head: Optional[Callable[[], None]] = None) -> List[dict]:
     """Run the planned writes in order; stops at the first failure. ``dry_run`` writes nothing.
 
     ``check_head`` runs before the first write and again before the summary write; a
@@ -389,7 +401,7 @@ def apply(runner: Runner, actions: list[dict], dry_run: bool = False,
     return results
 
 
-def publish(runner: Runner, state: dict, remotes: list[str], dry_run: bool = False) -> list[dict]:
+def publish(runner: Runner, state: dict, remotes: List[str], dry_run: bool = False) -> List[dict]:
     """Check the remote and head, read our existing comments, then plan and apply.
 
     The head is read again before the first write and before the summary write, so a push

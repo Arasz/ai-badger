@@ -146,20 +146,22 @@ A worker uses only the tools in that list.
 |---|---|---|---|
 | `mcp:code-review-graph` | Callers, impact radius and test coverage of each changed unit. | `architecture`, `qa`, `quality`, `global_scope` | Use `git diff` and `grep` for callers. Grade that evidence `INFERRED`. |
 | `skill:review-changes` | Rank changed units by blast radius. | `architecture`, `qa` | Rank by the size of the diff for each file. |
-| `skill:code-review-checklist` | Style, security and layering gates. | `quality` | Run the `lint` command from `tools-probe`. |
+| `skill:code-review-checklist` | Style, security and layering gates. | `quality` | Run the Phase 1 gates (build, test, lint, secrets) from the brief's `commands`. Say the checklist was absent. |
 | `skill:review-tests` | Judge whether the tests can fail for the defect. | `qa` | Read the test files of each changed unit. |
 | `skill:code-review-evidence` | Grade each claim `MEASURED`, `READ`, `INFERRED` or `UNVERIFIED`. | all seven | Grade by hand with the same four words. |
 | `skill:design-tests` | Name the test that a missing behaviour needs. | `qa` | Describe the missing test in `agent.fix`. |
 | `persona:code-reviewer` | Worker persona. | `quality`, `integrator`, `reply_analysis` | Use a general worker with the brief's `task`. |
 | `persona:qa` | Worker persona. | `qa` | Use a general worker with the brief's `task`. |
 | `persona:architect` | Worker persona. | `business`, `architecture`, `global_scope`, change model | Use a general worker with the brief's `task`. |
-| `gh` | Read the PR and issues, publish, fetch threads. | `context-probe`, `publish`, `threads-fetch` | Publish runs offline: no GitHub call. Give `round-N.rendered.md` to the human. |
+| `gh` | Read the PR and issues, publish, fetch threads. | `context-probe`, `publish`, `threads-fetch` | If `gh` is not confirmed or not on PATH, publish runs offline: no GitHub call. Give `round-N.rendered.md` to the human. `threads-fetch` refuses with `offline`. |
 | Jira MCP (`mcp:<name>`) | Read the ACs of the linked Jira issue. | context phase, `business` | Use ACs that the user pasted. Without them, ACs are `absent`. |
 
 On the first use for a flow:
 
 1. Run `review_flow_cli.py tools-probe` with `{}`. It lists `gh` (with the auth status), `uv`,
-   the `lint` command, each `skill:<name>`, each `persona:<name>` and each `mcp:<name>`.
+   whether a `lint` command is set, each `skill:<name>`, each `persona:<name>` and each
+   `mcp:<name>`. It reports availability only. The `quality` brief carries the `commands` of
+   `.ai-badger/config.json` at the pinned base commit, not the checkout.
 2. Remove each entry with `"available": false`.
 3. Remove each tool that the user does not want for this review.
 4. Run `review_flow_cli.py tools-confirm` with the remaining names. The list goes to
@@ -186,9 +188,10 @@ A proposed rule does nothing. It becomes active by one of three paths:
 
 - A maintainer confirms it. Run `rules` with
   `{"action": "confirm", "rule_id": "R-3", "maintainer": "<login>"}`.
-- The cited code exists at the path and lines at the PR base ref. Run `rules` with
-  `{"action": "verify", "rule_id": "R-3", "base_ref": "origin/main", "citation": {"path",
-  "start", "end", "quote"}}`. The script reads the file at `base_ref`, not the checkout.
+- The cited code exists at the path and lines at the PR base. Run `rules` with
+  `{"action": "verify", "rule_id": "R-3", "flow_id": "<id>", "citation": {"path", "start",
+  "end", "quote"}}`. The script reads the file at the flow's pinned base commit, not the
+  checkout. A `base_ref` that names another ref is refused with `base_mismatch`.
 - Two origins in distinct threads by distinct authors taught it. Each origin after the first
   comes from `add-origin`. Then run `rules` with
   `{"action": "activate-threads", "rule_id": "R-3"}`.
@@ -235,18 +238,23 @@ the output JSON and the `submit` call for that brief kind.
 - Rules and facts load from the PR base ref, never from the PR head. A PR that edits
   `.ai-badger/review/rules.json` does not change its own review. The script adds a `config`
   finding for that edit instead.
-- The `context` submission must carry `base_ref` (for example `origin/main`). Without it, the
-  `brief`, `global_scope`, `result-build` and `publish` steps refuse with `no_base_ref`.
+- The `context` submission must carry `base_ref` (for example `origin/main`). Submit
+  resolves it to a commit and pins that commit for the round. If the ref names no commit here,
+  submit refuses with `base_missing`: fetch the ref first. Every later read of rules, facts
+  and `commands` uses the pinned commit, even when the ref moves.
 - The human part of an inline comment is at most 4 lines. The renderer refuses a longer part.
   It never truncates. Shorten the finding's `title` and `reason` in a new worker file.
 - Every review has the event `COMMENT`. The flow never approves and never requests changes.
-- The fingerprint is `sha256(kind|path|symbol[|anchor])`. It excludes the line and the
+- The fingerprint is `sha256(kind|path|symbol)`, or the sha256 of the JSON array
+  `[kind, path, symbol, anchor]` when the finding has an anchor. It excludes the line and the
   title. `anchor` is optional: the offending code text, with whitespace normalised. Without
   an anchor, two findings of one kind in one symbol are one finding. A moved line keeps its
   fingerprint.
 - A worker cannot set a fingerprint. The script computes it again from the finding.
-- Publish refuses when the PR head moved since the round started (`head_moved`, exit 2). Finish
-  the round as `reply_analysis` with `next_round` and the new head.
+- Publish refuses when the PR head moved since the round started (`head_moved`, exit 2). The
+  error lists the writes already made, and `round-N.publish.json` records them. Open a new flow
+  with `flow-create` at the new head; its publish finds the comments already posted by
+  marker.
 - Publish refuses when no git remote of the working directory points at the flow's repo.
 - `result-build` freezes the verdict. A second call returns the frozen file unchanged.
 - `rules propose` always creates a new rule. A second reply that teaches the same rule must

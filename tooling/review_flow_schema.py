@@ -37,7 +37,8 @@ SCHEMAS = {
         "ReviewFlow",
         "The persisted review flow of one pull request: rounds, findings, dispositions and "
         "phase history. Not expressed here: the fingerprint must equal "
-        "sha256(kind|path|symbol[|anchor]), phase ranks gate lane runs, dispositions and "
+        "sha256(kind|path|symbol), or the sha256 of the JSON [kind, path, symbol, anchor] "
+        "when anchored, phase ranks gate lane runs, dispositions and "
         "publication, only the last round may be open, and each round's history replays along "
         "the declared transitions to its phase."),
     "schemas/review-rules.schema.json": (

@@ -54,8 +54,10 @@ Work top-down. Stop expanding when the verdict for the change is clear; do not s
 
 **Baseline when a named sibling is not installed** (opt-in skills ship only when the project asked
 for them): do that step inline at its cheapest — diff stat plus `git log` for ranking, the
-checklist's Phase 1 gates verbatim, and every high-risk untested unit named individually with its
-missing test case. Say which siblings were absent; the review is thinner for it, not silent.
+Phase 1 gates (build, test, lint, secrets) from the `commands` of `.ai-badger/config.json` at
+the PR base (in a review-flow, the brief's `commands`), and every high-risk untested unit named
+individually with its missing test case. Say which siblings were absent (name the checklist when
+it was); the review is thinner for it, not silent.
 
 ## Reading Copilot's review (when Copilot ran, not you)
 

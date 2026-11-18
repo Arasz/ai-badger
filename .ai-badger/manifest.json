@@ -1,7 +1,7 @@
 {
   "$schema": "./schemas/manifest.schema.json",
   "frameworkVersion": "0.221.0",
-  "frameworkCommit": "c17c75cd06d8b1259aff65f8b13ea2af6bbb87e2",
+  "frameworkCommit": "a2d751079644b4d27109b63fd9f9f64cd3602572",
   "frameworkDirty": true,
   "frameworkRoot": ".",
   "generatedAt": null,
@@ -1295,12 +1295,12 @@
       "source": "features/common/skills/review-flow",
       "target": ".ai-badger/skills/review-flow",
       "frameworkVersion": "0.221.0",
-      "hash": "ae01bc40e0d09805a0be1b72e43450790fcb3f8591b255ac4ad8b1658954f0ba",
+      "hash": "5164ebfcf3177c1d84111937e7ac124e0be0f759362074eabc3e594650f008e9",
       "dirMeta": {
         "file_count": 11,
         "dir_count": 2
       },
-      "sourceHash": "ae01bc40e0d09805a0be1b72e43450790fcb3f8591b255ac4ad8b1658954f0ba",
+      "sourceHash": "5164ebfcf3177c1d84111937e7ac124e0be0f759362074eabc3e594650f008e9",
       "sourceMeta": {
         "file_count": 11,
         "dir_count": 2
@@ -1658,12 +1658,12 @@
       "source": "features/github/skills/code-review",
       "target": ".ai-badger/skills/code-review",
       "frameworkVersion": "0.221.0",
-      "hash": "4f4af19c70673221f82c6b3213235c9b17040ee12c2d69df2164ad29912bb940",
+      "hash": "dc6df0ec8bdda0de78a20e465a945762de2178e5dac6d0dbd4466fac6b003fe4",
       "dirMeta": {
         "file_count": 1,
         "dir_count": 0
       },
-      "sourceHash": "189932c3052465671685103981cb5351a815f7d23abe5f07b9846606daf9c03e",
+      "sourceHash": "74bb2375dd8466d15d015bdb56e8322dbb2f21473be606213f4ffa63f151a408",
       "sourceMeta": {
         "file_count": 1,
         "dir_count": 0

@@ -192,3 +192,61 @@ def test_lint_kind_mapping_and_default():
             "a.py:3:1: E501 line too long\n")
     kinds = [f["kind"] for f in rd.parse_lint(text, "/repo")]
     assert kinds == ["dead_code", "docs", "style"]
+
+
+# ------------------------------------------------------------------ old side (review round 2)
+
+
+DELETION_ONLY = """\
+diff --git a/pkg/a.py b/pkg/a.py
+--- a/pkg/a.py
++++ b/pkg/a.py
+@@ -10,2 +9,0 @@ def f():
+-gone1
+-gone2
+"""
+
+ADDED_FILE = """\
+diff --git a/pkg/new.py b/pkg/new.py
+new file mode 100644
+--- /dev/null
++++ b/pkg/new.py
+@@ -0,0 +1,5 @@
++1
++2
++3
++4
++5
+"""
+
+RENAMED_EDIT = """\
+diff --git a/pkg/old.py b/pkg/new.py
+similarity index 90%
+rename from pkg/old.py
+rename to pkg/new.py
+--- a/pkg/old.py
++++ b/pkg/new.py
+@@ -4,3 +4,3 @@
+ keep
+-before
++after
+ keep
+"""
+
+
+def test_old_side_maps_a_deletion_only_hunk_to_the_deleted_lines():
+    hunks = rd.parse_diff(DELETION_ONLY, side="old")
+    assert hunks == {"pkg/a.py": [(10, 11)]}
+    assert rd.parse_diff(DELETION_ONLY) == {}
+
+
+def test_old_side_of_an_added_file_changes_no_old_line():
+    hunks = rd.parse_diff(ADDED_FILE, side="old")
+    assert not any(start <= 50 <= end for start, end in hunks.get("pkg/new.py", ()))
+    assert rd.parse_diff(ADDED_FILE) == {"pkg/new.py": [(1, 5)]}
+
+
+def test_old_side_keys_a_renamed_file_by_its_old_path_and_old_lines():
+    assert rd.parse_diff(RENAMED_EDIT, side="old") == {"pkg/old.py": [(4, 6)]}
+    assert rd.parse_diff(RENAMED_EDIT) == {"pkg/new.py": [(4, 6)]}
+    assert rd.parse_diff(MODIFIED, side="old") == {"pkg/a.py": [(1, 3), (20, 22)]}

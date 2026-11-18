@@ -134,13 +134,17 @@ class FakeGitHub:
         page = roots[start:start + self.page_size]
         nodes = []
         asks_created = "createdAt" in payload["query"]
+        asks_full_id = "fullDatabaseId" in payload["query"]
         for root in page:
             thread = [root] + [c for c in self.review_comments if c["in_reply_to_id"] == root["id"]]
             nodes.append({
                 "id": f"T_{root['id']}",
                 "isResolved": f"T_{root['id']}" in self.resolved,
                 "comments": {"nodes": [{
-                    "databaseId": c["id"], "body": c["body"], "url": f"https://x/{c['id']}",
+                    # GitHub serialises the BigInt `fullDatabaseId` as a JSON string.
+                    **({"fullDatabaseId": str(c["id"])} if asks_full_id
+                       else {"databaseId": c["id"]}),
+                    "body": c["body"], "url": f"https://x/{c['id']}",
                     "authorAssociation": c["author_association"],
                     "author": {"login": c["user"]["login"]},
                     **({"createdAt": c["created_at"]} if asks_created else {}),
@@ -612,3 +616,62 @@ def test_dry_run_reads_the_head_once():
     fake = MovingHead([HEAD1, HEAD2])
     run(fake, make_state(), dry_run=True)
     assert fake.head_reads == 1 and fake.writes() == []
+
+
+# --- review round 2 fixes ----------------------------------------------------------------
+
+
+def test_fetch_threads_reads_full_database_id():
+    """`databaseId` is deprecated for 64-bit ids; replies carry `fullDatabaseId` as an int."""
+    assert "fullDatabaseId" in publish.THREADS_QUERY
+    assert "databaseId" not in publish.THREADS_QUERY
+    fake = FakeGitHub()
+    run(fake, make_state())
+    own_a = _own(fake, FP_A)
+    reply = fake.add_review_comment("alice", "Fixed.", reply_to=own_a["id"])
+    replies = publish.fetch_threads(fake, REPO, PR, ME)
+    assert [r["comment_id"] for r in replies] == [reply["id"]]
+    assert isinstance(replies[0]["comment_id"], int)
+
+
+def test_replies_in_one_thread_share_thread_url():
+    fake = FakeGitHub(page_size=1)
+    run(fake, make_state())
+    own_a, own_b = _own(fake, FP_A), _own(fake, FP_B)
+    for author in ("alice", "bob"):
+        fake.add_review_comment(author, f"{author} says fixed", reply_to=own_a["id"])
+    fake.add_review_comment("carol", "Not a bug", reply_to=own_b["id"])
+    replies = publish.fetch_threads(fake, REPO, PR, ME)
+    assert [(r["author"], r["thread_url"]) for r in replies] == [
+        ("alice", f"https://x/{own_a['id']}"), ("bob", f"https://x/{own_a['id']}"),
+        ("carol", f"https://x/{own_b['id']}")]
+    assert replies[0]["url"] != replies[1]["url"]
+
+
+def test_outdated_comment_at_the_same_line_is_posted_again():
+    """GitHub returns line null for an outdated comment; original_line must not match it."""
+    fake = FakeGitHub()
+    run(fake, make_state())
+    old_a = _own(fake, FP_A)
+    old_a["line"] = None
+    fake.head = HEAD2
+    del fake.calls[:]
+    first = make_state()["round"]["findings"]
+    run(fake, make_state(head=HEAD2, n=2, previous_findings=first))
+    review = next(p for m, e, p in fake.writes() if e.endswith("/reviews"))
+    assert [(c["path"], c["line"]) for c in review["comments"]] == [("src/a.py", 10)]
+    assert fake.resolved == {f"T_{old_a['id']}"}
+    assert not any(str(_own(fake, FP_B)["id"]) in e for _, e in write_endpoints(fake))
+
+
+def test_new_flow_reuses_existing_comments_by_marker():
+    """A new flow opened at a moved head posts no duplicate of a comment already on the PR."""
+    fake = FakeGitHub()
+    run(fake, make_state())
+    posted = len(fake.review_comments)
+    fake.head = HEAD2
+    del fake.calls[:]
+    run(fake, make_state(head=HEAD2, n=1))
+    assert [m for m, _ in write_endpoints(fake)] == ["PATCH"]
+    assert write_endpoints(fake)[0][1].startswith(f"repos/{REPO}/issues/comments/")
+    assert len(fake.review_comments) == posted and len(fake.issue_comments) == 1

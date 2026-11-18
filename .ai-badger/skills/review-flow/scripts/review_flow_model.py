@@ -7,6 +7,7 @@ rules (fingerprint recomputation, phase ranks, rule activation proof) are pydant
 from __future__ import annotations
 
 import hashlib
+import json
 import re
 import sys
 from datetime import datetime, timedelta
@@ -188,11 +189,12 @@ def normalise_anchor(text: str) -> str:
 
 def fingerprint_of(kind: Union[Kind, str], path: str, symbol: str,
                    anchor: Optional[str] = None) -> str:
-    """The finding fingerprint: sha256 hex of `kind|path|symbol`, plus `|anchor` when anchored."""
+    """The finding fingerprint: sha256 hex of `kind|path|symbol`, or of the JSON array
+    `[kind, path, symbol, anchor]` when anchored, so a `|` inside a field cannot collide."""
     kind_value = kind.value if isinstance(kind, Kind) else kind
     key = f"{kind_value}|{path}|{symbol}"
     if anchor is not None:
-        key += f"|{normalise_anchor(anchor)}"
+        key = json.dumps([kind_value, path, symbol, normalise_anchor(anchor)])
     return hashlib.sha256(key.encode("utf-8")).hexdigest()
 
 
@@ -378,8 +380,9 @@ class Finding(BaseModel):
         location = self.location
         expected = fingerprint_of(self.kind, location.path, location.symbol, location.anchor)
         if self.fingerprint != expected:
-            raise ValueError(f"fingerprint {self.fingerprint!r} is not "
-                             f"sha256(kind|path|symbol[|anchor]) {expected!r}")
+            raise ValueError(f"fingerprint {self.fingerprint!r} is not the sha256 of "
+                             f"kind|path|symbol, or of the JSON [kind, path, symbol, anchor] "
+                             f"when anchored: {expected!r}")
         return self
 
     @model_validator(mode="after")
@@ -718,17 +721,20 @@ def _glob_tokens(glob: str) -> List[Tuple[str, str]]:
             tokens.append(("lit", char))
         else:
             members = re.sub(r"(.)-(.)", lambda m: "".join(
-                chr(c) for c in range(ord(m.group(1)), ord(m.group(2)) + 1)), glob[j:close])
+                chr(c) for c in range(ord(m.group(1)), ord(m.group(2)) + 1)), glob[j:close],
+                             flags=re.DOTALL)
             tokens.append(("notset" if j > i else "set", members))
             i = close + 1
     return tokens
 
 
 def _chars_meet(a: Tuple[str, str], b: Tuple[str, str]) -> bool:
-    """Whether two one-character tokens accept a common character; a negated pair is assumed to."""
+    """Whether two one-character tokens accept a common character; two negated sets do."""
     a, b = sorted((a, b))  # kinds sort as ? < lit < notset < set
-    if a[0] == "?" or (a[0] == "notset" and b[0] == "set") or a[0] == b[0] == "notset":
+    if a[0] == "?" or a[0] == b[0] == "notset":
         return True
+    if a[0] == "notset" and b[0] == "set":
+        return bool(set(b[1]) - set(a[1]))
     if a[0] == "lit":
         return a[1] == b[1] if b[0] == "lit" else (a[1] in b[1]) == (b[0] == "set")
     return bool(set(a[1]) & set(b[1]))

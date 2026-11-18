@@ -608,3 +608,24 @@ def test_history_must_replay_each_round_to_its_stored_phase(m):
     assert m.ReviewFlow.model_validate(two).rounds[-1].phase is m.Phase.LANES
     with pytest.raises(ValidationError, match="round 2"):
         m.ReviewFlow.model_validate(dict(two, history=_chain(1, "reply_analysis")))
+
+
+# ------------------------------------------------------------------ review round 2 fixes
+
+
+def test_fingerprint_field_boundaries_distinct(m):
+    """A `|` inside a field must not let two different findings share one anchored key."""
+    left = m.fingerprint_of("null_deref", "src/a|b.py", "f", "x")
+    right = m.fingerprint_of("null_deref", "src/a", "b.py|f", "x")
+    assert left != right
+    key = json.dumps(["null_deref", "src/a|b.py", "f", "x"])
+    assert left == hashlib.sha256(key.encode("utf-8")).hexdigest()
+    assert m.fingerprint_of("null_deref", "src/a.py", "f") == _fp("null_deref", "src/a.py", "f")
+
+
+def test_glob_range_spans_a_newline_and_a_negated_set_excludes_its_members(m):
+    assert m._glob_pair_overlaps("[\n-z]x", "bx") is True
+    assert fnmatch.fnmatchcase("bx", "[\n-z]x")
+    assert m._glob_pair_overlaps("[ab]", "[!ab]") is False
+    assert m._glob_pair_overlaps("[abc]", "[!ab]") is True
+    assert m._glob_pair_overlaps("[!a]", "[!b]") is True

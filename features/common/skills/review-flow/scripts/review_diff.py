@@ -29,14 +29,18 @@ def _header_path(line: str) -> str | None:
     return tail.strip('"') if sep else None
 
 
-def parse_diff(text: str) -> dict[str, list[tuple[int, int]]]:
-    """Map path to the RIGHT-side (new file) line ranges that accept inline comments.
+def parse_diff(text: str, side: str = "new") -> dict[str, list[tuple[int, int]]]:
+    """Map path to the line ranges each hunk covers on one side of the diff.
 
-    Added and context lines inside hunks count; deleted, binary, mode-only and
-    pure-rename files have no entry.
+    `new` (default): RIGHT-side ranges that accept inline comments; deleted, binary,
+    mode-only and pure-rename files have no entry. `old`: ranges of the old file keyed
+    by its old path, including deletion-only hunks; a pure insertion changes no old line.
     """
+    if side not in ("new", "old"):
+        raise ValueError(f"side must be 'new' or 'old', not {side!r}")
     hunks: dict[str, list[tuple[int, int]]] = {}
     path: str | None = None
+    old_path: str | None = None
     old_left = new_left = 0
     for line in text.splitlines():
         if old_left > 0 or new_left > 0:
@@ -53,7 +57,10 @@ def parse_diff(text: str) -> dict[str, list[tuple[int, int]]]:
         if line.startswith("\\"):
             continue
         if line.startswith("diff --git "):
-            path = _header_path(line)
+            path = old_path = _header_path(line)
+        elif line.startswith("--- "):
+            source = line[4:].strip()
+            old_path = None if source == "/dev/null" else _strip_side(source)
         elif line.startswith("+++ "):
             target = line[4:].strip()
             if target != "/dev/null":
@@ -62,9 +69,10 @@ def parse_diff(text: str) -> dict[str, list[tuple[int, int]]]:
             old_left = int(match.group(2) or 1) if match.group(2) != "0" else 0
             new_count = int(match.group(4)) if match.group(4) is not None else 1
             new_left = new_count
-            if new_count > 0:
-                start = int(match.group(3))
-                hunks.setdefault(path, []).append((start, start + new_count - 1))
+            key, start, count = (path, int(match.group(3)), new_count) if side == "new" else \
+                (old_path, int(match.group(1)), old_left)
+            if key is not None and count > 0:
+                hunks.setdefault(key, []).append((start, start + count - 1))
     return hunks
 
 
