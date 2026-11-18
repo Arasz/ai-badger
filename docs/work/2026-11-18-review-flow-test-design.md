@@ -93,7 +93,7 @@ Test list for task `aib-code-review-coordinator-flow-model`, written before any 
 | cli/ac1 | tests/test_review_flow_cli.py::test_identical_submit_replay_returns_changed_false | Replay re-applies and bumps revision | Always set `changed: true` |
 | cli/ac1 | tests/test_review_flow_cli.py::test_wrong_phase_submit_refused_with_machine_code | Wrong-phase submit accepted or opaque error | Skip the phase check in `submit` |
 | cli/ac2 | tests/test_review_flow_cli.py::test_malformed_json_twice_refused_state_unchanged | Garbage worker output corrupts state (run twice, exit 1 each, revision equal) | Write state before parsing |
-| cli/ac2 | tests/test_review_flow_cli.py::test_schema_invalid_json_twice_recorded_in_history | Failures not recorded, so the coordinator loops blind | Skip the history append on refusal |
+| cli/ac2 | tests/test_review_flow_cli.py::test_malformed_schema_invalid_json_twice_recorded_in_history | Failures not recorded, so the coordinator loops blind | Skip the history append on refusal |
 | cli/ac3 | tests/test_review_flow_cli.py::test_brief_all_seven_kinds_carry_rules_facts_dropped | A brief kind lacks scoped rules, facts or the dropped count | Remove `dropped` from one kind |
 | cli/ac3 | tests/test_review_flow_cli.py::test_brief_injected_text_stays_in_data_block_and_capped | PR text becomes instructions, or one huge field floods the brief | Remove the length cap, or emit text outside the data block |
 | cli/ac4 | tests/test_review_flow_cli.py::test_context_probe_ac_source_tool_pasted_absent | Wrong AC source chosen, or Jira invented | Return `tool` when no Tools entry exists |
