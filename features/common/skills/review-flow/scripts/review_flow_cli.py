@@ -77,7 +77,9 @@ BRIEF_TASK = {
     "business": "Check the change against the acceptance criteria and the stated intent.",
     "qa": "Find behaviour the tests do not pin down and defects a test would catch.",
     "architecture": "Find contract breaks, layering violations and design risks.",
-    "quality": "Find correctness, security and maintainability defects in the changed code.",
+    "quality": "Find correctness, security and maintainability defects in the changed code. "
+               "Use code-review-checklist. If absent, run the Phase 1 build, test, lint, "
+               "and secrets gates and report the missing checklist.",
     "integrator": "Judge each cluster of overlapping findings: merge true duplicates only.",
     "global_scope": "Give each listed finding a disposition backed by fact or rule refs.",
     "reply_analysis": "Read the replies; propose rules only from OWNER, MEMBER or "
@@ -101,7 +103,7 @@ NEXT_STEP = {
     Phase.LANES: ((), "Run each pending lane brief and submit each lane's result."),
     Phase.INTEGRATE: ((), "Run the integrator brief and submit integrate."),
     Phase.GLOBAL_SCOPE: ((), "Run the global_scope brief and submit global_scope."),
-    Phase.RESULT: (("result-build", "publish"),
+    Phase.RESULT: (("result-build",),
                    "Build the result, publish, then submit the publication as result."),
     Phase.PUBLISHED: ((), "Submit published with {} once the review is visible."),
     Phase.AWAITING_AUTHOR: (("threads-fetch",),
@@ -227,12 +229,17 @@ def _confirmed_tools(flow_id: str) -> List[str]:
 
 
 def _context(flow: "model.ReviewFlow") -> dict:
-    return _read_json(_round_file(flow.flow_id, flow.rounds[-1].n, ".context.json"), {}) or {}
+    return flow.rounds[-1].inputs.get(".context.json") or _read_json(
+        _round_file(flow.flow_id, flow.rounds[-1].n, ".context.json"), {}) or {}
 
 
 def _rules_at_base(flow: "model.ReviewFlow", env: Env) -> Tuple["model.RulesFile", str]:
     """The rules file at the PR base ref recorded in the round's context, and its digest."""
-    base = _context(flow).get("base_ref")
+    snapshot = flow.rounds[-1].inputs.get("rules")
+    if snapshot is not None:
+        rules_file = model.RulesFile.model_validate(snapshot)
+        return rules_file, hashlib.sha256(rules_mod.dump(rules_file).encode("utf-8")).hexdigest()
+    base = _context(flow).get("base_commit")
     if not base:
         raise VerbError("no_base_ref", "the round's context has no base_ref; submit context "
                                        "with the PR base ref (for example origin/main)")
@@ -279,7 +286,7 @@ class ContextSubmission(_Strict):
     pr_title: str = ""
     pr_body: str = ""
     issues: List[IssueText] = Field(default_factory=list)
-    base_ref: Optional[str] = Field(default=None, pattern=REF_PATTERN)
+    base_ref: str = Field(pattern=REF_PATTERN)
     head_sha: Optional[str] = Field(default=None, pattern=model.HEAD_SHA_PATTERN)
 
     @model_validator(mode="after")
@@ -410,6 +417,7 @@ class ReplyAnalysisSubmission(_Strict):
 class _Ctx:
     env: Env
     now: datetime
+    rules: Optional[Tuple[model.RulesFile, str]] = None
 
 
 def _with_round(flow: "model.ReviewFlow", round_data: dict, **flow_changes: Any):
@@ -432,6 +440,8 @@ def _rules_finding() -> dict:
 
 
 def _apply_context(flow, sub: ContextSubmission, ctx: _Ctx):
+    if sub.head_sha is not None and sub.head_sha != flow.rounds[-1].head_sha:
+        raise VerbError("head_mismatch", "context head_sha differs from the active round")
     round_data = flow.rounds[-1].model_dump(mode="json")
     if rules_mod.head_diff_touches_rules(sub.changed_paths):
         finding = _rules_finding()
@@ -485,7 +495,7 @@ def _apply_integrate(flow, sub: IntegrateSubmission, ctx: _Ctx):
 
 
 def _apply_global_scope(flow, sub: GlobalScopeSubmission, ctx: _Ctx):
-    rules_file, digest = _rules_at_base(flow, ctx.env)
+    rules_file, digest = ctx.rules
     judged, _ = machine.global_scope(flow.rounds[-1], rules_file, digest)
     by_script = sorted(f.fingerprint for f in judged.findings
                        if f.disposition is not None and f.fingerprint in sub.dispositions)
@@ -572,23 +582,13 @@ def _validate_worker(data: Any, phase: Phase) -> Any:
         raise VerbError("schema_invalid", f"{phase.value} submission: {_errors(exc)}") from exc
 
 
-def _replayed(flow_id: str, phase: Phase, digest: str, revision: int,
-              round_n: Optional[int]) -> bool:
-    accepted = [e for e in _log_entries(flow_id) if e.get("status") == "accepted"]
-    if not accepted:
-        return False
-    last = accepted[-1]
-    return (last.get("phase"), last.get("digest"), last.get("revision")) == \
-        (phase.value, digest, revision) and round_n in (None, last.get("round"))
-
-
 class SubmitArgs(_Strict):
     """`submit`: a worker JSON file for the open round's phase."""
 
     flow_id: FlowId = _FLOW_ID
     phase: Phase
     file: str = Field(min_length=1)
-    round: Optional[int] = Field(default=None, ge=1)
+    round: int = Field(ge=1)
 
 
 class SubmitOut(_Strict):
@@ -614,10 +614,16 @@ def _submit(args: SubmitArgs, env: Env) -> dict:
 
     try:
         data, digest = _read_worker(Path(args.file))
-        if _replayed(args.flow_id, args.phase, digest, revision, args.round):
+        origin = next((r for r in flow.rounds if r.n == args.round), None)
+        receipt = next((r for r in (origin.accepted if origin else []) if r["phase"] == args.phase.value
+                        and r["digest"] == digest and r["round"] == args.round), None)
+        if receipt is not None:
+            for suffix, value in origin.inputs.items():
+                if suffix.startswith("."):
+                    _write_json(_round_file(args.flow_id, origin.n, suffix), value)
             return {"flow_id": flow.flow_id, "round": current.n, "phase": current.phase,
                     "revision": revision, "changed": False}
-        _check_submit(flow, args.round or current.n, args.phase)
+        _check_submit(flow, args.round, args.phase)
         parsed = _validate_worker(data, args.phase)
     except machine.TransitionRefused as exc:
         refused(exc.code, exc.message)
@@ -627,9 +633,32 @@ def _submit(args: SubmitArgs, env: Env) -> dict:
         raise
     submission = SUBMISSIONS[args.phase]
     ctx = _Ctx(env=env, now=now)
+    inputs = dict(current.inputs)
+    if submission.keep_as:
+        inputs[submission.keep_as] = parsed.model_dump(mode="json")
+    if args.phase == Phase.CONTEXT:
+        if parsed.head_sha is not None and parsed.head_sha != current.head_sha:
+            raise VerbError("head_mismatch", "context head_sha differs from the active round")
+        code, commit, _ = env.git(["git", "rev-parse", "--verify",
+                                   f"{parsed.base_ref}^{{commit}}"], Path(env.repo_root))
+        commit = commit.strip()
+        if code or not re.fullmatch(model.HEAD_SHA_PATTERN, commit):
+            raise VerbError("invalid_base_ref", "base_ref must resolve to a commit")
+        inputs[".context.json"]["base_commit"] = commit
+        inputs["rules"] = rules_mod.load(env.repo_root, commit, run=env.git).model_dump(mode="json")
+    if args.phase == Phase.GLOBAL_SCOPE:
+        ctx.rules = _rules_at_base(flow, env)
+
+    def apply_submission(f):
+        data = f.rounds[-1].model_dump(mode="json")
+        data["inputs"] = inputs
+        data["accepted"].append({"phase": args.phase.value, "digest": digest,
+                                 "round": current.n, "revision": revision + 1})
+        return submission.apply(_with_round(f, data), parsed, ctx)
+
     try:
         updated, new_revision, changed = store.update(
-            args.flow_id, lambda f: submission.apply(f, parsed, ctx), expected_revision=revision)
+            args.flow_id, apply_submission, expected_revision=revision)
     except machine.TransitionRefused as exc:
         refused(exc.code, exc.message)
         raise
@@ -644,7 +673,7 @@ def _submit(args: SubmitArgs, env: Env) -> dict:
         raise VerbError("invalid_state", _errors(exc)) from exc
     if submission.keep_as:
         _write_json(_round_file(args.flow_id, current.n, submission.keep_as),
-                    parsed.model_dump(mode="json"))
+                    inputs[submission.keep_as])
     _log(args.flow_id, {"status": "accepted", "round": current.n, "phase": args.phase.value,
                         "digest": digest, "revision": new_revision, "at": _stamp(now)})
     return {"flow_id": updated.flow_id, "round": updated.rounds[-1].n,
@@ -849,7 +878,8 @@ def _brief(args: BriefArgs, env: Env) -> dict:
                                        f"{BRIEF_PHASE[args.kind].value}; round is at "
                                        f"{current.phase.value}")
     context = _context(flow)
-    change = _read_json(_round_file(flow.flow_id, current.n, ".change-model.json"))
+    change = current.inputs.get(".change-model.json") or _read_json(
+        _round_file(flow.flow_id, current.n, ".change-model.json"))
     rules_file, digest = _rules_at_base(flow, env)
     paths = list(context.get("changed_paths") or []) or \
         [unit["path"] for unit in (change or {}).get("units", [])]
@@ -894,6 +924,7 @@ class ContextProbeArgs(_Strict):
     """`context-probe`: read PR and issue text through confirmed tools; find the ACs."""
 
     flow_id: FlowId = _FLOW_ID
+    base_ref: Optional[str] = Field(default=None, pattern=REF_PATTERN)
     pasted_acs: Optional[str] = None
     out: Optional[str] = None
 
@@ -963,7 +994,7 @@ def _context_probe(args: ContextProbeArgs, env: Env) -> dict:
         "changed_paths": [item.get("path") for item in pr.get("files") or []
                           if item.get("path")],
         "pr_title": pr.get("title") or "", "pr_body": pr.get("body") or "", "issues": issues,
-        "base_ref": f"origin/{base}" if base else None, "head_sha": pr.get("headRefOid"),
+        "base_ref": args.base_ref or (f"origin/{base}" if base else None), "head_sha": pr.get("headRefOid"),
     }).model_dump(mode="json")
     if args.out:
         _write_json(Path(args.out), result)
@@ -1240,12 +1271,32 @@ def _changed_ranges(flow: "model.ReviewFlow", env: Env) -> dict:
     return review_diff.parse_diff(out) if code == 0 else {}
 
 
-def _publication(results: List[dict], now: datetime) -> Optional[dict]:
+def _publication(results: List[dict], now: datetime, flow=None, env: Optional[Env] = None) -> Optional[dict]:
     review = next((r for r in results if r["op"] == "create_review"), None)
     summary = next((r for r in results if r["op"] in ("create_summary", "update_summary")), None)
     if review is None and summary is None:
-        return None
-    return {"review_id": int(((review or {}).get("response") or {}).get("id") or 0),
+        current = flow.rounds[-1]
+        login = _gh_json(env, ["api", "user"])["login"]
+        existing = publisher.read_existing(env.gh, flow.repo, flow.pr, login)
+        candidate = existing["summary"]
+        match = re.search(r"<!-- ai-badger-review:state (.*?) -->",
+                          candidate["body"] if candidate else "")
+        try:
+            state = json.loads(match.group(1)) if match else {}
+        except ValueError:
+            return None
+        if not isinstance(state, dict):
+            return None
+        if (state.get("round"), state.get("head")) != (current.n, current.head_sha):
+            return None
+        summary = {"response": {"id": candidate["id"]}}
+        reviews = publisher._get_all(env.gh, f"repos/{flow.repo}/pulls/{flow.pr}/reviews")
+        old = next((r for r in reversed(reviews)
+                    if r.get("user", {}).get("login") == login
+                    and r.get("commit_id") == current.head_sha
+                    and r.get("body", "").startswith(f"ai-badger review, round {current.n}:")), None)
+        review = {"response": old} if old else None
+    return {"review_id": ((review or {}).get("response") or {}).get("id"),
             "summary_comment_id": ((summary or {}).get("response") or {}).get("id"),
             "event": "COMMENT", "at": _stamp(now)}
 
@@ -1258,7 +1309,9 @@ def _publish(args: PublishArgs, env: Env) -> dict:
     if frozen is None:
         raise VerbError("result_not_built", "run result-build before publish")
     now = env.now()
-    previous = _read_json(_round_file(flow.flow_id, current.n - 1, ".reply-analysis.json"), {})
+    previous = (flow.rounds[-2].inputs.get(".reply-analysis.json")
+                if len(flow.rounds) > 1 else None) or _read_json(
+                    _round_file(flow.flow_id, current.n - 1, ".reply-analysis.json"), {})
     state = {"repo": flow.repo, "pr": flow.pr, "now": now,
              "round": {**current.model_dump(mode="json"), "verdict": frozen["verdict"]},
              "flow": _render_flow(flow, env),
@@ -1266,8 +1319,9 @@ def _publish(args: PublishArgs, env: Env) -> dict:
              if len(flow.rounds) > 1 else [],
              "changed_ranges": _changed_ranges(flow, env),
              "verified_fixed": (previous or {}).get("verified_fixed", [])}
-    dry_run = args.dry_run or env.which("gh") is None
-    if env.which("gh") is None:
+    gh_confirmed = "gh" in _confirmed_tools(flow.flow_id)
+    dry_run = args.dry_run or not gh_confirmed
+    if not gh_confirmed:
         actions = publisher.plan_publish(state, dict(_NO_EXISTING), current.head_sha)
         results = publisher.apply(env.gh, actions, dry_run=True)
         results = [{**result, "payload": action.get("payload")}
@@ -1278,7 +1332,7 @@ def _publish(args: PublishArgs, env: Env) -> dict:
             raise VerbError("remote_mismatch", f"git remote -v failed: {err.strip()}", 2)
         remotes = [line.split()[1] for line in out.splitlines() if len(line.split()) > 1]
         results = publisher.publish(env.gh, state, remotes, dry_run=dry_run)
-    publication = None if dry_run else _publication(results, now)
+    publication = None if dry_run else _publication(results, now, flow, env)
     path = _write_json(_round_file(flow.flow_id, current.n, ".publish.json"),
                        {"dry_run": dry_run, "results": results, "publication": publication})
     return {"flow_id": flow.flow_id, "round": current.n, "dry_run": dry_run,
@@ -1315,6 +1369,8 @@ def _threads_fetch(args: ThreadsArgs, env: Env) -> dict:
                 "association": item["association"], "body": item.get("body") or "",
                 "at": item["created_at"]}
                for item in found]
+    replies = [model.AuthorReply.model_validate(reply).model_dump(mode="json")
+               for reply in replies]
     if args.out:
         _write_json(Path(args.out), {"replies": replies})
     return {"flow_id": flow.flow_id, "login": login, "replies": replies,

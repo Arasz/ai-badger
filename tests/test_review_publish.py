@@ -140,7 +140,7 @@ class FakeGitHub:
                 "id": f"T_{root['id']}",
                 "isResolved": f"T_{root['id']}" in self.resolved,
                 "comments": {"nodes": [{
-                    "databaseId": c["id"], "body": c["body"], "url": f"https://x/{c['id']}",
+                    "fullDatabaseId": str(c["id"]), "body": c["body"], "url": f"https://x/{c['id']}",
                     "authorAssociation": c["author_association"],
                     "author": {"login": c["user"]["login"]},
                     **({"createdAt": c["created_at"]} if asks_created else {}),

@@ -67,6 +67,8 @@ def make_git(rules=None):
     text = rules if rules is not None else rules_text()
 
     def git(args, _cwd):
+        if args[:3] == ["git", "rev-parse", "--verify"]:
+            return 0, HEAD, ""
         if args[:2] == ["git", "show"]:
             return 0, text, ""
         if args[:3] == ["git", "remote", "-v"]:
@@ -103,7 +105,8 @@ def submit(cli, env, tmp_path, phase, data, flow=FLOW):
     _COUNTER[0] += 1
     path = tmp_path / f"worker-{_COUNTER[0]}.json"
     path.write_text(data if isinstance(data, str) else json.dumps(data), encoding="utf-8")
-    return call(cli, env, "submit", flow_id=flow, phase=phase, file=str(path))
+    return call(cli, env, "submit", flow_id=flow, phase=phase, file=str(path),
+                round=cli.store.get(flow)[0].rounds[-1].n)
 
 
 def context_data(pr_body="Fixes the charge path", issues=(), changed=("src/pay/charge.py",)):
@@ -210,7 +213,7 @@ def test_each_verb_payload_validates_against_schema(cli, tmp_path):
     assert {"gh", "uv"} <= {tool["name"] for tool in probe["tools"]}
     confirmed = check("tools-confirm", ok(cli, env, "tools-confirm", flow_id=FLOW, names=["uv"]))
     assert confirmed["tools"] == ["uv"]
-    context = check("context-probe", ok(cli, env, "context-probe", flow_id=FLOW))
+    context = check("context-probe", ok(cli, env, "context-probe", flow_id=FLOW, base_ref="origin/main"))
     assert context["ac_source"] == "absent" and context["head_sha"] is None
     fact = check("facts-add", ok(cli, env, "facts-add", statement="Gateway retries twice",
                                  grade="READ", evidence_ref="docs/gw.md:1"))
@@ -247,8 +250,8 @@ def test_identical_submit_replay_returns_changed_false(cli, tmp_path):
     create(cli, env)
     path = tmp_path / "ctx.json"
     path.write_text(json.dumps(context_data()), encoding="utf-8")
-    first = call(cli, env, "submit", flow_id=FLOW, phase="context", file=str(path))
-    again = call(cli, env, "submit", flow_id=FLOW, phase="context", file=str(path))
+    first = call(cli, env, "submit", flow_id=FLOW, phase="context", file=str(path), round=1)
+    again = call(cli, env, "submit", flow_id=FLOW, phase="context", file=str(path), round=1)
     assert first[0] == 0 and first[1]["changed"] is True and first[1]["revision"] == 1
     assert again[0] == 0 and again[1]["changed"] is False
     assert again[1]["revision"] == 1 and revision(cli) == 1
@@ -405,11 +408,11 @@ def test_context_probe_ac_source_tool_pasted_absent(cli, tmp_path):
     pasted_file.write_text("- [ ] Card is charged once\n- [x] Receipt is mailed\n", "utf-8")
     ok(cli, env, "tools-confirm", flow_id=FLOW, names=["uv"])
     gh.calls.clear()
-    pasted = ok(cli, env, "context-probe", flow_id=FLOW, pasted_acs=str(pasted_file))
+    pasted = ok(cli, env, "context-probe", flow_id=FLOW, pasted_acs=str(pasted_file), base_ref="origin/main")
     assert pasted["ac_source"] == "pasted" and len(pasted["acs"]) == 2
     assert pasted["acs"][1] == {"id": "AC-2", "statement": "Receipt is mailed"}
 
-    absent = ok(cli, env, "context-probe", flow_id=FLOW)
+    absent = ok(cli, env, "context-probe", flow_id=FLOW, base_ref="origin/main")
     assert absent["ac_source"] == "absent" and absent["acs"] == []
     assert gh.calls == []
 
@@ -456,6 +459,7 @@ def test_publish_refused_maps_to_exit_2(cli, tmp_path):
     env = env_for(cli, tmp_path, gh=gh)
     drive(cli, env, tmp_path, "result")
     ok(cli, env, "result-build", flow_id=FLOW)
+    ok(cli, env, "tools-confirm", flow_id=FLOW, names=["gh"])
     code, payload = call(cli, env, "publish", flow_id=FLOW)
     assert code == 2 and payload["code"] == "head_moved" and payload["ok"] is False
 
@@ -653,6 +657,124 @@ def test_subprocess_malformed_submit_exits_1(tmp_path):
     worker = tmp_path / "w.json"
     worker.write_text("{oops", encoding="utf-8")
     done = _run(tmp_path, "submit", "--json",
-                json.dumps({"flow_id": FLOW, "phase": "context", "file": str(worker)}))
+                json.dumps({"flow_id": FLOW, "phase": "context", "file": str(worker), "round": 1}))
     assert done.returncode == 1
     assert json.loads(done.stdout)["code"] == "malformed_json"
+
+
+@pytest.mark.parametrize("change", [{"base_ref": None}, {"base_ref": "--bad"},
+                                    {"head_sha": "f" * 40}])
+def test_context_rejects_invalid_identity_before_advancing(cli, tmp_path, change):
+    env = env_for(cli, tmp_path)
+    create(cli, env)
+    code, _ = submit(cli, env, tmp_path, "context", {**context_data(), **change})
+    assert code == 1
+    assert revision(cli) == 0
+
+
+def test_submit_requires_originating_round(cli, tmp_path):
+    env = env_for(cli, tmp_path)
+    drive(cli, env, tmp_path, "lanes")
+    path = tmp_path / "lane.json"
+    path.write_text(json.dumps({"lane": "qa", "findings": []}))
+    assert call(cli, env, "submit", flow_id=FLOW, phase="lanes", file=str(path))[0] == 1
+    code, payload = call(cli, env, "submit", flow_id=FLOW, phase="lanes", file=str(path), round=2)
+    assert code == 1 and payload["code"] == "wrong_round"
+    assert call(cli, env, "submit", flow_id=FLOW, phase="lanes", file=str(path), round=1)[0] == 0
+
+
+def test_export_failure_retry_restores_atomic_context(cli, tmp_path, monkeypatch):
+    env = env_for(cli, tmp_path)
+    create(cli, env)
+    path = tmp_path / "ctx.json"
+    path.write_text(json.dumps(context_data()))
+    write = cli._write_json
+    def fail(*_args):
+        raise OSError("interrupted export")
+    monkeypatch.setattr(cli, "_write_json", fail)
+    assert call(cli, env, "submit", flow_id=FLOW, phase="context", file=str(path), round=1)[0] == 1
+    flow, rev = cli.store.get(FLOW)
+    assert flow.rounds[-1].phase.value == "change_model" and rev == 1
+    assert flow.rounds[-1].accepted and flow.rounds[-1].inputs["rules"]
+    monkeypatch.setattr(cli, "_write_json", write)
+    out = ok(cli, env, "submit", flow_id=FLOW, phase="context", file=str(path), round=1)
+    assert out["changed"] is False and out["revision"] == 1
+    assert cli._context(flow)["base_commit"] == HEAD
+    assert cli._round_file(FLOW, 1, ".context.json").is_file()
+
+
+def test_round_rules_snapshot_survives_base_movement(cli, tmp_path):
+    env = env_for(cli, tmp_path)
+    drive(cli, env, tmp_path, "lanes")
+    before = cli._rules_at_base(cli.store.get(FLOW)[0], env)
+    def no_git(*_args):
+        raise AssertionError("rules must use the persisted snapshot")
+    env.git = no_git
+    brief = ok(cli, env, "brief", flow_id=FLOW, kind="quality", out=str(tmp_path / "brief.json"))
+    assert brief["round"] == 1
+    assert cli._rules_at_base(cli.store.get(FLOW)[0], env)[1] == before[1]
+
+
+def test_unconfirmed_gh_never_contacts_github(cli, tmp_path):
+    env = env_for(cli, tmp_path)
+    drive(cli, env, tmp_path, "result")
+    ok(cli, env, "result-build", flow_id=FLOW)
+    out = ok(cli, env, "publish", flow_id=FLOW)
+    assert out["dry_run"] and env.gh.calls == []
+
+
+def test_invalid_replies_do_not_write_export(cli, tmp_path, monkeypatch):
+    env = env_for(cli, tmp_path, gh=FakeGh([(("api", "user"), {"login": "bot"})]))
+    create(cli, env)
+    monkeypatch.setattr(cli.publisher, "fetch_threads", lambda *_: [{
+        "comment_id": 123, "association": "INVALID", "created_at": "bad", "fingerprint": "a"}])
+    path = tmp_path / "replies.json"
+    assert call(cli, env, "threads-fetch", flow_id=FLOW, out=str(path))[0] == 1
+    assert not path.exists()
+
+
+def test_next_round_export_failure_can_replay_origin(cli, tmp_path, monkeypatch):
+    env = env_for(cli, tmp_path)
+    drive(cli, env, tmp_path, "reply_analysis")
+    path = tmp_path / "next-round.json"
+    path.write_text(json.dumps({"outcome": "next_round", "head_sha": "f" * 40}))
+    write = cli._write_json
+    def fail(*_args):
+        raise OSError("interrupted export")
+    monkeypatch.setattr(cli, "_write_json", fail)
+    assert call(cli, env, "submit", flow_id=FLOW, phase="reply_analysis", file=str(path), round=1)[0] == 1
+    monkeypatch.setattr(cli, "_write_json", write)
+    out = ok(cli, env, "submit", flow_id=FLOW, phase="reply_analysis", file=str(path), round=1)
+    assert out["round"] == 2 and out["changed"] is False
+    assert cli._round_file(FLOW, 1, ".reply-analysis.json").is_file()
+
+
+@pytest.mark.parametrize("head", [HEAD, "f" * 40])
+def test_publication_recovers_only_current_round_ids(cli, tmp_path, monkeypatch, head):
+    env = env_for(cli, tmp_path, gh=FakeGh([(("api", "user"), {"login": "bot"})]))
+    create(cli, env)
+    flow = cli.store.get(FLOW)[0]
+    state = json.dumps({"round": 1, "head": head})
+    monkeypatch.setattr(cli.publisher, "read_existing", lambda *_: {
+        "summary": {"id": 42, "body": f"<!-- ai-badger-review:state {state} -->"}})
+    monkeypatch.setattr(cli.publisher, "_get_all", lambda *_: [{
+        "id": 99, "commit_id": HEAD, "user": {"login": "bot"},
+        "body": "ai-badger review, round 1: 2 new inline finding(s)."}])
+    receipt = cli._publication([], NOW, flow, env)
+    if head == HEAD:
+        assert receipt["review_id"] == 99 and receipt["summary_comment_id"] == 42
+    else:
+        assert receipt is None
+    assert env.gh.calls == [["api", "user"]]
+
+
+def test_store_inferred_roots_do_not_leak(cli, tmp_path, monkeypatch):
+    monkeypatch.delenv("AI_BADGER_TRACKING_ROOT")
+    monkeypatch.setattr(cli.store, "_project_root", lambda cwd: cwd)
+    monkeypatch.chdir(tmp_path)
+    create(cli, env_for(cli, tmp_path))
+    assert "AI_BADGER_TRACKING_ROOT" not in os.environ
+    other = tmp_path / "other"
+    other.mkdir()
+    monkeypatch.chdir(other)
+    assert cli.store.tracking_root() == other / ".ai-badger/task-tracking"

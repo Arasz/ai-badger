@@ -1,8 +1,17 @@
+<!-- coderabbit-ai-generated:v1 -->
+
+<!-- coderabbit-ai-generated-section:v1:dae3b318c7dad9e8623cddae8f4a01cdc777eb14c47c55b1791bd4e704cd0ec5 -->
+
+<!-- coderabbit-ai-generated-section:v1:8a9a6679853ed42e558b76313f8c7efd704e0c923cb55ff6a5602dc2ade20c87 -->
+
+<!-- coderabbit-ai-generated-section:v1:57faae43144863843ba1120aaf26d33e3835cea9fe52e5f347d817c1c6674cff -->
+
 # Worker briefs
 
 `review_flow_cli.py brief` writes one brief for one kind. This page gives, for each kind, the
 persona, the skills, the inputs, the output JSON and the `submit` call. The output models are
-in `scripts/review_flow_cli.py`. The field types (`Kind`, `Severity`, `Location`, `Evidence`,
+in `scripts/review_flow_cli.py`. Every coordinator `submit` must copy the `round` from its dispatching brief.
+The field types (`Kind`, `Severity`, `Location`, `Evidence`,
 `Disposition`) are in `scripts/review_flow_model.py`.
 
 Rules for every worker:
@@ -55,7 +64,7 @@ Output:
 If the worker cannot finish, it returns `{"lane": "business", "findings": [], "error": "<why>"}`.
 A failed lane forbids the verdict `Safe to merge`.
 
-Submit: `{"flow_id": "<id>", "phase": "lanes", "file": "<file>"}`
+Submit: `{"flow_id": "<id>", "round": <brief round>, "phase": "lanes", "file": "<file>"}`
 
 ## qa
 
@@ -72,7 +81,7 @@ Rules in the brief cover `test_gap`, `null_deref`, `unchecked_error`, `concurren
 
 Output: `{"lane": "qa", "findings": [<WorkerFinding>, ...]}`, or the `error` form.
 
-Submit: `{"flow_id": "<id>", "phase": "lanes", "file": "<file>"}`
+Submit: `{"flow_id": "<id>", "round": <brief round>, "phase": "lanes", "file": "<file>"}`
 
 ## architecture
 
@@ -88,7 +97,7 @@ Task: find contract breaks, layering violations and design risks. Rules in the b
 
 Output: `{"lane": "architecture", "findings": [<WorkerFinding>, ...]}`, or the `error` form.
 
-Submit: `{"flow_id": "<id>", "phase": "lanes", "file": "<file>"}`
+Submit: `{"flow_id": "<id>", "round": <brief round>, "phase": "lanes", "file": "<file>"}`
 
 ## quality
 
@@ -97,7 +106,8 @@ Persona: `code-reviewer`
 Schema: `review-flow/lane-submission.v1` (model `LaneSubmission`)
 
 Skills: `code-review-checklist`, `code-review-evidence`, the `lint` command, and
-`code-review-graph`.
+`code-review-graph`. If the checklist is absent, run the Phase 1 build, test, lint,
+and secrets gates. Report the missing checklist.
 
 Task: find correctness, security and maintainability defects in the changed code. Rules in
 the brief cover `style`, `docs`, `dead_code`, `injection`, `input_validation`,
@@ -105,7 +115,7 @@ the brief cover `style`, `docs`, `dead_code`, `injection`, `input_validation`,
 
 Output: `{"lane": "quality", "findings": [<WorkerFinding>, ...]}`, or the `error` form.
 
-Submit: `{"flow_id": "<id>", "phase": "lanes", "file": "<file>"}`
+Submit: `{"flow_id": "<id>", "round": <brief round>, "phase": "lanes", "file": "<file>"}`
 
 ## integrator
 
@@ -130,7 +140,7 @@ Output (model `IntegrateSubmission`, `Merge`):
 Each fingerprint must be in `findings` and must occur one time only. The kept finding gets the
 union of lanes, evidence, `ac_refs` and tags.
 
-Submit: `{"flow_id": "<id>", "phase": "integrate", "file": "<file>"}`
+Submit: `{"flow_id": "<id>", "round": <brief round>, "phase": "integrate", "file": "<file>"}`
 
 ## global_scope
 
@@ -161,7 +171,7 @@ Output (model `GlobalScopeSubmission`, dispositions `Keep | Downgrade | Drop`):
 the finding, and its action must be `downgrade`. A disposition for a finding that the script
 already disposed of is refused (`script_disposed`).
 
-Submit: `{"flow_id": "<id>", "phase": "global_scope", "file": "<file>"}`
+Submit: `{"flow_id": "<id>", "round": <brief round>, "phase": "global_scope", "file": "<file>"}`
 
 ## reply_analysis
 
@@ -208,4 +218,7 @@ For each item without `rule_id`, the coordinator runs `rules` with
 `{"action": "add-origin", "rule_id": "R-n", "reply": <item>}`. Then it submits the submission
 file.
 
-Submit: `{"flow_id": "<id>", "phase": "reply_analysis", "file": "<file>"}`
+Submit: `{"flow_id": "<id>", "round": <brief round>, "phase": "reply_analysis", "file": "<file>"}`
+
+
+<!-- /coderabbit-ai-generated:v1 -->

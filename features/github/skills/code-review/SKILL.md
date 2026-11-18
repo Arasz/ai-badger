@@ -16,6 +16,10 @@ metadata:
     tags: [code-review, github, copilot, routing, entry-point]
     related_skills: [code-review-checklist, review-changes, review-tests, design-tests, complete-project-scope-code-review]
 ---
+<!-- coderabbit-ai-generated:v1 -->
+
+<!-- coderabbit-ai-generated-section:v1:899d3958776bfcbf3c01164476b890dc3f477fcf93371c34807f3e416028dab7 -->
+
 
 # code-review
 
@@ -32,7 +36,9 @@ This file routes; it does not review. The review work lives in sibling skills un
 Work top-down. Stop expanding when the verdict for the change is clear; do not stop before it is.
 
 0. **A pull-request review that you publish to GitHub** — open
-   `.ai-badger/skills/review-flow/SKILL.md` and follow it instead of the steps below. It runs
+   `.ai-badger/skills/review-flow/SKILL.md` and follow it instead of the steps below. If the
+   checklist is absent, run the Phase 1 build, test, lint, and secrets gates and report the
+   missing checklist. It runs
    these same skills as parallel lanes, checks every finding against project facts and learned
    rules, and posts short inline comments plus one summary that it edits in place.
 
@@ -94,3 +100,6 @@ that stack, so what you read here is the adjustment for THIS project's stacks.
   ranking spends the test-quality pass on low-risk files.
 - Dismissing a Copilot conversation is not an instruction to Copilot — on re-review the same
   comment can return; fix the code or refute the finding in the thread instead.
+
+
+<!-- /coderabbit-ai-generated:v1 -->

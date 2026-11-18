@@ -12,7 +12,7 @@ import sys
 from datetime import datetime, timedelta
 from enum import Enum
 from pathlib import Path
-from typing import Annotated, Dict, List, Literal, Optional, Set, Tuple, Union
+from typing import Any, Annotated, Dict, List, Literal, Optional, Set, Tuple, Union
 
 from pydantic import (AfterValidator, BaseModel, ConfigDict, Field, field_serializer,
                       model_validator)
@@ -481,6 +481,8 @@ class Round(BaseModel):
     n: int = Field(ge=1)
     head_sha: str = Field(pattern=HEAD_SHA_PATTERN)
     phase: Phase
+    inputs: Dict[str, Any] = Field(default_factory=dict)
+    accepted: List[Dict[str, Any]] = Field(default_factory=list)
     rules_digest: Optional[str] = Field(default=None, pattern=DIGEST_PATTERN)
     lanes: Dict[Lane, LaneRun]
     findings: List[Finding]

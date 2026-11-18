@@ -37,7 +37,7 @@ _UPDATED = re.compile(r"^- Updated: .*$", re.MULTILINE)
 THREADS_QUERY = (
     "query($owner:String!,$name:String!,$pr:Int!,$after:String){repository(owner:$owner,"
     "name:$name){pullRequest(number:$pr){reviewThreads(first:100,after:$after){pageInfo"
-    "{hasNextPage endCursor} nodes{id isResolved comments(first:100){nodes{databaseId body "
+    "{hasNextPage endCursor} nodes{id isResolved comments(first:100){nodes{fullDatabaseId body "
     "url createdAt authorAssociation author{login}}}}}}}}"
 )
 RESOLVE_MUTATION = (
@@ -216,7 +216,7 @@ def fetch_threads(runner: Runner, repo: str, pr: int, login: str) -> list[dict]:
             if author == login:
                 continue
             replies.append({"fingerprint": fp, "thread_id": thread["id"],
-                            "comment_id": comment["databaseId"], "author": author,
+                            "comment_id": int(comment["fullDatabaseId"]), "author": author,
                             "association": comment["authorAssociation"],
                             "body": comment["body"], "url": comment.get("url"),
                             "created_at": comment["createdAt"]})

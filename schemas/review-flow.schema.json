@@ -587,6 +587,19 @@
         "phase": {
           "$ref": "#/$defs/Phase"
         },
+        "inputs": {
+          "additionalProperties": true,
+          "title": "Inputs",
+          "type": "object"
+        },
+        "accepted": {
+          "items": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "title": "Accepted",
+          "type": "array"
+        },
         "rules_digest": {
           "anyOf": [
             {
