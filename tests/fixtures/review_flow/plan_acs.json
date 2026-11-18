@@ -1,0 +1,56 @@
+{
+  "skeleton": [
+    "ac1"
+  ],
+  "store-table": [
+    "ac1"
+  ],
+  "render": [
+    "ac1",
+    "ac2",
+    "ac3",
+    "ac4"
+  ],
+  "diff-anchor": [
+    "ac1",
+    "ac2"
+  ],
+  "flow-model": [
+    "ac1",
+    "ac2",
+    "ac3"
+  ],
+  "rules-store": [
+    "ac1",
+    "ac2",
+    "ac3"
+  ],
+  "flow-machine": [
+    "ac1",
+    "ac2",
+    "ac3",
+    "ac4"
+  ],
+  "publish-github": [
+    "ac1",
+    "ac2",
+    "ac3"
+  ],
+  "cli": [
+    "ac1",
+    "ac2",
+    "ac3",
+    "ac4",
+    "ac5"
+  ],
+  "skill-doc": [
+    "ac1"
+  ],
+  "catalog-wiring": [
+    "ac1"
+  ],
+  "e2e": [
+    "ac1",
+    "ac2"
+  ]
+}
