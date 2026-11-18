@@ -4,7 +4,7 @@ Agent-instruction framework distributed through a Claude Code plugin and native 
 
 > Domain: Developer tooling: agent instruction catalogs and repo scaffolding.
 > Stacks: python, js, github, claude, pi, ts, node, changelog, codex
-> Scaffolded by ai-badger 0.220.3. Source of truth for this file: `.ai-badger/CLAUDE.md`.
+> Scaffolded by ai-badger 0.221.0. Source of truth for this file: `.ai-badger/CLAUDE.md`.
 
 ## Commands
 
