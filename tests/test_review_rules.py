@@ -273,7 +273,7 @@ def _cite_setup(rr, repo, body="alpha\nbeta needle gamma\ndelta\n"):
 
 def test_active_via_script_verified_citation(rr, repo):
     updated, rid = _cite_setup(rr, repo)
-    activated = rr.verify_citation(repo, updated, rid, "src/a.py", 2, 3, "needle gamma")
+    activated = rr.verify_citation(repo, updated, rid, "src/a.py", 2, 3, "needle gamma", base_ref="HEAD")
     only = activated.rules[0]
     assert only.status == "active" and only.activated_by == "citation"
     assert (only.citation.path, only.citation.start, only.citation.end) == ("src/a.py", 2, 3)
@@ -282,20 +282,20 @@ def test_active_via_script_verified_citation(rr, repo):
 def test_refuse_citation_wrong_quote(rr, repo):
     updated, rid = _cite_setup(rr, repo)
     with pytest.raises(rr.RuleRefused):
-        rr.verify_citation(repo, updated, rid, "src/a.py", 2, 2, "absent text")
+        rr.verify_citation(repo, updated, rid, "src/a.py", 2, 2, "absent text", base_ref="HEAD")
     assert updated.rules[0].status == "proposed"
 
 
 def test_refuse_citation_quote_on_other_line(rr, repo):
     updated, rid = _cite_setup(rr, repo)
     with pytest.raises(rr.RuleRefused):
-        rr.verify_citation(repo, updated, rid, "src/a.py", 1, 1, "needle")
+        rr.verify_citation(repo, updated, rid, "src/a.py", 1, 1, "needle", base_ref="HEAD")
 
 
 def test_refuse_citation_range_past_end_of_file(rr, repo):
     updated, rid = _cite_setup(rr, repo)
     with pytest.raises(rr.RuleRefused):
-        rr.verify_citation(repo, updated, rid, "src/a.py", 2, 9, "needle")
+        rr.verify_citation(repo, updated, rid, "src/a.py", 2, 9, "needle", base_ref="HEAD")
 
 
 @pytest.mark.parametrize("path", ["../outside.txt", "src/../../outside.txt", "/etc/hosts"])
@@ -303,7 +303,7 @@ def test_refuse_citation_outside_repo(rr, repo, path):
     (repo.parent / "outside.txt").write_text("needle\n", encoding="utf-8")
     updated, rid = _cite_setup(rr, repo)
     with pytest.raises(rr.RuleRefused):
-        rr.verify_citation(repo, updated, rid, path, 1, 1, "needle")
+        rr.verify_citation(repo, updated, rid, path, 1, 1, "needle", base_ref="HEAD")
 
 
 def test_refuse_citation_symlink_escaping_repo(rr, repo):
@@ -311,7 +311,7 @@ def test_refuse_citation_symlink_escaping_repo(rr, repo):
     updated, rid = _cite_setup(rr, repo)
     (repo / "src" / "link.txt").symlink_to(repo.parent / "secret.txt")
     with pytest.raises(rr.RuleRefused):
-        rr.verify_citation(repo, updated, rid, "src/link.txt", 1, 1, "needle")
+        rr.verify_citation(repo, updated, rid, "src/link.txt", 1, 1, "needle", base_ref="HEAD")
 
 
 def test_refuse_citation_through_symlinked_directory(rr, repo):
@@ -321,15 +321,15 @@ def test_refuse_citation_through_symlinked_directory(rr, repo):
     updated, rid = _cite_setup(rr, repo)
     (repo / "linkdir").symlink_to(outside, target_is_directory=True)
     with pytest.raises(rr.RuleRefused):
-        rr.verify_citation(repo, updated, rid, "linkdir/f.txt", 1, 1, "needle")
+        rr.verify_citation(repo, updated, rid, "linkdir/f.txt", 1, 1, "needle", base_ref="HEAD")
 
 
 def test_refuse_citation_missing_file_and_blank_quote(rr, repo):
     updated, rid = _cite_setup(rr, repo)
     with pytest.raises(rr.RuleRefused):
-        rr.verify_citation(repo, updated, rid, "src/none.py", 1, 1, "needle")
+        rr.verify_citation(repo, updated, rid, "src/none.py", 1, 1, "needle", base_ref="HEAD")
     with pytest.raises(rr.RuleRefused):
-        rr.verify_citation(repo, updated, rid, "src/a.py", 2, 2, "   ")
+        rr.verify_citation(repo, updated, rid, "src/a.py", 2, 2, "   ", base_ref="HEAD")
 
 
 # ------------------------------------------------------------------ conflict, scope, cap
@@ -403,3 +403,70 @@ def test_head_diff_touches_rules(rr):
     assert rr.head_diff_touches_rules(["./" + RULES_PATH])
     assert not rr.head_diff_touches_rules(["src/a.py", "docs/review/rules.json"])
     assert not rr.head_diff_touches_rules([])
+
+
+# ------------------------------------------------------------------ git environment
+
+def test_load_answers_for_repo_root_when_git_dir_is_exported(rr, repo, tmp_path, monkeypatch):
+    """A hook exports GIT_DIR; the default runner must still read the repo it was given."""
+    base = _commit(repo, {RULES_PATH: json.dumps(_file([_rule(1)]))})
+    other = tmp_path / "other"
+    other.mkdir()
+    _git(other, "init", "-q", "-b", "main")
+    monkeypatch.setenv("GIT_DIR", str(other / ".git"))
+    loaded = rr.load(repo, base)
+    assert [rule.id for rule in loaded.rules] == ["R-1"]
+
+
+def test_citation_quote_only_in_the_checkout_is_refused(rr, repo):
+    """The reviewed checkout is the PR head; a citation must hold at the base commit."""
+    updated, rid = _cite_setup(rr, repo, body="alpha\nbeta\ndelta\n")
+    base = _git(repo, "rev-parse", "HEAD")
+    _commit(repo, {"src/a.py": "alpha\nbeta needle gamma\ndelta\n"}, "head adds the quote")
+    with pytest.raises(rr.RuleRefused, match="quote not found"):
+        rr.verify_citation(repo, updated, rid, "src/a.py", 2, 2, "needle", base_ref=base)
+    assert updated.rules[0].status == "proposed"
+
+
+def test_citation_quote_at_base_passes_after_the_checkout_drops_it(rr, repo):
+    updated, rid = _cite_setup(rr, repo)
+    base = _git(repo, "rev-parse", "HEAD")
+    (repo / "src" / "a.py").write_text("rewritten\n", encoding="utf-8")
+    activated = rr.verify_citation(repo, updated, rid, "src/a.py", 2, 3, "needle gamma",
+                                   base_ref=base)
+    assert activated.rules[0].status == "active"
+    assert activated.rules[0].citation.path == "src/a.py"
+
+
+def test_citation_reads_through_the_injected_runner_at_the_base_ref(rr, tmp_path):
+    seen = []
+
+    def run(args, cwd):
+        seen.append((args, cwd))
+        return 0, "one\ntwo needle\n", ""
+
+    updated, rule = rr.propose(_parse(rr, _file()), _reply())
+    activated = rr.verify_citation(tmp_path, updated, rule.id, "src/a.py", 2, 2, "needle",
+                                   base_ref="origin/main", run=run)
+    assert activated.rules[0].status == "active"
+    assert seen == [(["git", "show", "origin/main:src/a.py"], tmp_path)]
+
+
+@pytest.mark.parametrize("ref", ["", "-p", "--output=/tmp/x"])
+def test_citation_refuses_a_base_ref_git_would_read_as_an_option(rr, tmp_path, ref):
+    def run(args, cwd):
+        raise AssertionError(f"git ran with {args} in {cwd}")
+
+    updated, rule = rr.propose(_parse(rr, _file()), _reply())
+    with pytest.raises(rr.RuleRefused):
+        rr.verify_citation(tmp_path, updated, rule.id, "src/a.py", 1, 1, "needle",
+                           base_ref=ref, run=run)
+
+
+def test_git_env_drops_every_location_variable_and_keeps_the_rest(rr):
+    names = ("GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR", "GIT_INDEX_FILE",
+             "GIT_OBJECT_DIRECTORY", "GIT_ALTERNATE_OBJECT_DIRECTORIES", "GIT_PREFIX",
+             "GIT_NAMESPACE", "GIT_CEILING_DIRECTORIES")
+    env = rr.git_env({**{name: "/elsewhere" for name in names}, "PATH": "/usr/bin",
+                      "GIT_AUTHOR_NAME": "kept"})
+    assert env == {"PATH": "/usr/bin", "GIT_AUTHOR_NAME": "kept"}

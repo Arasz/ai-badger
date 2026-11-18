@@ -153,7 +153,7 @@ A worker uses only the tools in that list.
 | `persona:code-reviewer` | Worker persona. | `quality`, `integrator`, `reply_analysis` | Use a general worker with the brief's `task`. |
 | `persona:qa` | Worker persona. | `qa` | Use a general worker with the brief's `task`. |
 | `persona:architect` | Worker persona. | `business`, `architecture`, `global_scope`, change model | Use a general worker with the brief's `task`. |
-| `gh` | Read the PR and issues, publish, fetch threads. | `context-probe`, `publish`, `threads-fetch` | Publish runs as a dry run. Give the rendered file to the human. |
+| `gh` | Read the PR and issues, publish, fetch threads. | `context-probe`, `publish`, `threads-fetch` | Publish runs offline: no GitHub call. Give `round-N.rendered.md` to the human. |
 | Jira MCP (`mcp:<name>`) | Read the ACs of the linked Jira issue. | context phase, `business` | Use ACs that the user pasted. Without them, ACs are `absent`. |
 
 On the first use for a flow:
@@ -186,8 +186,9 @@ A proposed rule does nothing. It becomes active by one of three paths:
 
 - A maintainer confirms it. Run `rules` with
   `{"action": "confirm", "rule_id": "R-3", "maintainer": "<login>"}`.
-- The cited code exists at the path and lines. Run `rules` with `{"action": "verify",
-  "rule_id": "R-3", "citation": {"path", "start", "end", "quote"}}`.
+- The cited code exists at the path and lines at the PR base ref. Run `rules` with
+  `{"action": "verify", "rule_id": "R-3", "base_ref": "origin/main", "citation": {"path",
+  "start", "end", "quote"}}`. The script reads the file at `base_ref`, not the checkout.
 - Two origins in distinct threads by distinct authors taught it. Each origin after the first
   comes from `add-origin`. Then run `rules` with
   `{"action": "activate-threads", "rule_id": "R-3"}`.
@@ -204,14 +205,19 @@ posts comments on the pull request, and other people see them at once.
 1. Run `review_flow_cli.py result-build` with `{"flow_id": "<id>"}`. It freezes the verdict
    (`Block`, `Fix before merge` or `Safe to merge`) in `round-N.json` and `round-N.md`.
 2. Run `review_flow_cli.py publish` with `{"flow_id": "<id>", "dry_run": true}`.
-3. Read `ops` and the `round-N.publish.json` file.
+3. Read `ops` and the `round-N.publish.json` file. To review the bodies with no GitHub call,
+   add `"offline": true`. The script then writes them to `round-N.rendered.md`.
 4. Run `review_flow_cli.py publish` with `{"flow_id": "<id>"}`.
 5. Write `{"publication": <the publication from step 4>}` to a file.
 6. Submit that file as `result`.
 
 Publish posts one review with inline comments for findings in the diff. It edits one summary
-comment for each pull request in place. It resolves a thread only when its lines changed in
-the new head, or when the `reply_analysis` worker listed it in `verified_fixed`.
+comment for each pull request in place. A clean round posts the summary only, with no review.
+It resolves a thread only when the finding is gone from the round or dropped, and its lines
+changed in the new head or the `reply_analysis` worker listed it in `verified_fixed`. When a
+finding moved to a new line, publish posts it at the new line and resolves the old thread.
+Publish reads the head again before the first write and before the summary. If the head
+moved, it stops with `head_moved` and keeps the writes it already made.
 
 ## Limited mode
 
@@ -234,8 +240,10 @@ the output JSON and the `submit` call for that brief kind.
 - The human part of an inline comment is at most 4 lines. The renderer refuses a longer part.
   It never truncates. Shorten the finding's `title` and `reason` in a new worker file.
 - Every review has the event `COMMENT`. The flow never approves and never requests changes.
-- The fingerprint is `sha256(kind|path|symbol)`. It excludes the line and the title. Two
-  findings of one kind in one symbol are one finding. A moved line keeps its fingerprint.
+- The fingerprint is `sha256(kind|path|symbol[|anchor])`. It excludes the line and the
+  title. `anchor` is optional: the offending code text, with whitespace normalised. Without
+  an anchor, two findings of one kind in one symbol are one finding. A moved line keeps its
+  fingerprint.
 - A worker cannot set a fingerprint. The script computes it again from the finding.
 - Publish refuses when the PR head moved since the round started (`head_moved`, exit 2). Finish
   the round as `reply_analysis` with `next_round` and the new head.

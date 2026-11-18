@@ -656,3 +656,129 @@ def test_subprocess_malformed_submit_exits_1(tmp_path):
                 json.dumps({"flow_id": FLOW, "phase": "context", "file": str(worker)}))
     assert done.returncode == 1
     assert json.loads(done.stdout)["code"] == "malformed_json"
+
+
+# ------------------------------------------------------------------ review round 1 fixes
+
+
+def test_rules_verify_reads_the_cited_file_at_the_base_ref(cli, tmp_path):
+    """The checkout is the PR head; the citation must hold at the base the rule is read from."""
+    seen = []
+
+    def git(args, _cwd):
+        seen.append(args)
+        if args[:2] == ["git", "show"]:
+            return 0, "alpha\nbeta needle\n", ""
+        return 1, "", f"unexpected git call {args}"
+
+    env = env_for(cli, tmp_path, git=git)
+    _working_rules_with(tmp_path, [_origin(1, "ann")])
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "a.py").write_text("checkout only\n", encoding="utf-8")
+    out = ok(cli, env, "rules", action="verify", rule_id="R-1", base_ref="origin/main",
+             citation={"path": "src/a.py", "start": 2, "end": 2, "quote": "needle"})
+    states = {item["id"]: (item["status"], item["activated_by"]) for item in out["rules"]}
+    assert states == {"R-1": ("active", "citation"), "R-2": ("proposed", None)}
+    assert seen == [["git", "show", "origin/main:src/a.py"]]
+
+
+def test_rules_verify_needs_a_base_ref(cli, tmp_path):
+    env = env_for(cli, tmp_path)
+    path = _working_rules_with(tmp_path, [_origin(1, "ann")])
+    before = path.read_text(encoding="utf-8")
+    code, payload = call(cli, env, "rules", action="verify", rule_id="R-1",
+                         citation={"path": "src/a.py", "start": 1, "end": 1, "quote": "x"})
+    assert code == 1 and payload["code"] == "invalid_arguments"
+    assert "base_ref" in payload["message"]
+    assert path.read_text(encoding="utf-8") == before
+
+
+def _record(out):
+    return json.loads(Path(out["path"]).read_text(encoding="utf-8"))
+
+
+def test_publish_renders_the_verdict_the_model_derived(cli, tmp_path):
+    """No caller writes a verdict: the model derives it and the summary must carry it."""
+    env = env_for(cli, tmp_path, which=lambda name: None)
+    drive(cli, env, tmp_path, "result")
+    derived = cli.store.get(FLOW)[0].rounds[-1].verdict.value
+    ok(cli, env, "result-build", flow_id=FLOW)
+    out = ok(cli, env, "publish", flow_id=FLOW)
+    body = next(r for r in _record(out)["results"] if r["op"] == "create_summary")
+    assert derived == "Fix before merge"
+    assert f"## Review verdict: {derived}\n" in body["payload"]["body"]
+
+
+def _refuse_gh(argv, stdin=None):
+    raise AssertionError(f"offline publish called gh {argv} (stdin={stdin!r})")
+
+
+@pytest.mark.parametrize("gh_present, args", [(True, {"offline": True}), (False, {})],
+                         ids=["offline-flag", "gh-absent"])
+def test_offline_publish_calls_no_gh_and_writes_the_rendered_bodies(cli, tmp_path, gh_present,
+                                                                     args):
+    which = (lambda name: f"/usr/bin/{name}") if gh_present else (lambda name: None)
+    env = env_for(cli, tmp_path, gh=_refuse_gh, which=which)
+    drive(cli, env, tmp_path, "result")
+    ok(cli, env, "result-build", flow_id=FLOW)
+    out = ok(cli, env, "publish", flow_id=FLOW, **args)
+    assert out["dry_run"] is True and out["publication"] is None
+    rendered = Path(out["rendered_path"])
+    assert rendered.parent == Path(out["path"]).parent
+    text = rendered.read_text(encoding="utf-8")
+    fp = cli.model.fingerprint_of("null_deref", "src/pay/charge.py", "charge")
+    assert "<!-- ai-badger-review:summary v1 -->" in text
+    assert f"<!-- ai-badger-review:finding v1 fp={fp}" in text
+    assert "`src/pay/charge.py:40`" in text
+
+
+def _clean_round(cli, env, tmp_path):
+    create(cli, env)
+    for phase, data in (("context", context_data()), ("change_model", CHANGE_MODEL)):
+        assert submit(cli, env, tmp_path, phase, data)[0] == 0
+    for lane in ("business", "qa", "architecture", "quality"):
+        assert submit(cli, env, tmp_path, "lanes", {"lane": lane, "findings": []})[0] == 0
+    assert submit(cli, env, tmp_path, "integrate", {"merges": []})[0] == 0
+    assert submit(cli, env, tmp_path, "global_scope", {"dispositions": {}})[0] == 0
+    ok(cli, env, "result-build", flow_id=FLOW)
+
+
+def test_lane_finding_with_an_anchor_keeps_two_defects_in_one_symbol_apart(cli, tmp_path):
+    env = env_for(cli, tmp_path)
+    drive(cli, env, tmp_path, "lanes")
+    first = {**worker_finding(), "location": {**worker_finding()["location"],
+                                              "anchor": "customer = lookup(id)"}}
+    second = {**worker_finding(), "location": {**worker_finding()["location"],
+                                               "anchor": "return  charge(customer)"}}
+    code, payload = submit(cli, env, tmp_path, "lanes",
+                           {"lane": "qa", "findings": [first, second], "error": None})
+    assert code == 0, payload
+    findings = cli.store.get(FLOW)[0].rounds[-1].findings
+    expected = [cli.model.fingerprint_of("null_deref", "src/pay/charge.py", "charge", anchor)
+                for anchor in ("customer = lookup(id)", "return charge(customer)")]
+    assert sorted(f.fingerprint for f in findings) == sorted(expected)
+    assert cli.model.fingerprint_of("null_deref", "src/pay/charge.py", "charge") \
+        not in expected
+
+
+def test_publication_without_a_review_records_no_review_id(cli):
+    """A clean round posts the summary only; no review means no id, never a fake 0."""
+    publication_ = cli._publication([{"op": "create_summary", "response": {"id": 12}}], NOW)
+    assert publication_["review_id"] is None
+    assert publication_["summary_comment_id"] == 12 and publication_["event"] == "COMMENT"
+
+
+def test_clean_round_publish_posts_only_the_summary_with_no_review_id(cli, tmp_path):
+    gh = FakeGh([(("api", "user"), {"login": "bot"}),
+                 (("api", f"repos/{REPO}/pulls/{PR}"), {"head": {"sha": HEAD}}),
+                 (("api", "--paginate"), "[]"), (("api", "graphql"), EMPTY_THREADS),
+                 (("api", "--method", "POST", f"repos/{REPO}/issues/{PR}/comments"),
+                  {"id": 12})])
+    env = env_for(cli, tmp_path, gh=gh)
+    _clean_round(cli, env, tmp_path)
+    out = ok(cli, env, "publish", flow_id=FLOW)
+    assert out["ops"] == ["create_summary"]
+    assert out["publication"]["review_id"] is None
+    assert out["publication"]["summary_comment_id"] == 12
+    assert not any(call_[:3] == ["api", "--method", "POST"] and call_[3].endswith("/reviews")
+                   for call_ in gh.calls)

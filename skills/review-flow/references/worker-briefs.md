@@ -30,7 +30,9 @@ A lane finding has this shape (model `WorkerFinding`):
  "agent": {"repro": "", "context": "", "fix": ""}, "ac_refs": ["AC-1"], "tags": []}
 ```
 
-`symbol` is `<module>` when the code is outside a named symbol. `tags` can hold `DEFENSIVE`
+`symbol` is `<module>` when the code is outside a named symbol. `location.anchor` is
+optional: set it to the offending code text when one symbol has two defects of one kind.
+The script then keeps them as two findings. Do not set it to a line number. `tags` can hold `DEFENSIVE`
 and `PRE_EXISTING`. Keep `title` and `reason` short: the inline comment's human part is at
 most 4 lines.
 

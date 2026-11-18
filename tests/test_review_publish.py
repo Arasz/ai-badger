@@ -478,3 +478,137 @@ def test_publish_passes_not_reported_to_the_renderer_without_splicing(monkeypatc
     run(fake, round_two(changed_ranges={"src/a.py": [(11, 11)]}))
     assert seen == [[], [FP_B]]
     assert not hasattr(publish, "_with_not_reported")
+
+
+# --- review round 1 fixes ----------------------------------------------------------------
+
+
+def _own(fake, fp):
+    return next(c for c in fake.review_comments
+                if c["in_reply_to_id"] is None and fp in c["body"] and c["user"]["login"] == ME)
+
+
+def _moved_round():
+    first = make_state()["round"]["findings"]
+    findings = [finding(FP_A, "src/a.py", 20, 22), finding(FP_B, "src/b.py", 30, 30)]
+    return make_state(findings, head=HEAD2, n=2, previous_findings=first,
+                      changed_ranges={"src/a.py": [(5, 15)]})
+
+
+def test_moved_finding_posts_at_the_new_line_and_retires_the_old_thread():
+    """PATCH cannot move an anchor: the old thread is closed and the finding re-posted."""
+    fake = FakeGitHub()
+    run(fake, make_state())
+    old_a, old_b = _own(fake, FP_A), _own(fake, FP_B)
+    fake.head = HEAD2
+    del fake.calls[:]
+    run(fake, _moved_round())
+    review = next(p for m, e, p in fake.writes() if e.endswith("/reviews"))
+    assert [(c["path"], c["line"]) for c in review["comments"]] == [("src/a.py", 20)]
+    replies = [c for c in fake.review_comments if c["in_reply_to_id"] == old_a["id"]]
+    assert len(replies) == 1
+    assert publish.parse_marker(replies[0]["body"]) == {"kind": "resolved", "fp": FP_A,
+                                                        "digest": None}
+    assert "Moved to `src/a.py:20`" in replies[0]["body"]
+    assert fake.resolved == {f"T_{old_a['id']}"}
+    assert not any(str(old_a["id"]) in e and m == "PATCH" for m, e in write_endpoints(fake))
+    assert not any(c["in_reply_to_id"] == old_b["id"] for c in fake.review_comments)
+    del fake.calls[:]
+    run(fake, _moved_round())
+    assert write_endpoints(fake) == []
+
+
+def test_moved_finding_whose_retire_reply_failed_resumes_on_the_old_thread():
+    fake = FakeGitHub()
+    run(fake, make_state())
+    old_a = _own(fake, FP_A)
+    fake.head = HEAD2
+    fake.fail_once(lambda m, e, p: m == "POST" and e.endswith("/replies"), 502)
+    with pytest.raises(publish.PublishFailed) as err:
+        run(fake, _moved_round())
+    assert [r["op"] for r in err.value.results] == ["create_review"]
+    del fake.calls[:]
+    run(fake, _moved_round())
+    assert [(m, e) for m, e in write_endpoints(fake) if not e.startswith(f"repos/{REPO}/issues")] \
+        == [("POST", f"repos/{REPO}/pulls/{PR}/comments/{old_a['id']}/replies"),
+            ("POST", "graphql")]
+    assert fake.resolved == {f"T_{old_a['id']}"}
+    assert sum(1 for c in fake.review_comments if c["in_reply_to_id"] is None
+               and FP_A in c["body"]) == 2
+
+
+DOWNGRADE = {"action": "downgrade", "to": "nit", "ground": "rule", "reason": "Rule R-1.",
+             "basis": [{"type": "rule", "id": "R-1"}], "by": "script"}
+DROP = {"action": "drop", "ground": "rule", "reason": "Rule R-1.",
+        "basis": [{"type": "rule", "id": "R-1"}], "by": "script"}
+
+
+@pytest.mark.parametrize("disposition", [None, DOWNGRADE], ids=["kept", "downgraded"])
+def test_standing_finding_outside_the_diff_is_never_resolved(disposition):
+    """Its anchored lines changed, but the finding still stands: the thread stays open."""
+    fake = FakeGitHub()
+    run(fake, make_state())
+    own_a = _own(fake, FP_A)
+    fake.head = HEAD2
+    del fake.calls[:]
+    standing = finding(FP_A, "src/a.py", 10, 12, in_diff=False, disposition=disposition)
+    state = make_state([standing], head=HEAD2, n=2,
+                       previous_findings=make_state()["round"]["findings"],
+                       changed_ranges={"src/a.py": [(11, 11)]})
+    results = run(fake, state)
+    assert not any(c["in_reply_to_id"] == own_a["id"] for c in fake.review_comments)
+    assert f"T_{own_a['id']}" not in fake.resolved
+    assert FP_A not in [r.get("fingerprint") for r in results if r["op"] == "mark_not_reported"]
+    assert [r["fingerprint"] for r in results if r["op"] == "mark_not_reported"] == [FP_B]
+    assert "Not re-reported (1)" in fake.issue_comments[-1]["body"]
+
+
+def test_dropped_finding_whose_lines_changed_is_resolved():
+    fake = FakeGitHub()
+    run(fake, make_state())
+    own_a = _own(fake, FP_A)
+    fake.head = HEAD2
+    dropped = finding(FP_A, "src/a.py", 10, 12, disposition=DROP)
+    run(fake, make_state([dropped], head=HEAD2, n=2,
+                         previous_findings=make_state()["round"]["findings"],
+                         changed_ranges={"src/a.py": [(11, 11)]}))
+    assert f"T_{own_a['id']}" in fake.resolved
+
+
+class MovingHead(FakeGitHub):
+    """Answers each PR read with the next head in `heads`; the last one repeats."""
+
+    def __init__(self, heads, **kw):
+        super().__init__(**kw)
+        self.heads = list(heads)
+        self.head_reads = 0
+
+    def _rest(self, method, endpoint, payload):
+        if endpoint == f"repos/{REPO}/pulls/{PR}" and method == "GET":
+            self.head_reads += 1
+            self.head = self.heads.pop(0) if len(self.heads) > 1 else self.heads[0]
+        return super()._rest(method, endpoint, payload)
+
+
+def test_head_that_moves_while_existing_comments_are_read_stops_before_any_write():
+    fake = MovingHead([HEAD1, HEAD2])
+    with pytest.raises(publish.PublishRefused) as err:
+        run(fake, make_state())
+    assert err.value.code == "head_moved" and err.value.results == []
+    assert fake.writes() == [] and fake.head_reads == 2
+
+
+def test_head_that_moves_before_the_summary_keeps_the_review_and_skips_the_summary():
+    fake = MovingHead([HEAD1, HEAD1, HEAD2])
+    with pytest.raises(publish.PublishRefused) as err:
+        run(fake, make_state())
+    assert err.value.code == "head_moved"
+    assert [r["op"] for r in err.value.results] == ["create_review"]
+    assert len(fake.review_comments) == 2 and fake.issue_comments == []
+    assert fake.head_reads == 3
+
+
+def test_dry_run_reads_the_head_once():
+    fake = MovingHead([HEAD1, HEAD2])
+    run(fake, make_state(), dry_run=True)
+    assert fake.head_reads == 1 and fake.writes() == []

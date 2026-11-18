@@ -14,9 +14,10 @@ records a step. The coordinator runs each verb itself and reads each result.
   which package is missing. Do not install packages without the human's approval.
 - **No `gh`.** `tools-probe` reports `gh` as not available. Do not confirm it.
   `context-probe` then reads no PR text, so paste the PR body and the ACs into files.
-  Run `publish` with `{"flow_id": "<id>", "dry_run": true}`. Without `gh`, `publish` is
-  always a dry run. Give the human `round-N.md` and `round-N.publish.json` from the flow
-  directory, and ask the human to post them. `threads-fetch` also needs `gh`. For round 2,
+  Run `publish` with `{"flow_id": "<id>", "dry_run": true, "offline": true}`. Without `gh`,
+  `publish` is always offline: it makes no GitHub call. Give the human
+  `round-N.rendered.md` (the inline comments and the summary, as they would be posted) from
+  the flow directory, and ask the human to post them. `threads-fetch` also needs `gh`. For round 2,
   ask the human for the replies as a `{"replies": [...]}` file.
   Without `gh`, `publish` returns no publication, so the flow stays at `result` until a
   real publish on a machine with `gh` returns one.

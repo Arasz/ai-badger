@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import fnmatch
 import json
+import os
 import subprocess
 import sys
 from dataclasses import dataclass, field
@@ -53,8 +54,25 @@ class LaneRules:
     conflicting: List[str] = field(default_factory=list)
 
 
+GIT_LOCATION_ENV = ("GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR", "GIT_INDEX_FILE",
+                    "GIT_OBJECT_DIRECTORY", "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+                    "GIT_PREFIX", "GIT_NAMESPACE", "GIT_CEILING_DIRECTORIES")
+
+
+def git_env(env: Optional[Mapping[str, str]] = None) -> dict:
+    """`env` (default `os.environ`) minus every variable that pins git to another repository."""
+    out = dict(os.environ if env is None else env)
+    for name in GIT_LOCATION_ENV:
+        out.pop(name, None)
+    return out
+
+
 def _run_git(args: List[str], cwd: Path) -> Tuple[int, str, str]:
-    done = subprocess.run(args, cwd=cwd, capture_output=True, text=True, check=False)
+    try:
+        done = subprocess.run(args, cwd=cwd, capture_output=True, text=True, check=False,
+                              env=git_env(), timeout=60)
+    except (OSError, subprocess.SubprocessError) as exc:
+        return 127, "", str(exc)
     return done.returncode, done.stdout, done.stderr
 
 
@@ -251,28 +269,29 @@ def retire(rules_file: "model.RulesFile", rule_id: str) -> "model.RulesFile":
 
 # ------------------------------------------------------------------ citation
 
-def _safe_file(repo_root: Path, rel_path: str) -> Path:
-    """The repo file for `rel_path`, refusing absolute, `..` and any path that resolves outside."""
+def _base_lines(repo_root: Path, base_ref: str, rel_path: str,
+                run: Optional[Runner]) -> List[str]:
+    """Lines of `rel_path` at `base_ref` via `git show`; refuses paths that leave the repo."""
     pure = PurePosixPath(rel_path)
     if pure.is_absolute() or ".." in pure.parts or not pure.parts:
         raise RuleRefused(f"citation path {rel_path!r} must be repo-relative without '..'")
-    root = Path(repo_root).resolve()
-    current = root / pure
-    if not current.is_file():
-        raise RuleRefused(f"citation file {rel_path!r} does not exist")
-    if root not in current.resolve().parents:
-        raise RuleRefused(f"citation path {rel_path!r} leaves the repo")
-    return current
+    if not base_ref or base_ref.startswith("-"):
+        raise RuleRefused(f"citation base ref {base_ref!r} is not a ref")
+    code, out, err = (run or _run_git)(["git", "show", f"{base_ref}:{pure.as_posix()}"],
+                                       Path(repo_root))
+    if code != 0:
+        raise RuleRefused(f"citation file {rel_path!r} is not at {base_ref}: {err.strip()}")
+    return out.splitlines()
 
 
-def verify_citation(repo_root: Path, rules_file: "model.RulesFile", rule_id: str,
-                    path: str, start: int, end: int, quote: str) -> "model.RulesFile":
-    """Activate a proposed rule once `quote` is found inside `path` lines `start..end`."""
+def verify_citation(repo_root: Path, rules_file: "model.RulesFile", rule_id: str,  # pylint: disable=too-many-arguments
+                    path: str, start: int, end: int, quote: str, *, base_ref: str,
+                    run: Optional[Runner] = None) -> "model.RulesFile":
+    """Activate a proposed rule once `quote` is in `path` lines `start..end` at `base_ref`."""
     _require_proposed(rules_file, rule_id)
     if not quote.strip():
         raise RuleRefused("citation quote is blank")
-    target = _safe_file(repo_root, path)
-    lines = target.read_text(encoding="utf-8", errors="replace").splitlines()
+    lines = _base_lines(repo_root, base_ref, path, run)
     if start < 1 or end < start or end > len(lines):
         raise RuleRefused(f"{path} has {len(lines)} lines; {start}..{end} is outside them")
     if quote.strip() not in "\n".join(lines[start - 1:end]):

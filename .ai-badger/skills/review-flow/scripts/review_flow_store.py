@@ -23,6 +23,7 @@ if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
 import review_flow_model as model  # pylint: disable=wrong-import-position
+import review_rules as rules_mod  # pylint: disable=wrong-import-position
 
 TRACKING_ROOT_ENV = "AI_BADGER_TRACKING_ROOT"
 
@@ -94,10 +95,10 @@ def _project_root(start: Path) -> Optional[Path]:
 
 def _main_checkout(project: Path) -> Path:
     """The main checkout for a linked worktree that has its own marker, else `project`."""
-    env = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
     try:
         done = subprocess.run(["git", "-C", str(project), "worktree", "list", "--porcelain"],
-                              capture_output=True, text=True, check=False, timeout=10, env=env)
+                              capture_output=True, text=True, check=False, timeout=10,
+                              env=rules_mod.git_env())
     except (OSError, subprocess.SubprocessError):
         return project
     first = next((line[len("worktree "):] for line in done.stdout.splitlines()

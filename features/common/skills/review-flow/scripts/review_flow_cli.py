@@ -122,11 +122,10 @@ GitRunner = Callable[[List[str], Path], Tuple[int, str, str]]
 
 
 def run_git(args: List[str], cwd: Path) -> Tuple[int, str, str]:
-    """Run git without inherited GIT_* location variables; returns (code, stdout, stderr)."""
-    env = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
+    """Run git without inherited git location variables; returns (code, stdout, stderr)."""
     try:
         done = subprocess.run(args, cwd=cwd, capture_output=True, text=True, check=False,
-                              env=env, timeout=60)
+                              env=rules_mod.git_env(), timeout=60)
     except (OSError, subprocess.SubprocessError) as exc:
         return 127, "", str(exc)
     return done.returncode, done.stdout, done.stderr
@@ -324,7 +323,8 @@ class WorkerFinding(_Strict):
         """The model finding, with the fingerprint recomputed by the script."""
         data = self.model_dump(mode="json")
         data.update(fingerprint=model.fingerprint_of(self.kind, self.location.path,
-                                                     self.location.symbol),
+                                                     self.location.symbol,
+                                                     self.location.anchor),
                     lanes=[lane.value], source="lane", disposition=None)
         return model.Finding.model_validate(data)
 
@@ -1103,12 +1103,13 @@ class RulesArgs(_Strict):
     maintainer: Optional[str] = None
     reply: Optional[Dict[str, Any]] = None
     citation: Optional[Citation] = None
+    base_ref: Optional[str] = Field(default=None, pattern=REF_PATTERN)
 
     @model_validator(mode="after")
     def _needs(self) -> "RulesArgs":
         needs = {"propose": ("reply",), "add-origin": ("rule_id", "reply"),
                  "confirm": ("rule_id", "maintainer"),
-                 "verify": ("rule_id", "citation"), "activate-threads": ("rule_id",),
+                 "verify": ("rule_id", "citation", "base_ref"), "activate-threads": ("rule_id",),
                  "retire": ("rule_id",), "list": ()}
         missing = [name for name in needs[self.action] if getattr(self, name) is None]
         if missing:
@@ -1146,7 +1147,8 @@ def _rules(args: RulesArgs, env: Env) -> dict:
     elif args.action == "verify":
         cite = args.citation
         rules_file = rules_mod.verify_citation(env.repo_root, rules_file, args.rule_id,
-                                               cite.path, cite.start, cite.end, cite.quote)
+                                               cite.path, cite.start, cite.end, cite.quote,
+                                               base_ref=args.base_ref, run=env.git)
     elif args.action == "activate-threads":
         rules_file = rules_mod.activate_by_threads(rules_file, args.rule_id)
     elif args.action == "retire":
@@ -1211,10 +1213,12 @@ def _result_build(args: FlowArgs, env: Env) -> dict:
 
 
 class PublishArgs(_Strict):
-    """`publish`: post the round to GitHub, or plan it only with `dry_run`."""
+    """`publish`: post the round to GitHub, plan it only with `dry_run`, or render it with no
+    GitHub call at all with `offline` (the default when `gh` is absent)."""
 
     flow_id: FlowId = _FLOW_ID
     dry_run: bool = False
+    offline: bool = False
 
 
 class PublishOut(_Strict):
@@ -1227,6 +1231,7 @@ class PublishOut(_Strict):
     ops: List[str]
     publication: Optional[model.Publication]
     path: str
+    rendered_path: Optional[str] = None
 
 
 _NO_EXISTING = {"login": None, "inline": {}, "replied": set(), "summary": None, "threads": {}}
@@ -1245,9 +1250,23 @@ def _publication(results: List[dict], now: datetime) -> Optional[dict]:
     summary = next((r for r in results if r["op"] in ("create_summary", "update_summary")), None)
     if review is None and summary is None:
         return None
-    return {"review_id": int(((review or {}).get("response") or {}).get("id") or 0),
+    review_id = ((review or {}).get("response") or {}).get("id")
+    return {"review_id": int(review_id) if review_id is not None else None,
             "summary_comment_id": ((summary or {}).get("response") or {}).get("id"),
             "event": "COMMENT", "at": _stamp(now)}
+
+
+def _rendered(actions: List[dict]) -> str:
+    """Every body an offline publish would post, for a human to paste: summary first."""
+    parts = []
+    for action in actions:
+        payload = action.get("payload") or {}
+        if action["op"] in ("create_summary", "update_summary"):
+            parts.insert(0, f"# Summary comment\n\n{payload['body']}\n")
+        for comment in payload.get("comments") or []:
+            parts.append(f"# Inline comment at `{comment['path']}:{comment['line']}`\n\n"
+                         f"{comment['body']}\n")
+    return "\n".join(parts)
 
 
 def _publish(args: PublishArgs, env: Env) -> dict:
@@ -1266,12 +1285,16 @@ def _publish(args: PublishArgs, env: Env) -> dict:
              if len(flow.rounds) > 1 else [],
              "changed_ranges": _changed_ranges(flow, env),
              "verified_fixed": (previous or {}).get("verified_fixed", [])}
-    dry_run = args.dry_run or env.which("gh") is None
-    if env.which("gh") is None:
+    offline = args.offline or env.which("gh") is None
+    dry_run = args.dry_run or offline
+    rendered_path = None
+    if offline:
         actions = publisher.plan_publish(state, dict(_NO_EXISTING), current.head_sha)
         results = publisher.apply(env.gh, actions, dry_run=True)
         results = [{**result, "payload": action.get("payload")}
                    for result, action in zip(results, actions)]
+        rendered_path = _round_file(flow.flow_id, current.n, ".rendered.md")
+        rendered_path.write_text(_rendered(actions), encoding="utf-8")
     else:
         code, out, err = env.git(["git", "remote", "-v"], Path(env.repo_root))
         if code != 0:
@@ -1282,7 +1305,8 @@ def _publish(args: PublishArgs, env: Env) -> dict:
     path = _write_json(_round_file(flow.flow_id, current.n, ".publish.json"),
                        {"dry_run": dry_run, "results": results, "publication": publication})
     return {"flow_id": flow.flow_id, "round": current.n, "dry_run": dry_run,
-            "ops": [r["op"] for r in results], "publication": publication, "path": str(path)}
+            "ops": [r["op"] for r in results], "publication": publication, "path": str(path),
+            "rendered_path": str(rendered_path) if rendered_path else None}
 
 
 class ThreadsArgs(_Strict):
