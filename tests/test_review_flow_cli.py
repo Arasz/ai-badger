@@ -1102,3 +1102,19 @@ def test_changed_ranges_use_the_old_side_of_the_head_diff(cli, tmp_path, diff, l
     ops = [a["op"] for a in cli.publisher.plan_publish(state, existing, "f" * 40)]
     assert ("resolve" in ops) is resolved, (changed, ops)
     assert ("mark_not_reported" in ops) is not resolved
+
+
+def test_publication_takes_the_review_id_recovered_from_github(cli):
+    """No local receipt and no new review: the id of the review already on GitHub is kept."""
+    publication_ = cli._publication([{"op": "existing_review", "response": {"id": 77}},
+                                     {"op": "update_summary", "response": {"id": 12}}], NOW)
+    assert publication_["review_id"] == 77
+    assert publication_["summary_comment_id"] == 12
+
+
+def test_publication_recovers_both_ids_when_no_receipt_was_ever_saved(cli):
+    """The first receipt write failed and the retry wrote nothing: both ids come from GitHub."""
+    publication_ = cli._publication([{"op": "existing_review", "response": {"id": 77}},
+                                     {"op": "existing_summary", "response": {"id": 12}}], NOW)
+    assert publication_ is not None
+    assert (publication_["review_id"], publication_["summary_comment_id"]) == (77, 12)

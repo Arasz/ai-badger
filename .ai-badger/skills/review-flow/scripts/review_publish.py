@@ -203,7 +203,9 @@ def read_existing(runner: Runner, repo: str, pr: int, login: str) -> dict:
         if not marker:
             continue
         entry = {"id": comment["id"], "fp": marker["fp"], "digest": marker["digest"],
-                 "path": comment.get("path"), "line": comment.get("line")}
+                 "path": comment.get("path"), "line": comment.get("line"),
+                 "review_id": comment.get("pull_request_review_id"),
+                 "commit": comment.get("original_commit_id") or comment.get("commit_id")}
         current = inline.get(marker["fp"])
         if current is not None and current["id"] > entry["id"]:
             current, entry = entry, current
@@ -418,4 +420,21 @@ def publish(runner: Runner, state: dict, remotes: List[str], dry_run: bool = Fal
         if current != state["round"]["head_sha"]:
             raise PublishRefused("head_moved", f"PR head moved to {current} during publish")
 
-    return apply(runner, plan_publish(state, existing, head), dry_run, check_head)
+    results = apply(runner, plan_publish(state, existing, head), dry_run, check_head)
+    if not any(r["op"] == "create_review" for r in results):
+        review_id = _review_at(existing, state["round"]["head_sha"])
+        if review_id is not None:
+            results.append({"op": "existing_review", "dry_run": dry_run,
+                            "response": {"id": review_id}})
+    summary_ops = ("create_summary", "update_summary")
+    if existing["summary"] and not any(r["op"] in summary_ops for r in results):
+        results.append({"op": "existing_summary", "dry_run": dry_run,
+                        "response": {"id": existing["summary"]["id"]}})
+    return results
+
+
+def _review_at(existing: dict, head_sha: str) -> Optional[int]:
+    """Id of our review already on GitHub for this head: a lost receipt is recovered, not reposted."""
+    ids = [entry["review_id"] for entry in existing["inline"].values()
+           if entry.get("review_id") and entry.get("commit") == head_sha]
+    return max(ids) if ids else None

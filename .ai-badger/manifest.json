@@ -1,7 +1,7 @@
 {
   "$schema": "./schemas/manifest.schema.json",
   "frameworkVersion": "0.221.0",
-  "frameworkCommit": "a2d751079644b4d27109b63fd9f9f64cd3602572",
+  "frameworkCommit": "6256500e97e9bba9734e2bf4ed353a0580afbf5b",
   "frameworkDirty": true,
   "frameworkRoot": ".",
   "generatedAt": null,
@@ -1295,12 +1295,12 @@
       "source": "features/common/skills/review-flow",
       "target": ".ai-badger/skills/review-flow",
       "frameworkVersion": "0.221.0",
-      "hash": "5164ebfcf3177c1d84111937e7ac124e0be0f759362074eabc3e594650f008e9",
+      "hash": "f4c7c60522447945247fef038cb5fd89915d8cc76e70293a3f5e2f732e8e0e4d",
       "dirMeta": {
         "file_count": 11,
         "dir_count": 2
       },
-      "sourceHash": "5164ebfcf3177c1d84111937e7ac124e0be0f759362074eabc3e594650f008e9",
+      "sourceHash": "f4c7c60522447945247fef038cb5fd89915d8cc76e70293a3f5e2f732e8e0e4d",
       "sourceMeta": {
         "file_count": 11,
         "dir_count": 2

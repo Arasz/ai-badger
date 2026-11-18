@@ -1323,8 +1323,9 @@ def _publication(results: List[dict], now: datetime,
                  prior: Optional[dict] = None) -> Optional[dict]:
     """The receipt of this run; an id this run did not get comes from `prior`, never None."""
     prior = prior or {}
-    review = next((r for r in results if r["op"] == "create_review"), None)
-    summary = next((r for r in results if r["op"] in ("create_summary", "update_summary")), None)
+    review = next((r for r in results if r["op"] in ("create_review", "existing_review")), None)
+    summary = next((r for r in results
+                    if r["op"] in ("create_summary", "update_summary", "existing_summary")), None)
     if review is None and summary is None:
         return prior or None
     review_id = ((review or {}).get("response") or {}).get("id")

@@ -53,9 +53,11 @@ class FakeGitHub:
         chunks = [items[i:i + self.page_size] for i in range(0, len(items), self.page_size)]
         return "".join(json.dumps(chunk) for chunk in chunks or [[]]) + "\n"
 
-    def add_review_comment(self, login, body, path="src/a.py", line=10, reply_to=None):
+    def add_review_comment(self, login, body, path="src/a.py", line=10, reply_to=None,
+                           review_id=None, commit=None):
         comment = {"id": self._id(), "user": {"login": login}, "body": body, "path": path,
                    "line": line, "original_line": line, "in_reply_to_id": reply_to,
+                   "pull_request_review_id": review_id, "original_commit_id": commit,
                    "author_association": "MEMBER",
                    "created_at": f"2026-11-{10 + len(self.review_comments) % 9:02d}T08:00:00Z"}
         self.review_comments.append(comment)
@@ -104,9 +106,11 @@ class FakeGitHub:
         if endpoint == f"{base}/issues/{PR}/comments" and method == "GET":
             return self._pages(self.issue_comments)
         if endpoint == f"{base}/pulls/{PR}/reviews" and method == "POST":
+            review_id = self._id()
             for item in payload["comments"]:
-                self.add_review_comment(ME, item["body"], item["path"], item["line"])
-            return json.dumps({"id": self._id()})
+                self.add_review_comment(ME, item["body"], item["path"], item["line"],
+                                        review_id=review_id, commit=payload["commit_id"])
+            return json.dumps({"id": review_id})
         if endpoint == f"{base}/issues/{PR}/comments" and method == "POST":
             return json.dumps(self.add_issue_comment(ME, payload["body"]))
         if (m := re.fullmatch(rf"{base}/pulls/{PR}/comments/(\d+)/replies", endpoint)):
@@ -675,3 +679,32 @@ def test_new_flow_reuses_existing_comments_by_marker():
     assert [m for m, _ in write_endpoints(fake)] == ["PATCH"]
     assert write_endpoints(fake)[0][1].startswith(f"repos/{REPO}/issues/comments/")
     assert len(fake.review_comments) == posted and len(fake.issue_comments) == 1
+
+
+def test_rerun_after_a_lost_receipt_reports_the_review_already_on_github():
+    """A crash after GitHub took the review but before the receipt was saved loses no id."""
+    fake = FakeGitHub()
+    first = run(fake, make_state())
+    review_id = next(r for r in first if r["op"] == "create_review")["response"]["id"]
+    del fake.calls[:]
+    results = run(fake, make_state(now=NOW + timedelta(hours=1)))
+    assert write_endpoints(fake) == []
+    assert {"op": "existing_review", "response": {"id": review_id}} in [
+        {"op": r["op"], "response": r.get("response")} for r in results]
+
+
+def test_a_review_at_an_older_head_is_not_reported_for_the_new_round():
+    fake = FakeGitHub()
+    run(fake, make_state())
+    fake.head = HEAD2
+    results = run(fake, make_state(findings=[], head=HEAD2, n=2))
+    assert not any(r["op"] == "existing_review" for r in results)
+
+
+def test_rerun_with_no_writes_reports_the_summary_already_on_github():
+    fake = FakeGitHub()
+    run(fake, make_state())
+    summary_id = fake.issue_comments[0]["id"]
+    results = run(fake, make_state(now=NOW + timedelta(hours=1)))
+    assert {"op": "existing_summary", "response": {"id": summary_id}} in [
+        {"op": r["op"], "response": r.get("response")} for r in results]
