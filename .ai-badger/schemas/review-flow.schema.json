@@ -1,0 +1,769 @@
+{
+  "$defs": {
+    "AcceptanceItem": {
+      "additionalProperties": false,
+      "description": "One acceptance criterion the business lane checks the change against.",
+      "properties": {
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "statement": {
+          "title": "Statement",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "statement"
+      ],
+      "title": "AcceptanceItem",
+      "type": "object"
+    },
+    "AgentPart": {
+      "additionalProperties": false,
+      "description": "The collapsed agent block of an inline comment; empty text renders as none.",
+      "properties": {
+        "repro": {
+          "title": "Repro",
+          "type": "string"
+        },
+        "context": {
+          "title": "Context",
+          "type": "string"
+        },
+        "fix": {
+          "title": "Fix",
+          "type": "string"
+        }
+      },
+      "required": [
+        "repro",
+        "context",
+        "fix"
+      ],
+      "title": "AgentPart",
+      "type": "object"
+    },
+    "AuthorReply": {
+      "additionalProperties": false,
+      "description": "One reply on a review thread, kept for reply analysis.",
+      "properties": {
+        "thread_url": {
+          "title": "Thread Url",
+          "type": "string"
+        },
+        "comment_id": {
+          "title": "Comment Id",
+          "type": "integer"
+        },
+        "author": {
+          "title": "Author",
+          "type": "string"
+        },
+        "association": {
+          "enum": [
+            "OWNER",
+            "MEMBER",
+            "COLLABORATOR",
+            "CONTRIBUTOR",
+            "FIRST_TIME_CONTRIBUTOR",
+            "FIRST_TIMER",
+            "MANNEQUIN",
+            "NONE"
+          ],
+          "title": "Association",
+          "type": "string"
+        },
+        "body": {
+          "title": "Body",
+          "type": "string"
+        },
+        "at": {
+          "title": "At",
+          "type": "string"
+        }
+      },
+      "required": [
+        "thread_url",
+        "comment_id",
+        "author",
+        "association",
+        "body",
+        "at"
+      ],
+      "title": "AuthorReply",
+      "type": "object"
+    },
+    "Downgrade": {
+      "additionalProperties": false,
+      "description": "Disposition: the finding stands at a lower severity, with its basis.",
+      "properties": {
+        "action": {
+          "const": "downgrade",
+          "title": "Action",
+          "type": "string"
+        },
+        "to": {
+          "$ref": "#/$defs/Severity"
+        },
+        "ground": {
+          "$ref": "#/$defs/Ground"
+        },
+        "reason": {
+          "title": "Reason",
+          "type": "string"
+        },
+        "basis": {
+          "items": {
+            "$ref": "#/$defs/Ref"
+          },
+          "minItems": 1,
+          "title": "Basis",
+          "type": "array"
+        },
+        "by": {
+          "enum": [
+            "script",
+            "worker"
+          ],
+          "title": "By",
+          "type": "string"
+        }
+      },
+      "required": [
+        "action",
+        "to",
+        "ground",
+        "reason",
+        "basis",
+        "by"
+      ],
+      "title": "Downgrade",
+      "type": "object"
+    },
+    "Drop": {
+      "additionalProperties": false,
+      "description": "Disposition: the finding is removed, with its basis.",
+      "properties": {
+        "action": {
+          "const": "drop",
+          "title": "Action",
+          "type": "string"
+        },
+        "ground": {
+          "$ref": "#/$defs/Ground"
+        },
+        "reason": {
+          "title": "Reason",
+          "type": "string"
+        },
+        "basis": {
+          "items": {
+            "$ref": "#/$defs/Ref"
+          },
+          "minItems": 1,
+          "title": "Basis",
+          "type": "array"
+        },
+        "by": {
+          "enum": [
+            "script",
+            "worker"
+          ],
+          "title": "By",
+          "type": "string"
+        }
+      },
+      "required": [
+        "action",
+        "ground",
+        "reason",
+        "basis",
+        "by"
+      ],
+      "title": "Drop",
+      "type": "object"
+    },
+    "Evidence": {
+      "additionalProperties": false,
+      "description": "One graded pointer that supports a finding.",
+      "properties": {
+        "grade": {
+          "$ref": "#/$defs/Grade"
+        },
+        "ref": {
+          "title": "Ref",
+          "type": "string"
+        }
+      },
+      "required": [
+        "grade",
+        "ref"
+      ],
+      "title": "Evidence",
+      "type": "object"
+    },
+    "Finding": {
+      "additionalProperties": false,
+      "description": "One review finding; its fingerprint must equal `fingerprint_of(kind, path, symbol)`.",
+      "properties": {
+        "fingerprint": {
+          "title": "Fingerprint",
+          "type": "string"
+        },
+        "lanes": {
+          "items": {
+            "$ref": "#/$defs/Lane"
+          },
+          "title": "Lanes",
+          "type": "array"
+        },
+        "source": {
+          "enum": [
+            "lane",
+            "lint"
+          ],
+          "title": "Source",
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/Kind"
+        },
+        "severity": {
+          "$ref": "#/$defs/Severity"
+        },
+        "confidence": {
+          "enum": [
+            "high",
+            "medium",
+            "low"
+          ],
+          "title": "Confidence",
+          "type": "string"
+        },
+        "location": {
+          "$ref": "#/$defs/Location"
+        },
+        "in_diff": {
+          "title": "In Diff",
+          "type": "boolean"
+        },
+        "title": {
+          "title": "Title",
+          "type": "string"
+        },
+        "reason": {
+          "title": "Reason",
+          "type": "string"
+        },
+        "evidence": {
+          "items": {
+            "$ref": "#/$defs/Evidence"
+          },
+          "title": "Evidence",
+          "type": "array"
+        },
+        "agent": {
+          "$ref": "#/$defs/AgentPart"
+        },
+        "ac_refs": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Ac Refs",
+          "type": "array"
+        },
+        "tags": {
+          "items": {
+            "$ref": "#/$defs/Tag"
+          },
+          "title": "Tags",
+          "type": "array",
+          "uniqueItems": true
+        },
+        "disposition": {
+          "anyOf": [
+            {
+              "discriminator": {
+                "mapping": {
+                  "downgrade": "#/$defs/Downgrade",
+                  "drop": "#/$defs/Drop",
+                  "keep": "#/$defs/Keep"
+                },
+                "propertyName": "action"
+              },
+              "oneOf": [
+                {
+                  "$ref": "#/$defs/Keep"
+                },
+                {
+                  "$ref": "#/$defs/Downgrade"
+                },
+                {
+                  "$ref": "#/$defs/Drop"
+                }
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Disposition"
+        }
+      },
+      "required": [
+        "fingerprint",
+        "lanes",
+        "source",
+        "kind",
+        "severity",
+        "confidence",
+        "location",
+        "in_diff",
+        "title",
+        "reason",
+        "evidence",
+        "agent",
+        "ac_refs",
+        "tags"
+      ],
+      "title": "Finding",
+      "type": "object"
+    },
+    "Grade": {
+      "description": "How a piece of evidence or a fact is known.",
+      "enum": [
+        "MEASURED",
+        "READ",
+        "INFERRED",
+        "UNVERIFIED"
+      ],
+      "title": "Grade",
+      "type": "string"
+    },
+    "Ground": {
+      "description": "Why a finding was downgraded or dropped.",
+      "enum": [
+        "fact_contradicts",
+        "unreachable_in_production",
+        "rule",
+        "duplicate",
+        "out_of_scope"
+      ],
+      "title": "Ground",
+      "type": "string"
+    },
+    "Keep": {
+      "additionalProperties": false,
+      "description": "Disposition: the finding stands at its own severity.",
+      "properties": {
+        "action": {
+          "const": "keep",
+          "title": "Action",
+          "type": "string"
+        }
+      },
+      "required": [
+        "action"
+      ],
+      "title": "Keep",
+      "type": "object"
+    },
+    "Kind": {
+      "description": "Closed finding kind; rules and facts match on it, never on `other`.",
+      "enum": [
+        "null_deref",
+        "unchecked_error",
+        "resource_leak",
+        "concurrency",
+        "injection",
+        "authz",
+        "input_validation",
+        "contract_break",
+        "ac_unmet",
+        "test_gap",
+        "perf",
+        "config",
+        "dead_code",
+        "style",
+        "docs",
+        "other"
+      ],
+      "title": "Kind",
+      "type": "string"
+    },
+    "Lane": {
+      "description": "The four parallel review lanes.",
+      "enum": [
+        "business",
+        "qa",
+        "architecture",
+        "quality"
+      ],
+      "title": "Lane",
+      "type": "string"
+    },
+    "LaneRun": {
+      "additionalProperties": false,
+      "description": "One lane's run in a round; a failed run carries its error.",
+      "properties": {
+        "status": {
+          "enum": [
+            "pending",
+            "done",
+            "failed"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "error": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Error"
+        }
+      },
+      "required": [
+        "status"
+      ],
+      "title": "LaneRun",
+      "type": "object"
+    },
+    "Location": {
+      "additionalProperties": false,
+      "description": "Where a finding sits; `symbol` is `MODULE_SYMBOL` outside any named symbol.",
+      "properties": {
+        "path": {
+          "minLength": 1,
+          "title": "Path",
+          "type": "string"
+        },
+        "start": {
+          "minimum": 1,
+          "title": "Start",
+          "type": "integer"
+        },
+        "end": {
+          "title": "End",
+          "type": "integer"
+        },
+        "symbol": {
+          "minLength": 1,
+          "title": "Symbol",
+          "type": "string"
+        }
+      },
+      "required": [
+        "path",
+        "start",
+        "end",
+        "symbol"
+      ],
+      "title": "Location",
+      "type": "object"
+    },
+    "Phase": {
+      "description": "Round phases in order; `PHASE_RANK` gives the position.",
+      "enum": [
+        "context",
+        "change_model",
+        "lanes",
+        "integrate",
+        "global_scope",
+        "result",
+        "published",
+        "awaiting_author",
+        "reply_analysis",
+        "closed"
+      ],
+      "title": "Phase",
+      "type": "string"
+    },
+    "Publication": {
+      "additionalProperties": false,
+      "description": "The posted review; the event is always COMMENT.",
+      "properties": {
+        "review_id": {
+          "title": "Review Id",
+          "type": "integer"
+        },
+        "summary_comment_id": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Summary Comment Id"
+        },
+        "event": {
+          "const": "COMMENT",
+          "title": "Event",
+          "type": "string"
+        },
+        "at": {
+          "title": "At",
+          "type": "string"
+        }
+      },
+      "required": [
+        "review_id",
+        "event",
+        "at"
+      ],
+      "title": "Publication",
+      "type": "object"
+    },
+    "Ref": {
+      "additionalProperties": false,
+      "description": "A basis reference to a fact (`F-n`) or a rule (`R-n`).",
+      "properties": {
+        "type": {
+          "enum": [
+            "fact",
+            "rule"
+          ],
+          "title": "Type",
+          "type": "string"
+        },
+        "id": {
+          "pattern": "^[FR]-[1-9][0-9]*$",
+          "title": "Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "id"
+      ],
+      "title": "Ref",
+      "type": "object"
+    },
+    "Round": {
+      "additionalProperties": false,
+      "description": "One review pass over one head sha; the phase lives here.",
+      "properties": {
+        "n": {
+          "minimum": 1,
+          "title": "N",
+          "type": "integer"
+        },
+        "head_sha": {
+          "pattern": "^[0-9a-f]{7,40}$",
+          "title": "Head Sha",
+          "type": "string"
+        },
+        "phase": {
+          "$ref": "#/$defs/Phase"
+        },
+        "rules_digest": {
+          "anyOf": [
+            {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Rules Digest"
+        },
+        "lanes": {
+          "additionalProperties": {
+            "$ref": "#/$defs/LaneRun"
+          },
+          "propertyNames": {
+            "$ref": "#/$defs/Lane"
+          },
+          "title": "Lanes",
+          "type": "object"
+        },
+        "findings": {
+          "items": {
+            "$ref": "#/$defs/Finding"
+          },
+          "title": "Findings",
+          "type": "array"
+        },
+        "replies": {
+          "items": {
+            "$ref": "#/$defs/AuthorReply"
+          },
+          "title": "Replies",
+          "type": "array"
+        },
+        "published": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Publication"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "n",
+        "head_sha",
+        "phase",
+        "lanes",
+        "findings",
+        "replies"
+      ],
+      "title": "Round",
+      "type": "object"
+    },
+    "Severity": {
+      "description": "Ordered severity; `RANK` gives the order, higher is worse.",
+      "enum": [
+        "blocker",
+        "major",
+        "minor",
+        "nit"
+      ],
+      "title": "Severity",
+      "type": "string"
+    },
+    "Tag": {
+      "description": "Stored finding tags; out-of-diff and learned-rule marks are derived, not stored.",
+      "enum": [
+        "DEFENSIVE",
+        "PRE_EXISTING"
+      ],
+      "title": "Tag",
+      "type": "string"
+    },
+    "Transition": {
+      "additionalProperties": false,
+      "description": "One recorded phase move; `source` is None for the move that opens a round.",
+      "properties": {
+        "round": {
+          "minimum": 1,
+          "title": "Round",
+          "type": "integer"
+        },
+        "source": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Phase"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "target": {
+          "$ref": "#/$defs/Phase"
+        },
+        "at": {
+          "title": "At",
+          "type": "string"
+        },
+        "trigger": {
+          "title": "Trigger",
+          "type": "string"
+        }
+      },
+      "required": [
+        "round",
+        "target",
+        "at",
+        "trigger"
+      ],
+      "title": "Transition",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "The persisted review flow of one pull request: rounds, findings, dispositions and phase history. Not expressed here: the fingerprint must equal sha256(kind|path|symbol), phase ranks gate lane runs, dispositions and publication, and only the last round may be open. Generated by tooling/review_flow_schema.py from the pydantic model in features/common/skills/review-flow/scripts/review_flow_model.py. Cross-field rules are pydantic-only and enforced on every load, not by this artifact.",
+  "properties": {
+    "schema_version": {
+      "const": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "flow_id": {
+      "minLength": 1,
+      "title": "Flow Id",
+      "type": "string"
+    },
+    "repo": {
+      "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$",
+      "title": "Repo",
+      "type": "string"
+    },
+    "pr": {
+      "minimum": 1,
+      "title": "Pr",
+      "type": "integer"
+    },
+    "issue_refs": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Issue Refs",
+      "type": "array"
+    },
+    "ac_source": {
+      "enum": [
+        "tool",
+        "pasted",
+        "absent"
+      ],
+      "title": "Ac Source",
+      "type": "string"
+    },
+    "acs": {
+      "items": {
+        "$ref": "#/$defs/AcceptanceItem"
+      },
+      "title": "Acs",
+      "type": "array"
+    },
+    "rounds": {
+      "items": {
+        "$ref": "#/$defs/Round"
+      },
+      "minItems": 1,
+      "title": "Rounds",
+      "type": "array"
+    },
+    "history": {
+      "items": {
+        "$ref": "#/$defs/Transition"
+      },
+      "title": "History",
+      "type": "array"
+    }
+  },
+  "required": [
+    "schema_version",
+    "flow_id",
+    "repo",
+    "pr",
+    "issue_refs",
+    "ac_source",
+    "acs",
+    "rounds",
+    "history"
+  ],
+  "title": "ReviewFlow",
+  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Arasz/ai-badger/schemas/review-flow.schema.json"
+}

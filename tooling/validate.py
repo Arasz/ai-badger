@@ -184,6 +184,10 @@ SCHEMAS_WITHOUT_LOCAL_INSTANCES = {
     "task-plan.schema.json": "instances are created at runtime by the task-graph MCP server "
                             "and validated by the pydantic model (V1–V12); the fixture "
                             "corpus lives in tests/test_task_plan_schema.py",
+    "review-flow.schema.json": "instances are review_flows rows in tracking.db, validated "
+                              "by the pydantic ReviewFlow model on every load",
+    "review-rules.schema.json": "instances live in consumer projects "
+                               "(.ai-badger/review/rules.json)",
 }
 
 # Agents capable of every hook event family this framework wires: SessionStart/on_session_start/
