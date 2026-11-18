@@ -1,5 +1,5 @@
 <!-- ai-badger-review:summary v1 -->
-## Review verdict: Needs changes
+## Review verdict: Fix before merge
 
 - Reviewed commit: `4f9d2c1ab07e`
 - Round: 2
@@ -78,4 +78,10 @@ rules excluded by conflict: 1
 
 </details>
 
-<!-- ai-badger-review:state {"counts":{"blocker":0,"major":1,"minor":2,"nit":1},"failed_lanes":["architecture"],"head":"4f9d2c1ab07e","round":2,"v":1,"verdict":"Needs changes"} -->
+<details><summary>Not re-reported (1)</summary>
+
+- `aaaa1111bbbb2222`
+
+</details>
+
+<!-- ai-badger-review:state {"counts":{"blocker":0,"major":1,"minor":2,"nit":1},"failed_lanes":["architecture"],"head":"4f9d2c1ab07e","round":2,"v":1,"verdict":"Fix before merge"} -->
