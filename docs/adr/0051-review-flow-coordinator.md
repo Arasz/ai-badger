@@ -150,7 +150,7 @@ The publisher and fetcher use only these calls. Each line was checked against th
 - `POST /repos/{owner}/{repo}/issues/{issue_number}/comments` — first summary — https://docs.github.com/en/rest/issues/comments#create-an-issue-comment
 - `PATCH /repos/{owner}/{repo}/issues/comments/{comment_id}` — edit the summary in place — https://docs.github.com/en/rest/issues/comments#update-an-issue-comment
 - `GET /user` — authenticated login (`login` is a required response field) for marker ownership — https://docs.github.com/en/rest/users/users#get-the-authenticated-user
-- GraphQL `PullRequest.reviewThreads` → `PullRequestReviewThread{id, isResolved, comments}` → `PullRequestReviewComment{author, authorAssociation, databaseId, body, url}` (`body` to find the marker, `url` for a rule's thread origin) — https://docs.github.com/en/graphql/reference/pulls (`databaseId` is marked deprecated there for 64-bit ids)
+- GraphQL `PullRequest.reviewThreads` → `PullRequestReviewThread{id, isResolved, comments}` → `PullRequestReviewComment{author, authorAssociation, databaseId, body, url, createdAt}` (`body` to find the marker, `url` for a rule's thread origin, `createdAt` for the reply time) — https://docs.github.com/en/graphql/reference/pulls (`databaseId` is marked deprecated there for 64-bit ids)
 - GraphQL `PullRequestReviewComment.fullDatabaseId` as the replacement for `databaseId` — UNVERIFIED (not found on the fetched page section)
 - GraphQL mutation `resolveReviewThread(input: {threadId})` returning `thread` — https://docs.github.com/en/graphql/reference/pulls
 

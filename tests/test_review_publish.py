@@ -56,7 +56,8 @@ class FakeGitHub:
     def add_review_comment(self, login, body, path="src/a.py", line=10, reply_to=None):
         comment = {"id": self._id(), "user": {"login": login}, "body": body, "path": path,
                    "line": line, "original_line": line, "in_reply_to_id": reply_to,
-                   "author_association": "MEMBER"}
+                   "author_association": "MEMBER",
+                   "created_at": f"2026-11-{10 + len(self.review_comments) % 9:02d}T08:00:00Z"}
         self.review_comments.append(comment)
         return comment
 
@@ -132,6 +133,7 @@ class FakeGitHub:
         start = int(payload["variables"].get("after") or 0)
         page = roots[start:start + self.page_size]
         nodes = []
+        asks_created = "createdAt" in payload["query"]
         for root in page:
             thread = [root] + [c for c in self.review_comments if c["in_reply_to_id"] == root["id"]]
             nodes.append({
@@ -141,6 +143,7 @@ class FakeGitHub:
                     "databaseId": c["id"], "body": c["body"], "url": f"https://x/{c['id']}",
                     "authorAssociation": c["author_association"],
                     "author": {"login": c["user"]["login"]},
+                    **({"createdAt": c["created_at"]} if asks_created else {}),
                 } for c in thread]},
             })
         end = start + len(page)
@@ -437,6 +440,19 @@ def test_fetch_threads_returns_replies_by_fingerprint():
         (FP_A, "alice", "OWNER", reply["id"]), (FP_B, "mallory", "NONE", replies[1]["comment_id"])]
     assert replies[0]["thread_id"] == f"T_{own_a['id']}"
     assert replies[0]["body"] == "Not reachable: guarded upstream."
+
+
+def test_fetch_threads_reports_each_reply_created_at_from_github():
+    fake = FakeGitHub(page_size=1)
+    run(fake, make_state())
+    own_a = next(c for c in fake.review_comments if FP_A in c["body"])
+    own_b = next(c for c in fake.review_comments if FP_B in c["body"])
+    first = fake.add_review_comment("alice", "Fixed.", reply_to=own_a["id"])
+    second = fake.add_review_comment("bob", "Out of scope.", reply_to=own_b["id"])
+    assert first["created_at"] != second["created_at"]
+    replies = publish.fetch_threads(fake, REPO, PR, ME)
+    assert [(r["comment_id"], r["created_at"]) for r in replies] == [
+        (first["id"], first["created_at"]), (second["id"], second["created_at"])]
 
 
 def test_summary_verdict_comes_from_the_round_state():

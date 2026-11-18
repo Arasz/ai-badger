@@ -1097,7 +1097,8 @@ class Citation(_Strict):
 class RulesArgs(_Strict):
     """`rules`: one lifecycle action on the working-tree rules file."""
 
-    action: Literal["propose", "confirm", "verify", "retire", "list"]
+    action: Literal["propose", "add-origin", "confirm", "verify", "activate-threads", "retire",
+                    "list"]
     rule_id: Optional[str] = Field(default=None, pattern=r"^R-[1-9][0-9]*$")
     maintainer: Optional[str] = None
     reply: Optional[Dict[str, Any]] = None
@@ -1105,8 +1106,10 @@ class RulesArgs(_Strict):
 
     @model_validator(mode="after")
     def _needs(self) -> "RulesArgs":
-        needs = {"propose": ("reply",), "confirm": ("rule_id", "maintainer"),
-                 "verify": ("rule_id", "citation"), "retire": ("rule_id",), "list": ()}
+        needs = {"propose": ("reply",), "add-origin": ("rule_id", "reply"),
+                 "confirm": ("rule_id", "maintainer"),
+                 "verify": ("rule_id", "citation"), "activate-threads": ("rule_id",),
+                 "retire": ("rule_id",), "list": ()}
         missing = [name for name in needs[self.action] if getattr(self, name) is None]
         if missing:
             raise ValueError(f"rules {self.action} needs {missing}")
@@ -1136,12 +1139,16 @@ def _rules(args: RulesArgs, env: Env) -> dict:
     rules_file, path = _working_rules(env)
     if args.action == "propose":
         rules_file, _ = rules_mod.propose(rules_file, args.reply)
+    elif args.action == "add-origin":
+        rules_file = rules_mod.add_origin(rules_file, args.rule_id, args.reply)
     elif args.action == "confirm":
         rules_file = rules_mod.confirm(rules_file, args.rule_id, args.maintainer)
     elif args.action == "verify":
         cite = args.citation
         rules_file = rules_mod.verify_citation(env.repo_root, rules_file, args.rule_id,
                                                cite.path, cite.start, cite.end, cite.quote)
+    elif args.action == "activate-threads":
+        rules_file = rules_mod.activate_by_threads(rules_file, args.rule_id)
     elif args.action == "retire":
         rules_file = rules_mod.retire(rules_file, args.rule_id)
     if args.action != "list":
@@ -1303,10 +1310,10 @@ def _threads_fetch(args: ThreadsArgs, env: Env) -> dict:
         found = publisher.fetch_threads(env.gh, flow.repo, flow.pr, login)
     except publisher.GhError as exc:
         raise VerbError("gh_failed", f"fetching review threads failed: {exc}") from exc
-    at = _stamp(env.now())
     replies = [{"thread_url": item.get("url") or f"https://github.com/{flow.repo}/pull/{flow.pr}",
                 "comment_id": item["comment_id"], "author": item.get("author") or "",
-                "association": item["association"], "body": item.get("body") or "", "at": at}
+                "association": item["association"], "body": item.get("body") or "",
+                "at": item["created_at"]}
                for item in found]
     if args.out:
         _write_json(Path(args.out), {"replies": replies})

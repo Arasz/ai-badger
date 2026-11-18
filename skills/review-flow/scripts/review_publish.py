@@ -38,7 +38,7 @@ THREADS_QUERY = (
     "query($owner:String!,$name:String!,$pr:Int!,$after:String){repository(owner:$owner,"
     "name:$name){pullRequest(number:$pr){reviewThreads(first:100,after:$after){pageInfo"
     "{hasNextPage endCursor} nodes{id isResolved comments(first:100){nodes{databaseId body "
-    "url authorAssociation author{login}}}}}}}}"
+    "url createdAt authorAssociation author{login}}}}}}}}"
 )
 RESOLVE_MUTATION = (
     "mutation($threadId:ID!){resolveReviewThread(input:{threadId:$threadId})"
@@ -218,7 +218,8 @@ def fetch_threads(runner: Runner, repo: str, pr: int, login: str) -> list[dict]:
             replies.append({"fingerprint": fp, "thread_id": thread["id"],
                             "comment_id": comment["databaseId"], "author": author,
                             "association": comment["authorAssociation"],
-                            "body": comment["body"], "url": comment.get("url")})
+                            "body": comment["body"], "url": comment.get("url"),
+                            "created_at": comment["createdAt"]})
     return replies
 
 

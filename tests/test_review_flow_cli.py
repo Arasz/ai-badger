@@ -476,6 +476,151 @@ def test_flow_id_with_a_path_separator_is_refused(cli, tmp_path):
     assert code == 1 and payload["code"] == "invalid_arguments"
 
 
+# ------------------------------------------------------------------ rules activate-threads
+
+
+def _origin(thread, author):
+    return {"pr": 3, "thread_url": f"https://x/t/{thread}", "author": author,
+            "association": "MEMBER", "quote": "q"}
+
+
+def _working_rules_with(tmp_path, origins):
+    """Two proposed rules in the working tree; R-1 carries `origins`, R-2 stays untouched."""
+    first = {**rule(1, status="proposed"), "origins": origins}
+    path = tmp_path / ".ai-badger" / "review" / "rules.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps({"schema_version": 1, "facts": [],
+                                "rules": [first, rule(2, status="proposed")]}), encoding="utf-8")
+    return path
+
+
+def test_rules_activate_threads_with_two_threads_by_two_authors_activates(cli, tmp_path):
+    env = env_for(cli, tmp_path)
+    path = _working_rules_with(tmp_path, [_origin(1, "ann"), _origin(2, "bob")])
+    out = ok(cli, env, "rules", action="activate-threads", rule_id="R-1")
+    states = {item["id"]: (item["status"], item["activated_by"]) for item in out["rules"]}
+    assert states == {"R-1": ("active", "threads"), "R-2": ("proposed", None)}
+    saved = json.loads(path.read_text(encoding="utf-8"))["rules"]
+    assert [(r["id"], r["status"], r.get("activated_by")) for r in saved] == [
+        ("R-1", "active", "threads"), ("R-2", "proposed", None)]
+
+
+@pytest.mark.parametrize("origins", [
+    [_origin(1, "ann")],
+    [_origin(1, "ann"), _origin(1, "bob")],
+    [_origin(1, "ann"), _origin(2, "ann")],
+], ids=["one-origin", "same-thread", "same-author"])
+def test_rules_activate_threads_without_independent_threads_is_refused(cli, tmp_path, origins):
+    env = env_for(cli, tmp_path)
+    path = _working_rules_with(tmp_path, origins)
+    before = path.read_text(encoding="utf-8")
+    code, payload = call(cli, env, "rules", action="activate-threads", rule_id="R-1")
+    assert code == 1 and payload["code"] == "rule_refused", payload
+    assert "distinct threads by distinct authors" in payload["message"]
+    assert path.read_text(encoding="utf-8") == before
+
+
+def test_rules_activate_threads_needs_a_rule_id(cli, tmp_path):
+    env = env_for(cli, tmp_path)
+    code, payload = call(cli, env, "rules", action="activate-threads")
+    assert code == 1 and payload["code"] == "invalid_arguments"
+    assert "rule_id" in payload["message"]
+
+
+def _teach(thread, author, association="MEMBER"):
+    return {"statement": "Null checks in src are nits", "pr": 3,
+            "applies": {"kinds": ["null_deref"], "paths": ["src/*"]},
+            "effect": {"action": "downgrade", "to": "nit", "ground": "rule"},
+            **{**_origin(thread, author), "association": association}}
+
+
+def test_rules_add_origin_from_a_second_thread_and_author_enables_activate_threads(cli, tmp_path):
+    env = env_for(cli, tmp_path)
+    proposed = ok(cli, env, "rules", action="propose", reply=_teach(1, "ann"))
+    assert [(r["id"], r["status"]) for r in proposed["rules"]] == [("R-1", "proposed")]
+    added = ok(cli, env, "rules", action="add-origin", rule_id="R-1", reply=_teach(2, "bob"))
+    assert [(r["id"], r["status"]) for r in added["rules"]] == [("R-1", "proposed")]
+    path = tmp_path / ".ai-badger" / "review" / "rules.json"
+    origins = json.loads(path.read_text(encoding="utf-8"))["rules"][0]["origins"]
+    assert [(o["thread_url"], o["author"]) for o in origins] == [
+        ("https://x/t/1", "ann"), ("https://x/t/2", "bob")]
+    out = ok(cli, env, "rules", action="activate-threads", rule_id="R-1")
+    assert [(r["id"], r["status"], r["activated_by"]) for r in out["rules"]] == [
+        ("R-1", "active", "threads")]
+
+
+@pytest.mark.parametrize("second", [(2, "ann"), (1, "bob")], ids=["same-author", "same-thread"])
+def test_rules_add_origin_without_independence_leaves_activate_threads_refused(cli, tmp_path,
+                                                                              second):
+    env = env_for(cli, tmp_path)
+    ok(cli, env, "rules", action="propose", reply=_teach(1, "ann"))
+    ok(cli, env, "rules", action="add-origin", rule_id="R-1", reply=_teach(*second))
+    code, payload = call(cli, env, "rules", action="activate-threads", rule_id="R-1")
+    assert code == 1 and payload["code"] == "rule_refused", payload
+    listed = ok(cli, env, "rules", action="list")
+    assert [(r["id"], r["status"]) for r in listed["rules"]] == [("R-1", "proposed")]
+
+
+@pytest.mark.parametrize("rule_id, retire", [("R-9", False), ("R-1", True)],
+                         ids=["unknown", "retired"])
+def test_rules_add_origin_on_an_unknown_or_retired_rule_is_refused(cli, tmp_path, rule_id,
+                                                                   retire):
+    env = env_for(cli, tmp_path)
+    ok(cli, env, "rules", action="propose", reply=_teach(1, "ann"))
+    if retire:
+        ok(cli, env, "rules", action="confirm", rule_id="R-1", maintainer="maint")
+        ok(cli, env, "rules", action="retire", rule_id="R-1")
+    path = tmp_path / ".ai-badger" / "review" / "rules.json"
+    before = path.read_text(encoding="utf-8")
+    code, payload = call(cli, env, "rules", action="add-origin", rule_id=rule_id,
+                         reply=_teach(2, "bob"))
+    assert code == 1 and payload["code"] == "rule_refused", payload
+    assert path.read_text(encoding="utf-8") == before
+
+
+def test_rules_add_origin_from_a_non_collaborator_is_refused(cli, tmp_path):
+    env = env_for(cli, tmp_path)
+    ok(cli, env, "rules", action="propose", reply=_teach(1, "ann"))
+    path = tmp_path / ".ai-badger" / "review" / "rules.json"
+    before = path.read_text(encoding="utf-8")
+    code, payload = call(cli, env, "rules", action="add-origin", rule_id="R-1",
+                         reply=_teach(2, "bob", association="CONTRIBUTOR"))
+    assert code == 1 and payload["code"] == "rule_refused", payload
+    assert "CONTRIBUTOR" in payload["message"]
+    assert path.read_text(encoding="utf-8") == before
+
+
+@pytest.mark.parametrize("missing", ["rule_id", "reply"])
+def test_rules_add_origin_needs_a_rule_id_and_a_reply(cli, tmp_path, missing):
+    env = env_for(cli, tmp_path)
+    args = {"rule_id": "R-1", "reply": _teach(2, "bob")}
+    del args[missing]
+    code, payload = call(cli, env, "rules", action="add-origin", **args)
+    assert code == 1 and payload["code"] == "invalid_arguments" and missing in payload["message"]
+
+
+# ------------------------------------------------------------------ threads-fetch reply time
+
+
+def test_threads_fetch_stamps_each_reply_with_its_github_created_at(cli, tmp_path, monkeypatch):
+    gh = FakeGh([(("api", "user"), {"login": "bot"})])
+    env = env_for(cli, tmp_path, gh=gh)
+    create(cli, env)
+    found = [{"fingerprint": "a" * 64, "thread_id": "T_1", "comment_id": 5, "author": "maint",
+              "association": "OWNER", "body": "Fixed", "url": "https://x/5",
+              "created_at": "2026-11-17T09:30:00Z"},
+             {"fingerprint": "b" * 64, "thread_id": "T_2", "comment_id": 6, "author": "dev",
+              "association": "MEMBER", "body": "Not a bug", "url": "https://x/6",
+              "created_at": "2026-11-16T08:00:00Z"}]
+    monkeypatch.setattr(cli.publisher, "fetch_threads", lambda *_args: found)
+    out = ok(cli, env, "threads-fetch", flow_id=FLOW, out=str(tmp_path / "replies.json"))
+    assert [(r["comment_id"], r["at"]) for r in out["replies"]] == [
+        (5, "2026-11-17T09:30:00Z"), (6, "2026-11-16T08:00:00Z")]
+    written = json.loads((tmp_path / "replies.json").read_text(encoding="utf-8"))
+    assert [r["at"] for r in written["replies"]] == ["2026-11-17T09:30:00Z",
+                                                     "2026-11-16T08:00:00Z"]
+
+
 # ------------------------------------------------------------------ subprocess smoke runs
 
 
