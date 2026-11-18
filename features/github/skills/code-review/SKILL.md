@@ -31,6 +31,11 @@ This file routes; it does not review. The review work lives in sibling skills un
 
 Work top-down. Stop expanding when the verdict for the change is clear; do not stop before it is.
 
+0. **A pull-request review that you publish to GitHub** — open
+   `.ai-badger/skills/review-flow/SKILL.md` and follow it instead of the steps below. It runs
+   these same skills as parallel lanes, checks every finding against project facts and learned
+   rules, and posts short inline comments plus one summary that it edits in place.
+
 1. **Rank the diff by blast radius** — open `.ai-badger/skills/review-changes/SKILL.md` when the
    project has it. A 3-line change to shared auth outranks a 200-line change to one leaf
    component; rank before reading, so the deepest checks land on the riskiest units.

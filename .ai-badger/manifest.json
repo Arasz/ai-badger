@@ -1,7 +1,7 @@
 {
   "$schema": "./schemas/manifest.schema.json",
   "frameworkVersion": "0.221.0",
-  "frameworkCommit": "bd012ae2506795e86dd272907ae5fd711f8037d0",
+  "frameworkCommit": "0bf78e7a37e68102adaa50b0bfced953db213664",
   "frameworkDirty": true,
   "frameworkRoot": ".",
   "generatedAt": null,
@@ -1547,7 +1547,7 @@
       "source": "features/common/skills/task/extensions/github/extension.md",
       "target": ".ai-badger/skills/task/extensions/github/extension.md",
       "frameworkVersion": "0.221.0",
-      "hash": "f00c21ec12fde1b8406a997b05e57ef75c431e3cb8c265bc8e210343d191ea52"
+      "hash": "4ad2ab6b9d28e579d88e423b16a2fdb2a17b35f1ad46edc6b66cdb02218ec21c"
     },
     {
       "feature": "skills",
@@ -1658,12 +1658,12 @@
       "source": "features/github/skills/code-review",
       "target": ".ai-badger/skills/code-review",
       "frameworkVersion": "0.221.0",
-      "hash": "09284e6a71a99c8fe6ee148a03b3130f70c0df85108a8cdc46ca67345b543ae3",
+      "hash": "4f4af19c70673221f82c6b3213235c9b17040ee12c2d69df2164ad29912bb940",
       "dirMeta": {
         "file_count": 1,
         "dir_count": 0
       },
-      "sourceHash": "26b9e3fc986f1fe94a8753313f006010cf812d25e12afcbbfa6c84e382fef149",
+      "sourceHash": "189932c3052465671685103981cb5351a815f7d23abe5f07b9846606daf9c03e",
       "sourceMeta": {
         "file_count": 1,
         "dir_count": 0
