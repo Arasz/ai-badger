@@ -101,8 +101,12 @@ Four existing severity vocabularies disagree (research §1.4), and no "learned r
    (`fact_contradicts | unreachable_in_production | rule | duplicate | out_of_scope`) and at
    least one basis ref to a fact or a rule. **DEFENSIVE rule:** ground
    `unreachable_in_production` requires the `DEFENSIVE` tag on the finding, and its effect must
-   be `downgrade`. **Fingerprint:** `sha256(kind|path|symbol)`, recomputed by the validator;
-   a worker cannot supply its own. `symbol` is required, with `<module>` as the fallback.
+   be `downgrade`. **Fingerprint:** `sha256(kind|path|symbol)`, or
+   `sha256(kind|path|symbol|anchor)` when the finding sets `Location.anchor`, recomputed by the
+   validator; a worker cannot supply its own. `symbol` is required, with `<module>` as the
+   fallback. `anchor` is optional: the offending code text, whitespace-normalised and cut to 200
+   characters. It keeps two defects in one function apart, and because it is code text rather
+   than a line number or a title, it survives a line shift and a reworded title.
    `Finding.lanes` is a list of every lane that raised the finding.
 
 8. **Publishing.** Publish always posts a review whose `event` is always `COMMENT`. The flow

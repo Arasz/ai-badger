@@ -37,8 +37,9 @@ SCHEMAS = {
         "ReviewFlow",
         "The persisted review flow of one pull request: rounds, findings, dispositions and "
         "phase history. Not expressed here: the fingerprint must equal "
-        "sha256(kind|path|symbol), phase ranks gate lane runs, dispositions and publication, "
-        "and only the last round may be open."),
+        "sha256(kind|path|symbol[|anchor]), phase ranks gate lane runs, dispositions and "
+        "publication, only the last round may be open, and each round's history replays along "
+        "the declared transitions to its phase."),
     "schemas/review-rules.schema.json": (
         "RulesFile",
         "Learned review rules and project facts (.ai-badger/review/rules.json). Not expressed "

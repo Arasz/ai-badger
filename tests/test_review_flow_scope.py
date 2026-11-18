@@ -126,3 +126,18 @@ def test_dropped_findings_stay_in_model(rf):
     assert round_.findings[0].effective_severity is None
     assert rf.model.verdict(round_).value == "Safe to merge"
     assert DIGEST != round_.rules_digest
+
+
+def test_new_rules_digest_refused_once_the_script_disposed(rf):
+    blocker = finding(rf, severity="blocker", path="src/legacy/orders.py", symbol="load")
+    open_ = finding(rf, kind="perf", path="src/a.py", symbol="run", severity="minor")
+    rules = rules_file(rf, facts=[nullable_fact()])
+    judged, _ = rf.global_scope(scope_round(rf, [blocker, open_]), rules, DIGEST)
+    assert judged.findings[0].disposition.by == "script"
+    refused(rf, "digest_changed", rf.global_scope, judged, rules, NEW_DIGEST)
+    replay, remaining = rf.global_scope(judged, rules, DIGEST)
+    assert replay.model_dump(mode="json") == judged.model_dump(mode="json")
+    assert [f.fingerprint for f in remaining] == [open_.fingerprint]
+    untouched, _ = rf.global_scope(scope_round(rf, [open_]), rules, DIGEST)
+    moved, _ = rf.global_scope(untouched, rules, NEW_DIGEST)
+    assert moved.rules_digest == NEW_DIGEST

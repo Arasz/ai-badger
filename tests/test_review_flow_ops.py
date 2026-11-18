@@ -76,10 +76,19 @@ def flow_at(rf, phase, findings=None, lane_status=None, rounds_before=0):
             "rules_digest": DIGEST if disposed else None, "lanes": runs,
             "findings": [f.model_dump(mode="json") for f in findings], "replies": [],
             "published": publication() if published else None}
+    rounds = [*earlier, last]
     return rf.model.ReviewFlow.model_validate({
         "schema_version": 1, "flow_id": "rf-1", "repo": "octo/widgets", "pr": 7,
-        "issue_refs": [], "ac_source": "absent", "acs": [], "rounds": [*earlier, last],
-        "history": []})
+        "issue_refs": [], "ac_source": "absent", "acs": [], "rounds": rounds,
+        "history": [entry for r in rounds for entry in chain(r["n"], r["phase"])]})
+
+
+def chain(round_n, phase):
+    """History entries that open round `round_n` and walk it to `phase`."""
+    steps = PHASES[:PHASES.index(phase) + 1]
+    return [{"round": round_n, "source": source, "target": target,
+             "at": "2026-11-18T11:00:00Z", "trigger": f"to {target}"}
+            for source, target in zip((None, *steps[:-1]), steps)]
 
 
 def publication():
@@ -134,7 +143,8 @@ def test_history_records_trigger_and_round(rf):
     flow = flow_at(rf, "context", rounds_before=1)
     flow = rf.advance(flow, rf.model.Phase.CHANGE_MODEL, "change model written", NOW)
     flow = rf.advance(flow, rf.model.Phase.LANES, "lanes dispatched", NOW)
-    entries = [(t.round, t.source.value, t.target.value, t.trigger, t.at) for t in flow.history]
+    entries = [(t.round, t.source.value, t.target.value, t.trigger, t.at)
+               for t in flow.history[-2:]]
     assert entries == [
         (2, "context", "change_model", "change model written", "2026-11-18T12:00:00+00:00"),
         (2, "change_model", "lanes", "lanes dispatched", "2026-11-18T12:00:00+00:00"),
@@ -347,3 +357,77 @@ def test_failed_lane_never_safe_to_merge(rf):
     for lane in LANES:
         round_ = flow_at(rf, "result", findings=[], lane_status={lane: "failed"}).rounds[-1]
         assert rf.model.verdict(round_).value != "Safe to merge", lane
+
+
+# --- review round 1: lane and disposition guards ---------------------------------------------
+
+
+def test_lane_finding_with_a_disposition_refused(rf):
+    flow = flow_at(rf, "lanes", findings=[], lane_status={"qa": "pending"})
+    clean = finding(rf, lanes=("qa",))
+    decided = finding(rf, kind="perf", symbol="refund", lanes=("qa",),
+                      disposition=_drop("rule", "R-1"))
+    refused(rf, "lane_disposition", rf.submit_lane, flow, 1, rf.model.Lane.QA, [clean, decided])
+    assert flow.rounds[-1].lanes[rf.model.Lane.QA].status == "pending"
+    accepted = rf.submit_lane(flow, 1, rf.model.Lane.QA, [clean])
+    assert [f.disposition for f in accepted.rounds[-1].findings] == [None]
+
+
+def test_done_lane_refuses_a_changed_resubmission_and_replays_an_identical_one(rf):
+    flow = flow_at(rf, "lanes", findings=[], lane_status={"qa": "pending", "quality": "pending"})
+    first = finding(rf, lanes=("qa",))
+    done = rf.submit_lane(flow, 1, rf.model.Lane.QA, [first])
+    assert rf.submit_lane(done, 1, rf.model.Lane.QA, [first]).model_dump(mode="json") == \
+        done.model_dump(mode="json")
+    refused(rf, "lane_done", rf.submit_lane, done, 1, rf.model.Lane.QA, [])
+    refused(rf, "lane_done", rf.submit_lane, done, 1, rf.model.Lane.QA, [first],
+            error="worker timed out")
+    other = finding(rf, kind="perf", symbol="refund", lanes=("qa",))
+    refused(rf, "lane_done", rf.submit_lane, done, 1, rf.model.Lane.QA, [first, other])
+    assert [f.fingerprint for f in done.rounds[-1].findings] == [first.fingerprint]
+
+
+def test_failed_lane_accepts_a_resubmission(rf):
+    flow = flow_at(rf, "lanes", findings=[], lane_status={"qa": "pending", "quality": "pending"})
+    failed = rf.submit_lane(flow, 1, rf.model.Lane.QA, [], error="worker timed out")
+    again = rf.submit_lane(failed, 1, rf.model.Lane.QA, [], error="worker timed out")
+    assert again.model_dump(mode="json") == failed.model_dump(mode="json")
+    retried = rf.submit_lane(failed, 1, rf.model.Lane.QA, [finding(rf, lanes=("qa",))])
+    run = retried.rounds[-1].lanes[rf.model.Lane.QA]
+    assert (run.status, run.error) == ("done", None)
+    assert [lane.value for f in retried.rounds[-1].findings for lane in f.lanes] == ["qa"]
+
+
+def test_worker_cannot_redecide_a_script_disposition(rf):
+    script_drop = _drop("fact", "F-1", by="script")
+    decided = finding(rf, disposition=script_drop)
+    open_ = finding(rf, kind="style", path="src/pay/util.py", symbol="<module>",
+                    severity="nit", lanes=("quality",))
+    flow = flow_at(rf, "global_scope", findings=[decided, open_])
+    rules = rules_file(rf, facts=[fact("F-1", "READ")])
+    error = refused(rf, "already_decided", rf.submit_dispositions, flow, 1,
+                    {open_.fingerprint: {"action": "keep"},
+                     decided.fingerprint: {"action": "keep"}}, rules)
+    assert decided.fingerprint[:12] in str(error)
+    replay = rf.submit_dispositions(flow, 1, {decided.fingerprint: dict(script_drop),
+                                              open_.fingerprint: {"action": "keep"}}, rules)
+    assert replay.rounds[-1].findings[0].disposition == decided.disposition
+    assert replay.rounds[-1].findings[1].disposition.action == "keep"
+
+
+def test_basis_must_cover_the_finding_it_disposes(rf):
+    flow = _at_scope(rf)
+    target = flow.rounds[-1].findings[0]
+    elsewhere = fact("F-1", "READ", paths=("src/legacy/*",))
+    other_kind = fact("F-2", "READ", kinds=("perf",))
+    unscoped = {"id": "F-3", "statement": "Charge always has a customer.", "grade": "READ",
+                "evidence_ref": "docs/x.md"}
+    rules = rules_file(rf, facts=[elsewhere, other_kind, unscoped],
+                       rules=[rule("R-1", "active", paths=("lib/*",)), rule("R-2", "active")])
+    for basis in (("fact", "F-1"), ("fact", "F-2"), ("rule", "R-1")):
+        error = refused(rf, "basis_out_of_scope", rf.submit_dispositions, flow, 1,
+                        {target.fingerprint: _drop(*basis)}, rules)
+        assert basis[1] in str(error) and target.fingerprint[:12] in str(error)
+    for basis in (("fact", "F-3"), ("rule", "R-2")):
+        done = rf.submit_dispositions(flow, 1, {target.fingerprint: _drop(*basis)}, rules)
+        assert done.rounds[-1].findings[0].disposition.basis[0].id == basis[1]

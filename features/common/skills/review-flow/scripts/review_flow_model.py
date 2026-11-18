@@ -6,13 +6,13 @@ rules (fingerprint recomputation, phase ranks, rule activation proof) are pydant
 """
 from __future__ import annotations
 
-import fnmatch
 import hashlib
+import re
 import sys
 from datetime import datetime, timedelta
 from enum import Enum
 from pathlib import Path
-from typing import Annotated, Dict, List, Literal, Optional, Set, Union
+from typing import Annotated, Dict, List, Literal, Optional, Set, Tuple, Union
 
 from pydantic import (AfterValidator, BaseModel, ConfigDict, Field, field_serializer,
                       model_validator)
@@ -27,6 +27,7 @@ MODULE_SYMBOL = "<module>"
 """The `Location.symbol` for a finding that sits outside any named symbol."""
 
 RULE_STATEMENT_LIMIT = 500
+ANCHOR_LIMIT = 200
 HEAD_SHA_PATTERN = r"^[0-9a-f]{7,40}$"
 DIGEST_PATTERN = r"^[0-9a-f]{64}$"
 
@@ -118,6 +119,21 @@ class Phase(str, Enum):
 
 PHASE_RANK = {phase: index for index, phase in enumerate(Phase)}
 
+TRANSITIONS: Dict[Phase, Tuple[Phase, ...]] = {
+    Phase.CONTEXT: (Phase.CHANGE_MODEL,),
+    Phase.CHANGE_MODEL: (Phase.LANES,),
+    Phase.LANES: (Phase.INTEGRATE,),
+    Phase.INTEGRATE: (Phase.GLOBAL_SCOPE,),
+    Phase.GLOBAL_SCOPE: (Phase.RESULT,),
+    Phase.RESULT: (Phase.PUBLISHED,),
+    Phase.PUBLISHED: (Phase.AWAITING_AUTHOR,),
+    Phase.AWAITING_AUTHOR: (Phase.REPLY_ANALYSIS,),
+    Phase.REPLY_ANALYSIS: (Phase.CLOSED,),
+    Phase.CLOSED: (),
+}
+"""In-round moves. A round opens at `context` with no source; the next round opens from
+`reply_analysis` through `next_round`, not along this table."""
+
 
 class Verdict(str, Enum):
     """Round verdict, derived by `verdict`; never stored on the model."""
@@ -162,10 +178,22 @@ def normalise_severity(vocab: str, label: str) -> Severity:
     return table[label]
 
 
-def fingerprint_of(kind: Union[Kind, str], path: str, symbol: str) -> str:
-    """The finding fingerprint: sha256 hex of `kind|path|symbol`."""
+def normalise_anchor(text: str) -> str:
+    """Anchor text as stored: whitespace runs collapsed to one space, cut to `ANCHOR_LIMIT`."""
+    anchor = " ".join(text.split())[:ANCHOR_LIMIT]
+    if not anchor:
+        raise ValueError("anchor is blank; omit it instead")
+    return anchor
+
+
+def fingerprint_of(kind: Union[Kind, str], path: str, symbol: str,
+                   anchor: Optional[str] = None) -> str:
+    """The finding fingerprint: sha256 hex of `kind|path|symbol`, plus `|anchor` when anchored."""
     kind_value = kind.value if isinstance(kind, Kind) else kind
-    return hashlib.sha256(f"{kind_value}|{path}|{symbol}".encode("utf-8")).hexdigest()
+    key = f"{kind_value}|{path}|{symbol}"
+    if anchor is not None:
+        key += f"|{normalise_anchor(anchor)}"
+    return hashlib.sha256(key.encode("utf-8")).hexdigest()
 
 
 def _validate_utc(value: str) -> str:
@@ -281,7 +309,10 @@ Disposition = Annotated[Union[Keep, Downgrade, Drop], Field(discriminator="actio
 
 
 class Location(BaseModel):
-    """Where a finding sits; `symbol` is `MODULE_SYMBOL` outside any named symbol."""
+    """Where a finding sits; `symbol` is `MODULE_SYMBOL` outside any named symbol.
+
+    `anchor` is the offending code text; it keeps two defects in one symbol apart.
+    """
 
     model_config = _FORBID
 
@@ -289,6 +320,7 @@ class Location(BaseModel):
     start: int = Field(ge=1)
     end: int
     symbol: str = Field(min_length=1)
+    anchor: Optional[Annotated[str, AfterValidator(normalise_anchor)]] = None
 
     @model_validator(mode="after")
     def _ordered(self) -> "Location":
@@ -317,7 +349,7 @@ class AgentPart(BaseModel):
 
 
 class Finding(BaseModel):
-    """One review finding; its fingerprint must equal `fingerprint_of(kind, path, symbol)`."""
+    """One review finding; its fingerprint must equal `fingerprint_of` its kind and location."""
 
     model_config = _FORBID
 
@@ -343,10 +375,11 @@ class Finding(BaseModel):
 
     @model_validator(mode="after")
     def _fingerprint(self) -> "Finding":
-        expected = fingerprint_of(self.kind, self.location.path, self.location.symbol)
+        location = self.location
+        expected = fingerprint_of(self.kind, location.path, location.symbol, location.anchor)
         if self.fingerprint != expected:
-            raise ValueError(f"fingerprint {self.fingerprint!r} is not sha256(kind|path|symbol) "
-                             f"{expected!r}")
+            raise ValueError(f"fingerprint {self.fingerprint!r} is not "
+                             f"sha256(kind|path|symbol[|anchor]) {expected!r}")
         return self
 
     @model_validator(mode="after")
@@ -406,11 +439,11 @@ class LaneRun(BaseModel):
 
 
 class Publication(BaseModel):
-    """The posted review; the event is always COMMENT."""
+    """The posted review; the event is always COMMENT; `review_id` is None when none was posted."""
 
     model_config = _FORBID
 
-    review_id: int
+    review_id: Optional[int] = Field(default=None, ge=1)
     summary_comment_id: Optional[int] = None
     event: Literal["COMMENT"]
     at: UtcTimestamp
@@ -514,6 +547,7 @@ class ReviewFlow(BaseModel):
 
     model_config = _FORBID
 
+    schema_: Optional[str] = Field(default=None, alias="$schema")
     schema_version: Literal[1]
     flow_id: str = Field(min_length=1)
     repo: str = Field(pattern=r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
@@ -540,7 +574,26 @@ class ReviewFlow(BaseModel):
         unknown = sorted({t.round for t in self.history} - {r.n for r in self.rounds})
         if unknown:
             raise ValueError(f"history names round {unknown[0]}, which does not exist")
+        for round_ in self.rounds:
+            _replays(round_, [t for t in self.history if t.round == round_.n])
         return self
+
+
+def _replays(round_: Round, moves: List[Transition]) -> None:
+    """Refuse history that does not open `round_` at context and walk declared edges to its phase."""
+    reached: Optional[Phase] = None
+    for move in moves:
+        opens = move.source is None and move.target is Phase.CONTEXT
+        if (reached is None and not opens) or (reached is not None and (
+                move.source is not reached or move.target not in TRANSITIONS[reached])):
+            source = move.source.value if move.source else None
+            raise ValueError(f"history of round {round_.n}: {source} -> {move.target.value} "
+                             f"does not follow {reached.value if reached else 'the opening'}")
+        reached = move.target
+    if reached is not round_.phase:
+        raise ValueError(f"history of round {round_.n} ends at "
+                         f"{reached.value if reached else 'nothing'}, the round is at "
+                         f"{round_.phase.value}")
 
 
 # ------------------------------------------------------------------ rules file
@@ -651,9 +704,62 @@ class RulesFile(BaseModel):
         return self
 
 
+def _glob_tokens(glob: str) -> List[Tuple[str, str]]:
+    """fnmatch tokens as (kind, chars): `*`, `?`, `lit`, `set` or `notset` (a `[...]` class)."""
+    tokens: List[Tuple[str, str]] = []
+    i = 0
+    while i < len(glob):
+        char, i = glob[i], i + 1
+        j = i + 1 if glob[i:i + 1] == "!" else i
+        close = glob.find("]", j + 1 if glob[j:j + 1] == "]" else j)
+        if char in "*?":
+            tokens.append((char, ""))
+        elif char != "[" or close < 0:
+            tokens.append(("lit", char))
+        else:
+            members = re.sub(r"(.)-(.)", lambda m: "".join(
+                chr(c) for c in range(ord(m.group(1)), ord(m.group(2)) + 1)), glob[j:close])
+            tokens.append(("notset" if j > i else "set", members))
+            i = close + 1
+    return tokens
+
+
+def _chars_meet(a: Tuple[str, str], b: Tuple[str, str]) -> bool:
+    """Whether two one-character tokens accept a common character; a negated pair is assumed to."""
+    a, b = sorted((a, b))  # kinds sort as ? < lit < notset < set
+    if a[0] == "?" or (a[0] == "notset" and b[0] == "set") or a[0] == b[0] == "notset":
+        return True
+    if a[0] == "lit":
+        return a[1] == b[1] if b[0] == "lit" else (a[1] in b[1]) == (b[0] == "set")
+    return bool(set(a[1]) & set(b[1]))
+
+
+def _glob_pair_overlaps(left: str, right: str) -> bool:
+    """Whether some path matches both fnmatch globs (`*` spans `/`, as in `fnmatchcase`)."""
+    a, b = _glob_tokens(left), _glob_tokens(right)
+    seen, todo = set(), [(0, 0)]
+    while todo:
+        i, j = todo.pop()
+        if (i, j) in seen:
+            continue
+        seen.add((i, j))
+        if i == len(a) and j == len(b):
+            return True
+        star_a = i < len(a) and a[i][0] == "*"
+        star_b = j < len(b) and b[j][0] == "*"
+        if star_a:
+            todo.append((i + 1, j))
+        if star_b:
+            todo.append((i, j + 1))
+        if i == len(a) or j == len(b) or (star_a and star_b):
+            continue
+        if star_a or star_b or _chars_meet(a[i], b[j]):
+            todo.append((i if star_a else i + 1, j if star_b else j + 1))
+    return False
+
+
 def _globs_overlap(left: List[str], right: List[str]) -> bool:
-    return any(a == b or fnmatch.fnmatchcase(a, b) or fnmatch.fnmatchcase(b, a)
-               for a in left for b in right)
+    return any(_glob_pair_overlaps(a, b) for a in left for b in right)
 
 
 def rule_conflicts(rules: List[LearnedRule]) -> Set[str]:

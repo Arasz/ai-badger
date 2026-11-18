@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import copy
+import fnmatch
 import hashlib
 import json
 from pathlib import Path
@@ -86,14 +87,28 @@ def _round(**over):
     return data
 
 
+# Independent of the model's TRANSITIONS on purpose: the chain each fixture round walks.
+PHASE_ORDER = ("context", "change_model", "lanes", "integrate", "global_scope", "result",
+               "published", "awaiting_author", "reply_analysis", "closed")
+
+
+def _chain(round_n, phase):
+    """History entries that open round `round_n` and walk it to `phase`."""
+    steps = PHASE_ORDER[:PHASE_ORDER.index(phase) + 1]
+    return [{"round": round_n, "source": source, "target": target,
+             "at": "2026-11-18T11:00:00Z", "trigger": f"to {target}"}
+            for source, target in zip((None, *steps[:-1]), steps)]
+
+
 def _flow(**over):
+    """A valid flow; unless `history` is given, it replays every round to its phase."""
     data = {"schema_version": 1, "flow_id": "rf-1", "repo": "octo/widgets", "pr": 7,
             "issue_refs": ["#3"], "ac_source": "pasted",
             "acs": [{"id": "AC1", "statement": "Refunds post a ledger entry."}],
-            "rounds": [_round()],
-            "history": [{"round": 1, "source": None, "target": "context",
-                         "at": "2026-11-18T11:00:00Z", "trigger": "start"}]}
+            "rounds": [_round()]}
     data.update(over)
+    if "history" not in over:
+        data["history"] = [entry for r in data["rounds"] for entry in _chain(r["n"], r["phase"])]
     return data
 
 
@@ -477,3 +492,119 @@ def test_schemas_generated_and_registered(load_script):
         assert Path(relpath).name in registered
     assert built["schemas/review-flow.schema.json"]["title"] == "ReviewFlow"
     assert built["schemas/review-rules.schema.json"]["title"] == "RulesFile"
+
+
+# ------------------------------------------------------------------ review round 1 fixes
+
+
+@pytest.mark.parametrize("left,right,witness", [
+    ("src/*/payment.py", "src/pay/*.py", "src/pay/payment.py"),
+    ("src/*", "src/pay/*.py", "src/pay/a.py"),
+    ("src/?ay/x.py", "src/p*/x.py", "src/pay/x.py"),
+    ("src/[ab].py", "src/[bc].py", "src/b.py"),
+])
+def test_rule_conflicts_finds_wildcard_globs_that_share_a_path(m, left, right, witness):
+    assert fnmatch.fnmatchcase(witness, left) and fnmatch.fnmatchcase(witness, right)
+    rules = m.RulesFile.model_validate(_rules_file(rules=[
+        _active("R-1", "require", ["perf"], [left]),
+        _active("R-2", "suppress", ["perf"], [right]),
+        _active("R-3", "suppress", ["perf"], ["docs/*.md"]),
+    ]))
+    assert m.rule_conflicts(rules.rules) == {"R-1", "R-2"}
+    assert [rule.id for rule in m.lane_rules(rules)] == ["R-3"]
+
+
+@pytest.mark.parametrize("left,right", [
+    ("src/*/payment.py", "lib/*.py"),
+    ("src/*.py", "src/*.js"),
+    ("src/[ab].py", "src/[cd].py"),
+    ("src/pay/?.py", "src/pay/ab.py"),
+])
+def test_rule_conflicts_leaves_disjoint_wildcard_globs_alone(m, left, right):
+    rules = m.RulesFile.model_validate(_rules_file(rules=[
+        _active("R-1", "require", ["perf"], [left]),
+        _active("R-2", "suppress", ["perf"], [right]),
+    ]))
+    assert m.rule_conflicts(rules.rules) == set()
+    assert [rule.id for rule in m.lane_rules(rules)] == ["R-1", "R-2"]
+
+
+def _anchored(m, start, anchor, **over):
+    location = {"path": "src/pay/charge.py", "start": start, "end": start, "symbol": "charge",
+                "anchor": anchor}
+    fingerprint = m.fingerprint_of("null_deref", "src/pay/charge.py", "charge", anchor)
+    return _finding(location=location, fingerprint=fingerprint, **over)
+
+
+def test_two_anchors_in_one_function_keep_two_fingerprints(m):
+    first = _anchored(m, 41, "customer.id", disposition={"action": "keep"})
+    second = _anchored(m, 48, "order.total", disposition={"action": "keep"})
+    round_ = m.Round.model_validate(_round(findings=[first, second]))
+    assert len({f.fingerprint for f in round_.findings}) == 2
+    assert first["fingerprint"] != _fp("null_deref", "src/pay/charge.py", "charge")
+    assert [f.location.anchor for f in round_.findings] == ["customer.id", "order.total"]
+
+
+def test_anchor_identity_survives_line_shift_and_whitespace(m):
+    raw = "  customer =\n\tfind_customer(id)  "
+    expected = m.fingerprint_of("null_deref", "src/pay/charge.py", "charge",
+                                "customer = find_customer(id)")
+    assert m.fingerprint_of("null_deref", "src/pay/charge.py", "charge", raw) == expected
+    shifted = m.Finding.model_validate(_anchored(m, 90, raw, title="customer may be None"))
+    assert shifted.fingerprint == expected
+    assert shifted.location.anchor == "customer = find_customer(id)"
+    capped = m.Finding.model_validate(_anchored(m, 1, "x" * 250))
+    assert capped.location.anchor == "x" * 200
+    assert capped.fingerprint == m.fingerprint_of("null_deref", "src/pay/charge.py", "charge",
+                                                  "x" * 200)
+    with pytest.raises(ValidationError, match="fingerprint"):
+        m.Finding.model_validate(_finding(location={
+            "path": "src/pay/charge.py", "start": 1, "end": 1, "symbol": "charge",
+            "anchor": "customer.id"}))
+
+
+def test_no_anchor_keeps_the_kind_path_symbol_fingerprint(m):
+    assert m.fingerprint_of("null_deref", "src/a.py", "f") == _fp("null_deref", "src/a.py", "f")
+    assert m.fingerprint_of("null_deref", "src/a.py", "f", None) == \
+        _fp("null_deref", "src/a.py", "f")
+    assert m.Finding.model_validate(_finding()).location.anchor is None
+    with pytest.raises(ValidationError, match="anchor"):
+        m.Finding.model_validate(_finding(location={
+            "path": "src/pay/charge.py", "start": 1, "end": 1, "symbol": "charge",
+            "anchor": " \n "}))
+
+
+def test_review_flow_accepts_the_schema_editor_hint(m):
+    hint = "../../schemas/review-flow.schema.json"
+    flow = m.ReviewFlow.model_validate(_flow(**{"$schema": hint}))
+    assert flow.schema_ == hint
+    assert m.ReviewFlow.model_validate(flow.model_dump(mode="json")).schema_ == hint
+
+
+def test_publication_review_id_is_absent_not_zero(m):
+    assert m.Publication.model_validate(dict(_publication(), review_id=None)).review_id is None
+    assert m.Publication.model_validate(
+        {k: v for k, v in _publication().items() if k != "review_id"}).review_id is None
+    with pytest.raises(ValidationError, match="review_id"):
+        m.Publication.model_validate(dict(_publication(), review_id=0))
+
+
+def test_history_must_replay_each_round_to_its_stored_phase(m):
+    m.ReviewFlow.model_validate(_flow(history=_chain(1, "published")))
+    with pytest.raises(ValidationError, match="history"):
+        m.ReviewFlow.model_validate(_flow(history=_chain(1, "result")))
+    skipped = [entry for entry in _chain(1, "published") if entry["target"] != "lanes"]
+    with pytest.raises(ValidationError, match="history"):
+        m.ReviewFlow.model_validate(_flow(history=skipped))
+    with pytest.raises(ValidationError, match="history"):
+        m.ReviewFlow.model_validate(_flow(history=_chain(1, "published")[1:]))
+    jump = [*_chain(1, "context"), dict(_chain(1, "change_model")[1], target="published")]
+    with pytest.raises(ValidationError, match="history"):
+        m.ReviewFlow.model_validate(_flow(history=jump))
+    second = _round(n=2, head_sha="b" * 40, phase="lanes", published=None,
+                    lanes=_lanes(qa="pending"), findings=[])
+    two = _flow(rounds=[_round(phase="reply_analysis"), second],
+                history=_chain(1, "reply_analysis") + _chain(2, "lanes"))
+    assert m.ReviewFlow.model_validate(two).rounds[-1].phase is m.Phase.LANES
+    with pytest.raises(ValidationError, match="round 2"):
+        m.ReviewFlow.model_validate(dict(two, history=_chain(1, "reply_analysis")))

@@ -18,27 +18,16 @@ if _HERE not in sys.path:
 
 import review_flow_model as model  # pylint: disable=wrong-import-position
 import review_rules  # pylint: disable=wrong-import-position
+from pydantic import TypeAdapter  # pylint: disable=wrong-import-position
 
 Phase = model.Phase
 
-TRANSITIONS: Dict[Phase, Tuple[Phase, ...]] = {
-    Phase.CONTEXT: (Phase.CHANGE_MODEL,),
-    Phase.CHANGE_MODEL: (Phase.LANES,),
-    Phase.LANES: (Phase.INTEGRATE,),
-    Phase.INTEGRATE: (Phase.GLOBAL_SCOPE,),
-    Phase.GLOBAL_SCOPE: (Phase.RESULT,),
-    Phase.RESULT: (Phase.PUBLISHED,),
-    Phase.PUBLISHED: (Phase.AWAITING_AUTHOR,),
-    Phase.AWAITING_AUTHOR: (Phase.REPLY_ANALYSIS,),
-    Phase.REPLY_ANALYSIS: (Phase.CLOSED,),
-    Phase.CLOSED: (),
-}
-"""In-round moves. A new round opens from `reply_analysis` through `next_round`, not `advance`."""
+TRANSITIONS = model.TRANSITIONS
 
 STRONG_GRADES = (model.Grade.MEASURED, model.Grade.READ)
 """Fact grades the script applies on its own and that may back dropping a blocker."""
 
-OPERATIONS = ("advance", "submit", "next_round", "publish")
+OPERATIONS = ("advance", "submit", "next_round", "publish", "global_scope")
 
 
 class TransitionRefused(Exception):
@@ -61,6 +50,10 @@ class Request:
     head_sha: Optional[str] = None
     dispositions: Mapping[str, dict] = field(default_factory=dict)
     rules_file: Optional["model.RulesFile"] = None
+    lane: Optional["model.Lane"] = None
+    findings: Sequence["model.Finding"] = ()
+    error: Optional[str] = None
+    rules_digest: Optional[str] = None
 
 
 @dataclass(frozen=True)
@@ -71,6 +64,16 @@ class Guard:
     op: str
     target: Optional[Phase]
     check: Callable[["model.ReviewFlow", Request], Optional[str]]
+
+
+@dataclass(frozen=True)
+class _OpenRound:
+    """The view a round-level guard reads: the round as the last of `rounds`."""
+
+    rounds: Tuple["model.Round", ...]
+
+
+_DISPOSITION = TypeAdapter(model.Disposition)
 
 
 # ------------------------------------------------------------------ guard checks
@@ -116,6 +119,57 @@ def _unknown_ref(flow: "model.ReviewFlow", req: Request) -> Optional[str]:
     return None
 
 
+def _basis_out_of_scope(flow: "model.ReviewFlow", req: Request) -> Optional[str]:
+    findings = {f.fingerprint: f for f in flow.rounds[-1].findings}
+    rules_file = req.rules_file
+    scopes = {("fact", fact.id): fact.applies for fact in rules_file.facts} if rules_file else {}
+    scopes.update({("rule", rule.id): rule.applies for rule in rules_file.rules}
+                  if rules_file else {})
+    for fingerprint, disposition in req.dispositions.items():
+        for ref in disposition.get("basis") or []:
+            applies = scopes.get((ref.get("type"), ref.get("id")))
+            if applies is not None and not review_rules.matches(applies, findings[fingerprint]):
+                return (f"{ref.get('id')} does not cover finding {fingerprint[:12]}; a scoped "
+                        "basis must match the finding it disposes")
+    return None
+
+
+def _already_decided(flow: "model.ReviewFlow", req: Request) -> Optional[str]:
+    findings = {f.fingerprint: f for f in flow.rounds[-1].findings}
+    for fingerprint, disposition in req.dispositions.items():
+        current = findings[fingerprint].disposition
+        if current is not None and current.model_dump(mode="json") != \
+                _DISPOSITION.validate_python(disposition).model_dump(mode="json"):
+            return (f"finding {fingerprint[:12]} already has a {current.action} disposition; "
+                    "only an identical replay is accepted")
+    return None
+
+
+def _lane_disposition(_flow: "model.ReviewFlow", req: Request) -> Optional[str]:
+    decided = [f.fingerprint[:12] for f in req.findings if f.disposition is not None]
+    return f"lane findings carry a disposition: {decided}" if decided else None
+
+
+def _lane_done(flow: "model.ReviewFlow", req: Request) -> Optional[str]:
+    if req.lane is None or flow.rounds[-1].lanes[req.lane].status != "done":
+        return None
+    current = flow.rounds[-1]
+    own = {f.fingerprint for f in current.findings if req.lane in f.lanes}
+    replay = _lane_result(current, req.lane, req.findings, req.error)
+    if {f.fingerprint for f in req.findings} == own and replay == current.model_dump(mode="json"):
+        return None
+    return f"lane {req.lane.value} is done; only an identical replay is accepted"
+
+
+def _digest_changed(flow: "model.ReviewFlow", req: Request) -> Optional[str]:
+    current = flow.rounds[-1]
+    by_script = any(getattr(f.disposition, "by", None) == "script" for f in current.findings)
+    if by_script and current.rules_digest not in (None, req.rules_digest):
+        return (f"round {current.n} was judged against rules {current.rules_digest[:12]}; "
+                f"a new digest {req.rules_digest[:12]} would keep the old dispositions")
+    return None
+
+
 def _weak_blocker_drop(flow: "model.ReviewFlow", req: Request) -> Optional[str]:
     findings = {f.fingerprint: f for f in flow.rounds[-1].findings}
     grades = {fact.id: fact.grade for fact in req.rules_file.facts} if req.rules_file else {}
@@ -157,7 +211,12 @@ GUARDS: Tuple[Guard, ...] = (
     Guard("wrong_round", "submit", None, _wrong_round),
     Guard("wrong_phase", "submit", None, _wrong_phase),
     Guard("unknown_ref", "submit", None, _unknown_ref),
+    Guard("basis_out_of_scope", "submit", None, _basis_out_of_scope),
+    Guard("already_decided", "submit", None, _already_decided),
     Guard("weak_blocker_drop", "submit", None, _weak_blocker_drop),
+    Guard("lane_disposition", "submit", None, _lane_disposition),
+    Guard("lane_done", "submit", None, _lane_done),
+    Guard("digest_changed", "global_scope", None, _digest_changed),
     Guard("round_not_finished", "next_round", None, _round_not_finished),
     Guard("same_head", "next_round", None, _same_head),
     Guard("publish_before_result", "publish", None, _publish_before_result),
@@ -270,18 +329,26 @@ def merge_findings(findings: Sequence["model.Finding"]) -> List[dict]:
     return merged
 
 
-def submit_lane(flow: "model.ReviewFlow", round_n: int, lane: "model.Lane",
-                findings: Sequence["model.Finding"],
-                error: Optional[str] = None) -> "model.ReviewFlow":
-    """Record one lane's result in the `lanes` phase; findings merge by fingerprint on arrival."""
-    _enforce(flow, Request(op="submit", round_n=round_n, phase=Phase.LANES))
-    current = flow.rounds[-1]
+def _lane_result(current: "model.Round", lane: "model.Lane", findings: Sequence["model.Finding"],
+                 error: Optional[str]) -> dict:
     round_data = current.model_dump(mode="json")
     round_data["lanes"][lane.value] = {"status": "failed", "error": error} if error \
         else {"status": "done", "error": None}
     if not error:
         round_data["findings"] = merge_findings([*current.findings, *findings])
-    return _with_last_round(flow, round_data)
+    return round_data
+
+
+def submit_lane(flow: "model.ReviewFlow", round_n: int, lane: "model.Lane",
+                findings: Sequence["model.Finding"],
+                error: Optional[str] = None) -> "model.ReviewFlow":
+    """Record one lane's result in the `lanes` phase; findings merge by fingerprint on arrival.
+
+    A lane takes a submission while pending or failed; a done lane takes only an identical replay.
+    """
+    _enforce(flow, Request(op="submit", round_n=round_n, phase=Phase.LANES, lane=lane,
+                           findings=tuple(findings), error=error))
+    return _with_last_round(flow, _lane_result(flow.rounds[-1], lane, findings, error))
 
 
 def submit_dispositions(flow: "model.ReviewFlow", round_n: int, dispositions: Mapping[str, dict],
@@ -361,8 +428,9 @@ def global_scope(round_: "model.Round", rules_file: "model.RulesFile",
     """Apply strong facts and active rules by script; return the findings left for the worker.
 
     Scope is `review_rules.matches` only. A finding that already has a disposition is untouched;
-    dropped findings stay in the round.
+    dropped findings stay in the round. A round the script already judged keeps its digest.
     """
+    _enforce(_OpenRound((round_,)), Request(op="global_scope", rules_digest=rules_digest))
     round_data = round_.model_dump(mode="json")
     round_data["rules_digest"] = rules_digest
     for finding, item in zip(round_.findings, round_data["findings"]):
