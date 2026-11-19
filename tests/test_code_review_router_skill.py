@@ -85,6 +85,14 @@ def test_the_router_names_only_catalog_skills():
         "fix the route or the test is lying about where review work lives")
 
 
+def test_a_pr_review_to_publish_routes_to_review_flow():
+    """A review that ends in GitHub comments runs the coordinated flow, not the plain route."""
+    text = (ROOT / SKILL_REL).read_text(encoding="utf-8")
+    route = text.split("## The route", 1)[1].split("\n## ", 1)[0]
+    assert "review-flow" in set(ROUTED_SIBLING_RE.findall(route)), (
+        "the route no longer sends a published PR review to review-flow")
+
+
 def test_every_routed_sibling_names_its_scope_so_the_router_can_degrade():
     """The router promises a baseline fallback for undelivered siblings; each routed
     sibling's frontmatter must carry a readable scope so the promise stays decidable."""

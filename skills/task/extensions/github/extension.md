@@ -40,7 +40,9 @@ end; these get squashed on merge). Push to the remote branch immediately after e
 
 ## Copilot review-round loop (Phase 5 — Finish protocol)
 
-Required, spans multiple turns. Runs after marking the draft PR ready for review:
+Required, spans multiple turns. Runs after marking the draft PR ready for review. When the
+`review-flow` skill is installed, a self-review before `gh pr ready` may run it with
+`{"dry_run": true}` publish; its findings enter the triage below like any other review.
 
 ```bash
 gh pr ready <n>

@@ -51,6 +51,7 @@ BEHAVIORIST = "features/common/skills/call-behaviorist/scripts/behaviorist.py"
 DRIFT = "features/common/skills/welcome-ai-badger/scripts/drift.py"
 TASK_PLAN_MODEL = "features/common/skills/task-decomposition/scripts/task_plan_model.py"
 TASK_GRAPH_SERVER = "features/common/skills/task-decomposition/scripts/task_graph_server.py"
+REVIEW_FLOW_SCRIPTS = "features/common/skills/review-flow/scripts"
 VERIFY = ".lefthook/pre-push/verify.sh"
 
 # Checks with no provocation yet. EVERY ENTRY IS A DEBT, not a decision: an empty-by-default
@@ -544,6 +545,29 @@ def _task_plan_schema_check(work: Path, provoked: bool) -> Outcome:
         _write(schema_path, json.dumps(schema, indent=2) + "\n")
 
     return _run_gate("tooling/task_plan_schema.py", "--check", "--root", str(root))
+
+
+def _review_flow_schema_check(work: Path, provoked: bool) -> Outcome:
+    """A checked-in review-flow schema drifting from the pydantic model it is generated from.
+
+    The fixture tree holds the real model and the renderer it imports; the real generator
+    writes the clean artifacts, and the provocation edits one of them.
+    """
+    root = work / "tree"
+    for name in ("review_flow_model.py", "review_render.py"):
+        target = root / REVIEW_FLOW_SCRIPTS / name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(ROOT / REVIEW_FLOW_SCRIPTS / name, target)
+    built = _run_gate("tooling/review_flow_schema.py", "--root", str(root))
+    assert built.exit_code == 0, f"fixture setup failed:\n{built.output}"
+
+    if provoked:
+        schema_path = root / "schemas" / "review-rules.schema.json"
+        schema = json.loads(schema_path.read_text(encoding="utf-8"))
+        schema["required"].remove("rules")
+        _write(schema_path, json.dumps(schema, indent=2) + "\n")
+
+    return _run_gate("tooling/review_flow_schema.py", "--check", "--root", str(root))
 
 
 def _task_graph_server_check(work: Path, provoked: bool) -> Outcome:
@@ -1061,6 +1085,9 @@ REGISTRY: Tuple[Provocation, ...] = (
     Provocation("tooling/task_plan_schema.py --check",
                 "the artifact dropped a required field",
                 _task_plan_schema_check, Signal(exit_code=1, contains="STALE")),
+    Provocation("tooling/review_flow_schema.py --check",
+                "the rules artifact dropped a required field",
+                _review_flow_schema_check, Signal(exit_code=1, contains="STALE")),
     Provocation(f"{TASK_GRAPH_SERVER} --check",
                 "the checked-in task-plan schema dropped a required field",
                 _task_graph_server_check, Signal(exit_code=1, contains="STALE")),

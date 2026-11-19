@@ -75,7 +75,8 @@ def test_scaffold_leaves_sandboxed_homes_unchanged(load_script, root, tmp_path, 
     monkeypatch.setattr(scaf, 'install_plugins', lambda: [])
     monkeypatch.setattr(scaf, '_check_dependencies',
                         lambda: {'installed': [], 'errors': [], 'hints': []})
-    monkeypatch.setattr(module.subprocess, 'run',
+    # Patched at the stdlib so every collaborator the scaffold delegates to stays sandboxed.
+    monkeypatch.setattr(subprocess, 'run',
                         lambda argv, **_: subprocess.CompletedProcess(argv, 0, '', ''))
     scaf.run()
     assert (tree(home), tree(hermes_home)) == before

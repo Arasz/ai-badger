@@ -1,0 +1,374 @@
+{
+  "$defs": {
+    "Applies": {
+      "additionalProperties": false,
+      "description": "Which findings a rule or fact covers: a conjunction of fnmatch globs.",
+      "properties": {
+        "kinds": {
+          "items": {
+            "$ref": "#/$defs/Kind"
+          },
+          "minItems": 1,
+          "title": "Kinds",
+          "type": "array"
+        },
+        "paths": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Paths",
+          "type": "array"
+        },
+        "symbols": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Symbols",
+          "type": "array"
+        }
+      },
+      "required": [
+        "kinds",
+        "paths"
+      ],
+      "title": "Applies",
+      "type": "object"
+    },
+    "Citation": {
+      "additionalProperties": false,
+      "description": "Code the script verified at the base ref to activate a rule.",
+      "properties": {
+        "path": {
+          "minLength": 1,
+          "title": "Path",
+          "type": "string"
+        },
+        "start": {
+          "minimum": 1,
+          "title": "Start",
+          "type": "integer"
+        },
+        "end": {
+          "title": "End",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "path",
+        "start",
+        "end"
+      ],
+      "title": "Citation",
+      "type": "object"
+    },
+    "Effect": {
+      "additionalProperties": false,
+      "description": "What a matching rule or fact does to a finding.",
+      "properties": {
+        "action": {
+          "enum": [
+            "require",
+            "suppress",
+            "downgrade"
+          ],
+          "title": "Action",
+          "type": "string"
+        },
+        "to": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Severity"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "ground": {
+          "$ref": "#/$defs/Ground"
+        }
+      },
+      "required": [
+        "action",
+        "ground"
+      ],
+      "title": "Effect",
+      "type": "object"
+    },
+    "Grade": {
+      "description": "How a piece of evidence or a fact is known.",
+      "enum": [
+        "MEASURED",
+        "READ",
+        "INFERRED",
+        "UNVERIFIED"
+      ],
+      "title": "Grade",
+      "type": "string"
+    },
+    "Ground": {
+      "description": "Why a finding was downgraded or dropped.",
+      "enum": [
+        "fact_contradicts",
+        "unreachable_in_production",
+        "rule",
+        "duplicate",
+        "out_of_scope"
+      ],
+      "title": "Ground",
+      "type": "string"
+    },
+    "Kind": {
+      "description": "Closed finding kind; rules and facts match on it, never on `other`.",
+      "enum": [
+        "null_deref",
+        "unchecked_error",
+        "resource_leak",
+        "concurrency",
+        "injection",
+        "authz",
+        "input_validation",
+        "contract_break",
+        "ac_unmet",
+        "test_gap",
+        "perf",
+        "config",
+        "dead_code",
+        "style",
+        "docs",
+        "other"
+      ],
+      "title": "Kind",
+      "type": "string"
+    },
+    "LearnedRule": {
+      "additionalProperties": false,
+      "description": "A rule taught by review replies; only an activated rule reaches the lanes.",
+      "properties": {
+        "id": {
+          "pattern": "^R-[1-9][0-9]*$",
+          "title": "Id",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "proposed",
+            "active",
+            "retired"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "statement": {
+          "maxLength": 500,
+          "minLength": 1,
+          "title": "Statement",
+          "type": "string"
+        },
+        "applies": {
+          "$ref": "#/$defs/Applies"
+        },
+        "effect": {
+          "$ref": "#/$defs/Effect"
+        },
+        "origins": {
+          "items": {
+            "$ref": "#/$defs/Origin"
+          },
+          "minItems": 1,
+          "title": "Origins",
+          "type": "array"
+        },
+        "activated_by": {
+          "anyOf": [
+            {
+              "enum": [
+                "maintainer",
+                "citation",
+                "threads"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Activated By"
+        },
+        "citation": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Citation"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "id",
+        "status",
+        "statement",
+        "applies",
+        "effect",
+        "origins"
+      ],
+      "title": "LearnedRule",
+      "type": "object"
+    },
+    "Origin": {
+      "additionalProperties": false,
+      "description": "The review thread a rule was taught in.",
+      "properties": {
+        "pr": {
+          "minimum": 1,
+          "title": "Pr",
+          "type": "integer"
+        },
+        "thread_url": {
+          "title": "Thread Url",
+          "type": "string"
+        },
+        "author": {
+          "title": "Author",
+          "type": "string"
+        },
+        "association": {
+          "enum": [
+            "OWNER",
+            "MEMBER",
+            "COLLABORATOR"
+          ],
+          "title": "Association",
+          "type": "string"
+        },
+        "quote": {
+          "title": "Quote",
+          "type": "string"
+        }
+      },
+      "required": [
+        "pr",
+        "thread_url",
+        "author",
+        "association",
+        "quote"
+      ],
+      "title": "Origin",
+      "type": "object"
+    },
+    "ProjectFact": {
+      "additionalProperties": false,
+      "description": "A graded fact about the whole system; applies and effect come together or not at all.",
+      "properties": {
+        "id": {
+          "pattern": "^F-[1-9][0-9]*$",
+          "title": "Id",
+          "type": "string"
+        },
+        "statement": {
+          "minLength": 1,
+          "title": "Statement",
+          "type": "string"
+        },
+        "grade": {
+          "$ref": "#/$defs/Grade"
+        },
+        "evidence_ref": {
+          "title": "Evidence Ref",
+          "type": "string"
+        },
+        "applies": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Applies"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "effect": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Effect"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "id",
+        "statement",
+        "grade",
+        "evidence_ref"
+      ],
+      "title": "ProjectFact",
+      "type": "object"
+    },
+    "Severity": {
+      "description": "Ordered severity; `RANK` gives the order, higher is worse.",
+      "enum": [
+        "blocker",
+        "major",
+        "minor",
+        "nit"
+      ],
+      "title": "Severity",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Learned review rules and project facts (.ai-badger/review/rules.json). Not expressed here: activation proof per activated_by, independent threads, ascending unique ids, and the DEFENSIVE downgrade rule. Generated by tooling/review_flow_schema.py from the pydantic model in features/common/skills/review-flow/scripts/review_flow_model.py. Cross-field rules are pydantic-only and enforced on every load, not by this artifact.",
+  "properties": {
+    "$schema": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "$Schema"
+    },
+    "schema_version": {
+      "const": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "rules": {
+      "items": {
+        "$ref": "#/$defs/LearnedRule"
+      },
+      "title": "Rules",
+      "type": "array"
+    },
+    "facts": {
+      "items": {
+        "$ref": "#/$defs/ProjectFact"
+      },
+      "title": "Facts",
+      "type": "array"
+    }
+  },
+  "required": [
+    "schema_version",
+    "rules",
+    "facts"
+  ],
+  "title": "RulesFile",
+  "type": "object",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Arasz/ai-badger/schemas/review-rules.schema.json"
+}

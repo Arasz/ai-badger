@@ -31,6 +31,11 @@ This file routes; it does not review. The review work lives in sibling skills un
 
 Work top-down. Stop expanding when the verdict for the change is clear; do not stop before it is.
 
+0. **A pull-request review that you publish to GitHub** — open
+   `.ai-badger/skills/review-flow/SKILL.md` and follow it instead of the steps below. It runs
+   these same skills as parallel lanes, checks every finding against project facts and learned
+   rules, and posts short inline comments plus one summary that it edits in place.
+
 1. **Rank the diff by blast radius** — open `.ai-badger/skills/review-changes/SKILL.md` when the
    project has it. A 3-line change to shared auth outranks a 200-line change to one leaf
    component; rank before reading, so the deepest checks land on the riskiest units.
@@ -49,8 +54,10 @@ Work top-down. Stop expanding when the verdict for the change is clear; do not s
 
 **Baseline when a named sibling is not installed** (opt-in skills ship only when the project asked
 for them): do that step inline at its cheapest — diff stat plus `git log` for ranking, the
-checklist's Phase 1 gates verbatim, and every high-risk untested unit named individually with its
-missing test case. Say which siblings were absent; the review is thinner for it, not silent.
+Phase 1 gates (build, test, lint, secrets) from the `commands` of `.ai-badger/config.json` at
+the PR base (in a review-flow, the brief's `commands`), and every high-risk untested unit named
+individually with its missing test case. Say which siblings were absent (name the checklist when
+it was); the review is thinner for it, not silent.
 
 ## Reading Copilot's review (when Copilot ran, not you)
 

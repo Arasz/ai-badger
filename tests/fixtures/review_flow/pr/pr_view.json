@@ -1,0 +1,484 @@
+{
+ "baseRefName": "main",
+ "baseRefOid": "5b06d7072a30f2ea3921bf62195d36cfa6a8efa5",
+ "body": "## What changes\n\n- **Fix:** `fill_mcp_described` (`features/common/skills/welcome-ai-badger/scripts/mcp_tools.py`) ignored `config.mcp.decline`. A declined server lost its launch config but kept its `## MCP Tools: <name>` section in every generated agent file. Now it is skipped.\n- **Self-scaffold:** ai-badger no longer scaffolds itself with the `hermes` stack or agent.\n  - `config.stacks` / `confi\n[truncated]",
+ "closingIssuesReferences": [],
+ "files": [
+  {
+   "path": ".ai-badger/AGENTS.md",
+   "additions": 2,
+   "deletions": 10,
+   "changeType": "MODIFIED"
+  },
+  {
+   "path": ".ai-badger/AGENTS.override.md",
+   "additions": 2,
+   "deletions": 10,
+   "changeType": "MODIFIED"
+  },
+  {
+   "path": ".ai-badger/CLAUDE.md",
+   "additions": 2,
+   "deletions": 10,
+   "changeType": "MODIFIED"
+  },
+  {
+   "path": ".ai-badger/HERMES.md",
+   "additions": 0,
+   "deletions": 176,
+   "changeType": "DELETED"
+  },
+  {
+   "path": ".ai-badger/agents/hermes-agent-author.md",
+   "additions": 0,
+   "deletions": 69,
+   "changeType": "DELETED"
+  },
+  {
+   "path": ".ai-badger/config.json",
+   "additions": 6,
+   "deletions": 7,
+   "changeType": "MODIFIED"
+  },
+  {
+   "path": ".ai-badger/copilot-instructions.md",
+   "additions": 2,
+   "deletions": 10,
+   "changeType": "MODIFIED"
+  },
+  {
+   "path": ".ai-badger/delegation.md",
+   "additions": 2,
+   "deletions": 5,
+   "changeType": "MODIFIED"
+  },
+  {
+   "path": ".ai-badger/hooks/bm25.py",
+   "additions": 0,
+   "deletions": 107,
+   "changeType": "DELETED"
+  },
+  {
+   "path": ".ai-badger/hooks/commit_reminder.py",
+   "additions": 0,
+   "deletions": 323,
+   "changeType": "DELETED"
+  },
+  {
+   "path": ".ai-badger/hooks/git_internals_guard.py",
+   "additions": 0,
+   "deletions": 407,
+   "changeType": "DELETED"
+  },
+  {
+   "path": ".ai-badger/hooks/impact_estimator.py",
+   "additions": 0,
+   "deletions": 68,
+   "changeType": "DELETED"
+  },
+  {
+   "path": ".ai-badger/hooks/mcp_matcher.py",
+   "additions": 0,
+   "deletions": 104,
+   "changeType": "DELETED"
+  },
+  {
+   "path": ".ai-badger/hooks/memory_context.py",
+   "additions": 0,
+   "deletions": 925,
+   "changeType": "DELETED"
+  },
+  {
+   "path": ".ai-badger/hooks/memory_first_gate.py",
+   "additions": 0,
+   "deletions": 835,
+   "changeType": "DELETED"
+  },
+  {
+   "path": ".ai-badger/hooks/model_groups.py",
+   "additions": 0,
+   "deletions": 469,
+   "changeType": "DELETED"
+  },
+  {
+   "path": ".ai-badger/hooks/openrouter_client.py",
+   "additions": 0,
+   "deletions": 674,
+   "changeType": "DELETED"
+  },
+  {
+   "path": ".ai-badger/hooks/query_pipeline.py",
+   "additions": 0,
+   "deletions": 706,
+   "changeType": "DELETED"
+  },
+  {
+   "path": ".ai-badger/hooks/shell_parser.py",
+   "additions": 0,
+   "deletions": 521,
+   "changeType": "DELETED"
+  },
+  {
+   "path": ".ai-badger/hooks/suite_economy.py",
+   "additions": 0,
+   "deletions": 482,
+   "changeType": "DELETED"
+  },
+  {
+   "path": ".ai-badger/hooks/tokenizer.py",
+   "additions": 0,
+   "deletions": 72,
+   "changeType": "DELETED"
+  },
+  {
+   "path": ".ai-badger/instructions/hermes.instructions.md",
+   "additions": 0,
+   "deletions": 19,
+   "changeType": "DELETED"
+  },
+  {
+   "path": ".ai-badger/manifest.json",
+   "additions": 416,
+   "deletions": 607,
+   "changeType": "MODIFIED"
+  },
+  {
+   "path": ".ai-badger/model-groups.json",
+   "additions": 1,
+   "deletions": 1,
+   "changeType": "MODIFIED"
+  },
+  {
+   "path": ".ai-badger/schemas/manifest.schema.json",
+   "additions": 4,
+   "deletions": 0,
+   "changeType": "MODIFIED"
+  },
+  {
+   "path": ".ai-badger/skills-data/hermes/skills-source.json",
+   "additions": 0,
+   "deletions": 16,
+   "changeType": "DELETED"
+  },
+  {
+   "path": ".ai-badger/skills-data/hermes/skills.json",
+   "additions": 0,
+   "deletions": 3,
+   "changeType": "DELETED"
+  },
+  {
+   "path": ".ai-badger/skills/hermes-plugin-development/SKILL.md",
+   "additions": 0,
+   "deletions": 226,
+   "changeType": "DELETED"
+  },
+  {
+   "path": ".ai-badger/skills/hermes-plugin-development/references/memory-provider-interface.md",
+   "additions": 0,
+   "deletions": 124,
+   "changeType": "DELETED"
+  },
+  {
+   "path": ".ai-badger/skills/hermes-plugin-development/references/provider-implementation.md",
+   "additions": 0,
+   "deletions": 76,
+   "changeType": "DELETED"
+  },
+  {
+   "path": ".ai-badger/skills/task/extensions/hermes/extension.json",
+   "additions": 0,
+   "deletions": 5,
+   "changeType": "DELETED"
+  },
+  {
+   "path": ".ai-badger/skills/task/extensions/hermes/extension.md",
+   "additions": 0,
+   "deletions": 248,
+   "changeType": "DELETED"
+  },
+  {
+   "path": ".ai-badger/skills/task/scripts/hermes_session_source.py",
+   "additions": 0,
+   "deletions": 255,
+   "changeType": "DELETED"
+  },
+  {
+   "path": ".ai-badger/skills/welcome-ai-badger/scripts/agent_files.py",
+   "additions": 19,
+   "deletions": 6,
+   "changeType": "MODIFIED"
+  },
+  {
+   "path": ".ai-badger/skills/welcome-ai-badger/scripts/generated_file_guard.py",
+   "additions": 6,
+   "deletions": 1,
+   "changeType": "MODIFIED"
+  },
+  {
+   "path": ".ai-badger/skills/welcome-ai-badger/scripts/mcp_tools.py",
+   "additions": 2,
+   "deletions": 1,
+   "changeType": "MODIFIED"
+  },
+  {
+   "path": ".ai-badger/skills/welcome-ai-badger/scripts/scaffold.py",
+   "additions": 6,
+   "deletions": 2,
+   "changeType": "MODIFIED"
+  },
+  {
+   "path": ".ai-badger/skills/welcome-ai-badger/scripts/scaffold_context.py",
+   "additions": 2,
+   "deletions": 1,
+   "changeType": "MODIFIED"
+  },
+  {
+   "path": ".ai-badger/skills/welcome-ai-badger/scripts/superseded_prune.py",
+   "additions": 16,
+   "deletions": 1,
+   "changeType": "MODIFIED"
+  },
+  {
+   "path": ".ai-badger/stack-ignore.json",
+   "additions": 1,
+   "deletions": 3,
+   "changeType": "MODIFIED"
+  },
+  {
+   "path": ".claude-plugin/marketplace.json",
+   "additions": 1,
+   "deletions": 1,
+   "changeType": "MODIFIED"
+  },
+  {
+   "path": ".claude-plugin/plugin.json",
+   "additions": 1,
+   "deletions": 1,
+   "changeType": "MODIFIED"
+  },
+  {
+   "path": ".claude/settings.json",
+   "additions": 6,
+   "deletions": 0,
+   "changeType": "MODIFIED"
+  },
+  {
+   "path": ".codex/agents/hermes-agent-author.toml",
+   "additions": 0,
+   "deletions": 4,
+   "changeType": "DELETED"
+  },
+  {
+   "path": ".codex/config.toml",
+   "additions": 0,
+   "deletions": 4,
+   "changeType": "MODIFIED"
+  },
+  {
+   "path": ".github/agents/hermes-agent-author.agent.md",
+   "additions": 0,
+   "deletions": 73,
+   "changeType": "DELETED"
+  },
+  {
+   "path": ".github/copilot-instructions.md",
+   "additions": 2,
+   "deletions": 10,
+   "changeType": "MODIFIED"
+  },
+  {
+   "path": ".github/instructions/hermes.instructions.md",
+   "additions": 0,
+   "deletions": 22,
+   "changeType": "DELETED"
+  },
+  {
+   "path": ".github/mcp.json",
+   "additions": 0,
+   "deletions": 10,
+   "changeType": "MODIFIED"
+  },
+  {
+   "path": ".hermes.md",
+   "additions": 0,
+   "deletions": 178,
+   "changeType": "DELETED"
+  },
+  {
+   "path": ".pi/mcp.json",
+   "additions": 0,
+   "deletions": 8,
+   "changeType": "MODIFIED"
+  },
+  {
+   "path": "AGENTS.md",
+   "additions": 2,
+   "deletions": 10,
+   "changeType": "MODIFIED"
+  },
+  {
+   "path": "AGENTS.override.md",
+   "additions": 2,
+   "deletions": 10,
+   "changeType": "MODIFIED"
+  },
+  {
+   "path": "CLAUDE.md",
+   "additions": 2,
+   "deletions": 10,
+   "changeType": "MODIFIED"
+  },
+  {
+   "path": "HERMES.md",
+   "additions": 0,
+   "deletions": 178,
+   "changeType": "DELETED"
+  },
+  {
+   "path": "VERSION",
+   "additions": 1,
+   "deletions": 1,
+   "changeType": "MODIFIED"
+  },
+  {
+   "path": "docs/changelog/0.220.3-declined-mcp-server-drops-its-doc-section.md",
+   "additions": 21,
+   "deletions": 0,
+   "changeType": "ADDED"
+  },
+  {
+   "path": "docs/changelog/README.md",
+   "additions": 1,
+   "deletions": 0,
+   "changeType": "MODIFIED"
+  },
+  {
+   "path": "features/common/data/model-groups.json",
+   "additions": 1,
+   "deletions": 1,
+   "changeType": "MODIFIED"
+  },
+  {
+   "path": "features/common/skills/welcome-ai-badger/scripts/agent_files.py",
+   "additions": 19,
+   "deletions": 6,
+   "changeType": "MODIFIED"
+  },
+  {
+   "path": "features/common/skills/welcome-ai-badger/scripts/generated_file_guard.py",
+   "additions": 6,
+   "deletions": 1,
+   "changeType": "MODIFIED"
+  },
+  {
+   "path": "features/common/skills/welcome-ai-badger/scripts/mcp_tools.py",
+   "additions": 2,
+   "deletions": 1,
+   "changeType": "MODIFIED"
+  },
+  {
+   "path": "features/common/skills/welcome-ai-badger/scripts/scaffold.py",
+   "additions": 6,
+   "deletions": 2,
+   "changeType": "MODIFIED"
+  },
+  {
+   "path": "features/common/skills/welcome-ai-badger/scripts/scaffold_context.py",
+   "additions": 2,
+   "deletions": 1,
+   "changeType": "MODIFIED"
+  },
+  {
+   "path": "features/common/skills/welcome-ai-badger/scripts/superseded_prune.py",
+   "additions": 16,
+   "deletions": 1,
+   "changeType": "MODIFIED"
+  },
+  {
+   "path": "index.json",
+   "additions": 1,
+   "deletions": 2,
+   "changeType": "MODIFIED"
+  },
+  {
+   "path": "schemas/manifest.schema.json",
+   "additions": 4,
+   "deletions": 0,
+   "changeType": "MODIFIED"
+  },
+  {
+   "path": "skills/welcome-ai-badger/scripts/agent_files.py",
+   "additions": 19,
+   "deletions": 6,
+   "changeType": "MODIFIED"
+  },
+  {
+   "path": "skills/welcome-ai-badger/scripts/generated_file_guard.py",
+   "additions": 6,
+   "deletions": 1,
+   "changeType": "MODIFIED"
+  },
+  {
+   "path": "skills/welcome-ai-badger/scripts/mcp_tools.py",
+   "additions": 2,
+   "deletions": 1,
+   "changeType": "MODIFIED"
+  },
+  {
+   "path": "skills/welcome-ai-badger/scripts/scaffold.py",
+   "additions": 6,
+   "deletions": 2,
+   "changeType": "MODIFIED"
+  },
+  {
+   "path": "skills/welcome-ai-badger/scripts/scaffold_context.py",
+   "additions": 2,
+   "deletions": 1,
+   "changeType": "MODIFIED"
+  },
+  {
+   "path": "skills/welcome-ai-badger/scripts/superseded_prune.py",
+   "additions": 16,
+   "deletions": 1,
+   "changeType": "MODIFIED"
+  },
+  {
+   "path": "tests/test_agent_doc_budget.py",
+   "additions": 2,
+   "deletions": 3,
+   "changeType": "MODIFIED"
+  },
+  {
+   "path": "tests/test_expected_skill_names.py",
+   "additions": 2,
+   "deletions": 2,
+   "changeType": "MODIFIED"
+  },
+  {
+   "path": "tests/test_mcp_decline_stops_the_declaration.py",
+   "additions": 11,
+   "deletions": 0,
+   "changeType": "MODIFIED"
+  },
+  {
+   "path": "tests/test_scaffold_manifest.py",
+   "additions": 5,
+   "deletions": 0,
+   "changeType": "MODIFIED"
+  },
+  {
+   "path": "tests/test_stack_removal_prune.py",
+   "additions": 73,
+   "deletions": 0,
+   "changeType": "MODIFIED"
+  },
+  {
+   "path": "tests/test_tools_end_to_end.py",
+   "additions": 1,
+   "deletions": 1,
+   "changeType": "MODIFIED"
+  }
+ ],
+ "headRefOid": "82ae02ed53f398396b0d9db5c299f4adc928455f",
+ "title": "fix(mcp): declined server loses its doc section; drop hermes from own scaffold (0.220.3)"
+}

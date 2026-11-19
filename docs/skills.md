@@ -4,11 +4,11 @@
 
 <!-- coderabbit-ai-generated-section:v1:cd586dd3736eda90c89ddc2dfde7553a50db10b06644f44bb593e1ab56c696df -->
 
-This page catalogs 53 skills — everything under `features/common/skills/` and
+This page catalogs 54 skills — everything under `features/common/skills/` and
 `features/claude/skills/`.
-52 live under `features/common/skills/` and split by the `scope:` each declares in its own
+53 live under `features/common/skills/` and split by the `scope:` each declares in its own
 `SKILL.md` frontmatter ([ADR-0018](adr/0018-where-the-skill-routing-declaration-lives.md)):
-**49 are `default`** and arrive in every scaffolded project without being asked for, and
+**50 are `default`** and arrive in every scaffolded project without being asked for, and
 **3 are `optIn`** — the sqlite pair, which stays out of the default set because it is specific
 to a SQLite-backed project ([ADR-0029](adr/0029-sqlite-skills-stay-opt-in.md)), and
 `run-manual-checklist`, which needs a project-owned checks file ([ADR-0050](adr/0050-manual-checks-are-project-owned.md)). Everything else
@@ -21,8 +21,8 @@ reach a Copilot or Hermes project.
 
 <!-- /coderabbit-ai-generated:v1 -->
 
-**These 53 are not the whole tree.** `features/*/skills/*/SKILL.md` matches **58** files:
-the 53 above plus 5 more that belong to a single stack and arrive only with it — the
+**These 54 are not the whole tree.** `features/*/skills/*/SKILL.md` matches **59** files:
+the 54 above plus 5 more that belong to a single stack and arrive only with it — the
 `dotnet-workload` gateway under
 `features/dotnet/skills/`, 2 under `features/hermes/skills/`, 1 under `features/mcp/skills/` and 1 under `features/github/skills/`.
 Those 5 have no row below and are documented by their own `SKILL.md`. Derive the number rather
@@ -168,6 +168,7 @@ names it (the sqlite pair and `run-manual-checklist`), **claude-only** when the 
 | [multi-lane-report-assembly](#multi-lane-report-assembly) | Assemble parallel research or review lanes into one evidence-graded record | default | by name |
 | [complete-project-scope-code-review](#complete-project-scope-code-review) | Review a whole project through parallel expert lanes, an adversarial pass, and a waved plan | default | by name |
 | [code-review-evidence](#code-review-evidence) | Catch claims about wrapped libraries and tests that assert their own input | default | by name |
+| [review-flow](#review-flow) | Coordinator-driven PR review: context, change model, parallel lanes, compact comments, learned rules | default | by name |
 | [review-gate-diff-verification](#review-gate-diff-verification) | Establish a branch diff's true base before a gate judges it | default | by name |
 | [design-gate-audit](#design-gate-audit) | Audit a design doc's acceptance gates before anyone builds against them | default | by name |
 | [artifact-verification](#artifact-verification) | Verify specs, docs, manifests and packages that no code test covers | default | by name |
@@ -907,6 +908,17 @@ the feature spec, and integration tests that assert values the method under test
 
 **When to use it.** Reviewing code that wraps an external library, SDK or CLI, or judging whether
 a test harness would actually catch a regression.
+
+### review-flow
+
+[`SKILL.md`](../features/common/skills/review-flow/SKILL.md)
+
+**What it is.** A coordinator-driven pull request review: gather context, build a change model,
+run parallel review lanes, check global scope, post compact GitHub comments, and carry learned
+review rules across rounds. Design: [ADR-0051](adr/0051-review-flow-coordinator.md). Skeleton in
+this release; the procedure lands in a later step.
+
+**When to use it.** A pull request needs an end-to-end review, or a re-review after changes.
 
 ### review-gate-diff-verification
 

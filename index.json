@@ -1,6 +1,6 @@
 {
   "$schema": "./schemas/index.schema.json",
-  "frameworkVersion": "0.220.3",
+  "frameworkVersion": "0.221.0",
   "stacks": {
     "angular": {
       "personas": [
@@ -427,6 +427,11 @@
         {
           "name": "review-changes",
           "path": "features/common/skills/review-changes",
+          "scope": "default"
+        },
+        {
+          "name": "review-flow",
+          "path": "features/common/skills/review-flow",
           "scope": "default"
         },
         {

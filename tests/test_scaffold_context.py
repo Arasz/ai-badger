@@ -231,7 +231,7 @@ def test_agent_files_records_template_provenance_through_the_context(
     recorded = []
     ctx = _hand_built_context(load_script, root, target)
     ctx.record_template = (
-        lambda source, dest, seed_once=False: recorded.append((source.name, dest.name)))
+        lambda source, dest, seed_once=False, editable=False: recorded.append((source.name, dest.name)))
     rendering = _load(load_script, root, "template_rendering").TemplateRendering(ctx)
 
     _load(load_script, root, "agent_files").AgentFiles(ctx, rendering).write_agent_files(
