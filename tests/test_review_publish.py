@@ -708,3 +708,21 @@ def test_rerun_with_no_writes_reports_the_summary_already_on_github():
     results = run(fake, make_state(now=NOW + timedelta(hours=1)))
     assert {"op": "existing_summary", "response": {"id": summary_id}} in [
         {"op": r["op"], "response": r.get("response")} for r in results]
+
+
+def test_head_read_failing_after_the_review_is_publish_failed_with_the_review():
+    """A gh error on the pre-summary head read keeps the completed writes; it never escapes bare."""
+    fake = FakeGitHub()
+    reads = []
+
+    def third_head_read(method, endpoint, _payload):
+        if (method, endpoint.split("?")[0]) == ("GET", f"repos/{REPO}/pulls/{PR}"):
+            reads.append(endpoint)
+        return len(reads) == 3
+
+    fake.fail_once(third_head_read, 502)
+    with pytest.raises(publish.PublishFailed) as err:
+        run(fake, make_state())
+    assert [r["op"] for r in err.value.results] == ["create_review"]
+    assert err.value.error.status == 502
+    assert len(fake.review_comments) == 2 and fake.issue_comments == []

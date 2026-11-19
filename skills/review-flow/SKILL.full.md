@@ -158,10 +158,13 @@ A worker uses only the tools in that list.
 
 On the first use for a flow:
 
-1. Run `review_flow_cli.py tools-probe` with `{}`. It lists `gh` (with the auth status), `uv`,
-   whether a `lint` command is set, each `skill:<name>`, each `persona:<name>` and each
-   `mcp:<name>`. It reports availability only. The `quality` brief carries the `commands` of
-   `.ai-badger/config.json` at the pinned base commit, not the checkout.
+1. Run `review_flow_cli.py tools-probe` with `{}` or `{"flow_id": "<id>"}`. It lists `gh`
+   (with the auth status), `uv`, whether a `lint` command is set, each `skill:<name>`, each
+   `persona:<name>` and each `mcp:<name>`. It reports availability only. With a `flow_id`
+   whose context pinned a base commit, `lint` comes from `.ai-badger/config.json` at that
+   commit. Before that, it comes from the checkout, and its `detail` says so. The `quality`
+   brief carries the `commands` of `.ai-badger/config.json` at the pinned base commit, not
+   the checkout.
 2. Remove each entry with `"available": false`.
 3. Remove each tool that the user does not want for this review.
 4. Run `review_flow_cli.py tools-confirm` with the remaining names. The list goes to
@@ -238,10 +241,14 @@ the output JSON and the `submit` call for that brief kind.
 - Rules and facts load from the PR base ref, never from the PR head. A PR that edits
   `.ai-badger/review/rules.json` does not change its own review. The script adds a `config`
   finding for that edit instead.
-- The `context` submission must carry `base_ref` (for example `origin/main`). Submit
-  resolves it to a commit and pins that commit for the round. If the ref names no commit here,
-  submit refuses with `base_missing`: fetch the ref first. Every later read of rules, facts
-  and `commands` uses the pinned commit, even when the ref moves.
+- The `context` submission must carry `base_ref`, the PR base commit. `context-probe` sets it
+  to the PR's `baseRefOid`. Without `baseRefOid`, the probe leaves it unset. With `gh`, submit
+  accepts a `base_ref` only when it resolves to the PR's `baseRefOid`. Without `gh`, it accepts
+  only a full 40-hex commit sha. Submit refuses every other base with `base_untrusted`. If the
+  ref names no commit here, submit refuses with `base_missing`: fetch it first. Submit pins
+  the commit for the round. Every later read of rules, facts and `commands` uses it.
+- `context-probe` reads no closing issue from another repository. It lists each one in
+  `skipped_issue_refs` (`owner/name#number`), and the summary names them under the AC source.
 - The human part of an inline comment is at most 4 lines. The renderer refuses a longer part.
   It never truncates. Shorten the finding's `title` and `reason` in a new worker file.
 - Every review has the event `COMMENT`. The flow never approves and never requests changes.
@@ -254,7 +261,12 @@ the output JSON and the `submit` call for that brief kind.
 - Publish refuses when the PR head moved since the round started (`head_moved`, exit 2). The
   error lists the writes already made, and `round-N.publish.json` records them. Open a new flow
   with `flow-create` at the new head; its publish finds the comments already posted by
-  marker.
+  marker. Round 1 of that flow takes the last round of the PR's first flow
+  (`<owner>-<name>-<pr>`) as its previous round. Publish then resolves, or marks not
+  reported, each thread whose finding is gone at the new head, by the usual rule.
+- Publish writes `round-N.publish.json` atomically. If that file does not parse, publish
+  treats it as absent, finds the review and summary ids on GitHub, and returns
+  `"receipt_unreadable": true`.
 - Publish refuses when no git remote of the working directory points at the flow's repo.
 - `result-build` freezes the verdict. A second call returns the frozen file unchanged.
 - `rules propose` always creates a new rule. A second reply that teaches the same rule must

@@ -14,6 +14,9 @@ records a step. The coordinator runs each verb itself and reads each result.
   which package is missing. Do not install packages without the human's approval.
 - **No `gh`.** `tools-probe` reports `gh` as not available. Do not confirm it.
   `context-probe` then reads no PR text, so paste the PR body and the ACs into files.
+  Set `base_ref` in the `context` file to the full 40-hex base commit sha (fetch the base
+  branch, then run `git rev-parse origin/<base>`). Without `gh`, submit refuses a branch
+  name with `base_untrusted`.
   Run `publish` with `{"flow_id": "<id>", "dry_run": true, "offline": true}`. Without `gh`,
   `publish` is always offline: it makes no GitHub call. Give the human
   `round-N.rendered.md` (the inline comments and the summary, as they would be posted) from

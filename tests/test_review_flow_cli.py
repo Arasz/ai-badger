@@ -121,7 +121,7 @@ def submit(cli, env, tmp_path, phase, data, flow=FLOW):
 def context_data(pr_body="Fixes the charge path", issues=(), changed=("src/pay/charge.py",)):
     return {"ac_source": "absent", "acs": [], "issue_refs": [], "changed_paths": list(changed),
             "pr_title": "Charge fix", "pr_body": pr_body, "issues": list(issues),
-            "base_ref": "origin/main", "head_sha": HEAD}
+            "base_ref": BASE, "head_sha": HEAD}
 
 
 CHANGE_MODEL = {"summary": "Adds a null check to charge", "risks": [],
@@ -695,7 +695,7 @@ def test_rules_verify_reads_the_cited_file_at_the_base_ref(cli, tmp_path):
     (tmp_path / "src" / "a.py").write_text("checkout only\n", encoding="utf-8")
     seen.clear()
     out = ok(cli, env, "rules", action="verify", rule_id="R-1", flow_id=FLOW,
-             base_ref="origin/main",
+             base_ref=BASE,
              citation={"path": "src/a.py", "start": 2, "end": 2, "quote": "needle"})
     states = {item["id"]: (item["status"], item["activated_by"]) for item in out["rules"]}
     assert states == {"R-1": ("active", "citation"), "R-2": ("proposed", None)}
@@ -847,7 +847,7 @@ def test_context_refuses_unresolvable_base(cli, tmp_path):
     create(cli, env)
     code, payload = submit(cli, env, tmp_path, "context", context_data())
     assert code == 1 and payload["code"] == "base_missing", payload
-    assert "origin/main" in payload["message"]
+    assert BASE in payload["message"]
     assert revision(cli) == 0
     assert cli.store.get(FLOW)[0].rounds[-1].phase.value == "context"
 
@@ -860,12 +860,12 @@ def test_global_scope_uses_rules_pinned_at_context(cli, tmp_path):
     drive(cli, env, tmp_path, "result", briefs={})
     ok(cli, env, "result-build", flow_id=FLOW)
     resolves = [args for args in seen if args[1] == "rev-parse"]
-    assert resolves == [["git", "rev-parse", "--verify", "origin/main^{commit}"]]
+    assert resolves == [["git", "rev-parse", "--verify", f"{BASE}^{{commit}}"]]
     shows = [args[2] for args in seen if args[1] == "show"]
     rules_reads = [spec for spec in shows if spec.endswith(":.ai-badger/review/rules.json")]
     assert rules_reads and all(spec.startswith(f"{BASE}:") for spec in rules_reads), shows
     kept = json.loads((cli.flow_dir(FLOW) / "round-1.context.json").read_text("utf-8"))
-    assert kept["base_commit"] == BASE and kept["base_ref"] == "origin/main"
+    assert kept["base_commit"] == BASE and kept["base_ref"] == BASE
 
 
 def test_rules_verify_refuses_a_caller_ref_other_than_the_pinned_base(cli, tmp_path):
@@ -1086,9 +1086,7 @@ def test_changed_ranges_use_the_old_side_of_the_head_diff(cli, tmp_path, diff, l
     def git(args, _cwd):
         assert args[:3] == ["git", "diff", "--unified=0"]
         return 0, "diff --git a/pkg/a.py b/pkg/a.py\n" + diff, ""
-    rounds = [type("R", (), {"head_sha": h})() for h in (HEAD, "f" * 40)]
-    changed = cli._changed_ranges(type("F", (), {"rounds": rounds})(),
-                                  env_for(cli, tmp_path, git=git))
+    changed = cli._changed_ranges(HEAD, "f" * 40, env_for(cli, tmp_path, git=git))
     fp = "a" * 64
     previous = {"fingerprint": fp, "location": {"path": "pkg/a.py", "start": line, "end": line}}
     existing = {"login": "bot", "inline": {fp: {"id": 5, "fp": fp, "digest": "0" * 12,
@@ -1118,3 +1116,331 @@ def test_publication_recovers_both_ids_when_no_receipt_was_ever_saved(cli):
                                      {"op": "existing_summary", "response": {"id": 12}}], NOW)
     assert publication_ is not None
     assert (publication_["review_id"], publication_["summary_comment_id"]) == (77, 12)
+
+
+# ------------------------------------------------------------------ review round 3 fixes
+
+
+def _github(cli, head_failure_at=None, review_comments="[]"):
+    """A gh fake for a real publish; head read number `head_failure_at` raises a 502."""
+    reads = []
+    fake = FakeGh([(("api", "user"), {"login": "bot"}),
+                   (("api", "--paginate", f"repos/{REPO}/pulls/{PR}/comments?per_page=100"),
+                    review_comments),
+                   (("api", "--paginate"), "[]"), (("api", "graphql"), EMPTY_THREADS),
+                   (("api", "--method", "POST", f"repos/{REPO}/pulls/{PR}/reviews"), {"id": 11}),
+                   (("api", "--method", "POST", f"repos/{REPO}/issues/{PR}/comments"),
+                    {"id": 12})])
+
+    def gh(argv, stdin=None):
+        if list(argv) == ["api", f"repos/{REPO}/pulls/{PR}"]:
+            fake.calls.append(list(argv))
+            reads.append(argv)
+            if len(reads) == head_failure_at:
+                raise cli.publisher.GhError(502, "HTTP 502")
+            return json.dumps({"head": {"sha": HEAD}})
+        return fake(argv, stdin)
+    return gh, fake
+
+
+def _posts(fake, endpoint):
+    return [c for c in fake.calls if c[:4] == ["api", "--method", "POST", endpoint]]
+
+
+def test_publish_records_the_review_when_the_pre_summary_head_read_fails(cli, tmp_path):
+    gh, fake = _github(cli, head_failure_at=3)
+    env = env_for(cli, tmp_path, gh=gh)
+    _ready_to_publish(cli, env, tmp_path)
+    code, payload = call(cli, env, "publish", flow_id=FLOW)
+    assert code == 1 and payload["code"] == "publish_failed", payload
+    assert [r["op"] for r in payload["results"]] == ["create_review"]
+    record = json.loads((cli.flow_dir(FLOW) / "round-1.publish.json").read_text("utf-8"))
+    assert record["partial"] is True and record["publication"]["review_id"] == 11
+    assert not _posts(fake, f"repos/{REPO}/issues/{PR}/comments")
+
+
+def test_threads_fetch_keeps_each_reply_url_beside_the_thread_url(cli, tmp_path, monkeypatch):
+    env = env_for(cli, tmp_path, gh=FakeGh([(("api", "user"), {"login": "bot"})]))
+    create(cli, env)
+    confirm_gh(cli, env)
+    found = [{"fingerprint": "a" * 64, "thread_id": "T_1", "comment_id": n, "author": "maint",
+              "association": "OWNER", "body": "Fixed", "url": f"https://x/r{n}",
+              "thread_url": "https://x/4", "created_at": "2026-11-17T09:30:00Z"}
+             for n in (5, 6)]
+    monkeypatch.setattr(cli.publisher, "fetch_threads", lambda *_args: found)
+    out = ok(cli, env, "threads-fetch", flow_id=FLOW, out=str(tmp_path / "replies.json"))
+    assert [(r["url"], r["thread_url"]) for r in out["replies"]] == [
+        ("https://x/r5", "https://x/4"), ("https://x/r6", "https://x/4")]
+    written = json.loads((tmp_path / "replies.json").read_text(encoding="utf-8"))
+    assert [r["url"] for r in written["replies"]] == ["https://x/r5", "https://x/r6"]
+
+
+def _two_commit_git(seen=None):
+    """`HEAD` resolves to the PR head, any other ref to BASE; `src/a.py` exists only at HEAD."""
+    base_git = make_git()
+
+    def git(args, cwd):
+        if seen is not None:
+            seen.append(list(args))
+        if args[:3] == ["git", "rev-parse", "--verify"]:
+            return 0, f"{HEAD if args[3].startswith('HEAD') else BASE}\n", ""
+        if args[:2] == ["git", "show"] and args[2] == f"{HEAD}:src/a.py":
+            return 0, "head only needle\n", ""
+        if args[:2] == ["git", "show"] and args[2] == f"{BASE}:src/a.py":
+            return 128, "", "fatal: path 'src/a.py' does not exist"
+        return base_git(args, cwd)
+    return git
+
+
+def test_context_refuses_a_base_other_than_the_pr_base_ref_oid(cli, tmp_path):
+    gh = FakeGh([(("pr", "view"), {**_pr_view("Change."), "baseRefOid": BASE})])
+    env = env_for(cli, tmp_path, gh=gh, git=_two_commit_git())
+    create(cli, env)
+    confirm_gh(cli, env)
+    code, payload = submit(cli, env, tmp_path, "context", {**context_data(), "base_ref": "HEAD"})
+    assert code == 1 and payload["code"] == "base_untrusted", payload
+    assert revision(cli) == 0 and not (cli.flow_dir(FLOW) / "round-1.context.json").exists()
+    _working_rules_with(tmp_path, [_origin(1, "ann")])
+    code, payload = call(cli, env, "rules", action="verify", rule_id="R-1", flow_id=FLOW,
+                         citation={"path": "src/a.py", "start": 1, "end": 1,
+                                   "quote": "needle"})
+    assert code == 1 and payload["code"] == "no_base_ref", payload
+
+
+def test_context_accepts_a_base_that_resolves_to_the_pr_base_ref_oid(cli, tmp_path):
+    gh = FakeGh([(("pr", "view"), {**_pr_view("Change."), "baseRefOid": BASE})])
+    env = env_for(cli, tmp_path, gh=gh, git=_two_commit_git())
+    create(cli, env)
+    confirm_gh(cli, env)
+    code, payload = submit(cli, env, tmp_path, "context",
+                           {**context_data(), "base_ref": "origin/main"})
+    assert code == 0, payload
+    kept = json.loads((cli.flow_dir(FLOW) / "round-1.context.json").read_text("utf-8"))
+    assert kept["base_commit"] == BASE
+
+
+@pytest.mark.parametrize("base_ref, accepted", [("origin/main", False), (BASE, True)],
+                         ids=["named-ref", "full-sha"])
+def test_offline_context_accepts_only_a_full_commit_sha(cli, tmp_path, base_ref, accepted):
+    env = env_for(cli, tmp_path, gh=_refuse_gh)
+    create(cli, env)
+    code, payload = submit(cli, env, tmp_path, "context", {**context_data(), "base_ref": base_ref})
+    if accepted:
+        assert code == 0, payload
+        kept = json.loads((cli.flow_dir(FLOW) / "round-1.context.json").read_text("utf-8"))
+        assert kept["base_commit"] == BASE
+    else:
+        assert code == 1 and payload["code"] == "base_untrusted", payload
+        assert revision(cli) == 0
+
+
+def test_context_probe_leaves_base_unset_without_a_base_ref_oid(cli, tmp_path):
+    view = {k: v for k, v in _pr_view("Change.").items() if k != "baseRefOid"}
+    gh = FakeGh([(("pr", "view"), {**view, "baseRefName": "main"})])
+    env = env_for(cli, tmp_path, gh=gh)
+    create(cli, env)
+    confirm_gh(cli, env)
+    assert ok(cli, env, "context-probe", flow_id=FLOW)["base_ref"] is None
+
+
+def _lint_tool(cli, env, **args):
+    return next(t for t in ok(cli, env, "tools-probe", **args)["tools"] if t["name"] == "lint")
+
+
+def test_tools_probe_judges_lint_from_the_pinned_base_config(cli, tmp_path):
+    (tmp_path / ".ai-badger").mkdir()
+    (tmp_path / ".ai-badger" / "config.json").write_text(
+        json.dumps({"commands": {"test": "pytest"}}), encoding="utf-8")
+    env = env_for(cli, tmp_path, git=make_git(config={"commands": {"lint": "pylint src"}}),
+                  gh=FakeGh([(("auth", "status"), "Logged in")]))
+    drive(cli, env, tmp_path, "change_model")
+    lint = _lint_tool(cli, env, flow_id=FLOW)
+    assert lint["available"] is True, lint
+    assert BASE[:12] in lint["detail"]
+
+
+def test_tools_probe_reads_the_checkout_before_a_base_is_pinned_and_says_so(cli, tmp_path):
+    (tmp_path / ".ai-badger").mkdir()
+    (tmp_path / ".ai-badger" / "config.json").write_text(
+        json.dumps({"commands": {"lint": "pylint src"}}), encoding="utf-8")
+    env = env_for(cli, tmp_path, git=make_git(config={"commands": {}}),
+                  gh=FakeGh([(("auth", "status"), "Logged in")]))
+    create(cli, env)
+    lint = _lint_tool(cli, env, flow_id=FLOW)
+    assert lint["available"] is True and "checkout" in lint["detail"], lint
+    assert "checkout" in _lint_tool(cli, env)["detail"]
+
+
+def test_context_probe_reports_skipped_cross_repo_issues_and_the_summary_notes_them(cli,
+                                                                                    tmp_path):
+    view = {**_pr_view("Change.\n\n## Acceptance criteria\n- Refunds settle"),
+            "baseRefOid": BASE}
+    view["closingIssuesReferences"] = [
+        {"number": 5, "repository": {"name": "other", "owner": {"login": "evil"}}},
+        {"number": 12, "repository": {"name": "widgets", "owner": {"login": "octo"}}}]
+    gh = FakeGh([(("pr", "view"), view), (("issue", "view", "12"), {"title": "t", "body": "b"})])
+    env = env_for(cli, tmp_path, gh=gh)
+    create(cli, env)
+    confirm_gh(cli, env)
+    out = tmp_path / "context.json"
+    probe = ok(cli, env, "context-probe", flow_id=FLOW, out=str(out))
+    assert probe["skipped_issue_refs"] == ["evil/other#5"]
+    assert probe["issue_refs"] == ["#12"]
+    drive(cli, env, tmp_path, "result", context=json.loads(out.read_text("utf-8")))
+    md = Path(ok(cli, env, "result-build", flow_id=FLOW)["md_path"]).read_text("utf-8")
+    ac_line = next(line for line in md.splitlines() if "AC source" in line)
+    noted = md.splitlines()[md.splitlines().index(ac_line) + 1]
+    assert "evil/other#5" in noted and "other repositor" in noted, md
+
+
+class PostedGitHub:
+    """A gh fake that serves back the review and summary it was sent, as GitHub would."""
+
+    def __init__(self, head=HEAD):
+        self.calls, self.review_comments, self.issue_comments = [], [], []
+        self.head, self.summary_error, self.resolved = head, None, []
+
+    def _threads(self):
+        nodes = [{"id": f"T_{c['id']}", "isResolved": f"T_{c['id']}" in self.resolved,
+                  "comments": {"nodes": [{"fullDatabaseId": str(c["id"]), "body": c["body"],
+                                          "url": f"https://x/{c['id']}",
+                                          "createdAt": "2026-11-18T12:00:00Z",
+                                          "authorAssociation": "NONE",
+                                          "author": {"login": "bot"}}]}}
+                 for c in self.review_comments]
+        return {"data": {"repository": {"pullRequest": {"reviewThreads": {
+            "pageInfo": {"hasNextPage": False, "endCursor": None}, "nodes": nodes}}}}}
+
+    def __call__(self, argv, stdin=None):  # pylint: disable=too-many-return-statements
+        self.calls.append(list(argv))
+        base = f"repos/{REPO}"
+        if list(argv) == ["api", "user"]:
+            return json.dumps({"login": "bot"})
+        if list(argv) == ["api", f"{base}/pulls/{PR}"]:
+            return json.dumps({"head": {"sha": self.head}})
+        if argv[:2] == ["api", "--paginate"]:
+            items = self.review_comments if "/pulls/" in argv[2] else self.issue_comments
+            return json.dumps(items)
+        if argv[:2] == ["api", "graphql"]:
+            request = json.loads(stdin)
+            if "resolveReviewThread" in request["query"]:
+                self.resolved.append(request["variables"]["threadId"])
+                return json.dumps({"data": {"resolveReviewThread": {
+                    "thread": {"isResolved": True}}}})
+            return json.dumps(self._threads())
+        if argv[:3] == ["api", "--method", "POST"] and argv[3].endswith("/replies"):
+            return json.dumps({"id": 300})
+        if self.summary_error and argv[:4] == ["api", "--method", "POST",
+                                               f"{base}/issues/{PR}/comments"]:
+            raise self.summary_error
+        if argv[:4] == ["api", "--method", "POST", f"{base}/pulls/{PR}/reviews"]:
+            payload = json.loads(stdin)
+            for n, comment in enumerate(payload["comments"]):
+                self.review_comments.append({
+                    "id": 100 + n, "user": {"login": "bot"}, "body": comment["body"],
+                    "path": comment["path"], "line": comment["line"],
+                    "pull_request_review_id": 11, "original_commit_id": payload["commit_id"]})
+            return json.dumps({"id": 11})
+        if argv[:4] == ["api", "--method", "POST", f"{base}/issues/{PR}/comments"]:
+            self.issue_comments.append({"id": 12, "user": {"login": "bot"},
+                                        "body": json.loads(stdin)["body"]})
+            return json.dumps({"id": 12})
+        raise AssertionError(f"unexpected gh call {argv}")
+
+    def posts(self):
+        return [c for c in self.calls if c[:3] == ["api", "--method", "POST"]]
+
+
+def test_failed_receipt_write_leaves_no_receipt_and_the_retry_recovers_both_ids(
+        cli, tmp_path, monkeypatch):
+    gh = PostedGitHub()
+    env = env_for(cli, tmp_path, gh=gh)
+    _ready_to_publish(cli, env, tmp_path)
+    receipt = cli.flow_dir(FLOW) / "round-1.publish.json"
+    real_replace, failures = os.replace, [receipt]
+
+    def replace_failing_once(src, dst):
+        if failures and Path(dst) == failures[0]:
+            failures.pop()
+            raise OSError(28, "No space left on device")
+        return real_replace(src, dst)
+
+    monkeypatch.setattr(cli.os, "replace", replace_failing_once)
+    code, _ = call(cli, env, "publish", flow_id=FLOW)
+    assert code != 0 and not receipt.exists()
+    assert not list(receipt.parent.glob("*.tmp"))
+    posted = len(gh.posts())
+    retried = ok(cli, env, "publish", flow_id=FLOW)
+    assert len(gh.posts()) == posted == 2
+    assert (retried["publication"]["review_id"], retried["publication"]["summary_comment_id"]) \
+        == (11, 12)
+    assert retried["receipt_unreadable"] is False
+
+
+def test_unreadable_receipt_is_treated_as_absent_and_recovered_from_github(cli, tmp_path):
+    gh = PostedGitHub()
+    env = env_for(cli, tmp_path, gh=gh)
+    _ready_to_publish(cli, env, tmp_path)
+    ok(cli, env, "publish", flow_id=FLOW)
+    receipt = cli.flow_dir(FLOW) / "round-1.publish.json"
+    receipt.write_text('{"publication": {"review_id": 1', encoding="utf-8")
+    out = ok(cli, env, "publish", flow_id=FLOW)
+    assert out["receipt_unreadable"] is True
+    assert len(gh.posts()) == 2
+    assert (out["publication"]["review_id"], out["publication"]["summary_comment_id"]) == (11, 12)
+    assert json.loads(receipt.read_text("utf-8"))["publication"]["review_id"] == 11
+
+
+MOVED = "f" * 40
+CHARGE_DIFF = ("diff --git a/src/pay/charge.py b/src/pay/charge.py\n"
+               "--- a/src/pay/charge.py\n+++ b/src/pay/charge.py\n"
+               "@@ -44,2 +44,2 @@\n-a\n-b\n+c\n+d\n")
+
+
+def _moved_head_git(seen):
+    base_git = make_git()
+
+    def git(args, cwd):
+        if args[:3] == ["git", "diff", "--unified=0"]:
+            seen.append(list(args))
+            return 0, CHARGE_DIFF, ""
+        return base_git(args, cwd)
+    return git
+
+
+def _drive_clean(cli, env, tmp_path, flow):
+    """Walk `flow` at its head to a built result with no findings."""
+    for phase, data in (("context", {**context_data(), "head_sha": MOVED}),
+                        ("change_model", CHANGE_MODEL)):
+        assert submit(cli, env, tmp_path, phase, data, flow=flow)[0] == 0
+    for lane in LANE_NAMES:
+        assert submit(cli, env, tmp_path, "lanes", {"lane": lane, "findings": []},
+                      flow=flow)[0] == 0
+    for phase, data in (("integrate", {"merges": []}), ("global_scope", {"dispositions": {}})):
+        code, payload = submit(cli, env, tmp_path, phase, data, flow=flow)
+        assert code == 0, (phase, payload)
+    ok(cli, env, "tools-confirm", flow_id=flow, names=["gh"])
+    ok(cli, env, "result-build", flow_id=flow)
+
+
+LANE_NAMES = ("business", "qa", "architecture", "quality")
+
+
+def test_new_flow_after_head_moved_reconciles_the_prior_flow_threads(cli, tmp_path):
+    """Review posted, summary failed, head moved: the gone finding's thread is resolved."""
+    gh, seen = PostedGitHub(), []
+    gh.summary_error = cli.publisher.GhError(502, "HTTP 502")
+    env = env_for(cli, tmp_path, gh=gh, git=_moved_head_git(seen))
+    _ready_to_publish(cli, env, tmp_path)
+    code, payload = call(cli, env, "publish", flow_id=FLOW)
+    assert code == 1 and payload["code"] == "publish_failed", payload
+    root = gh.review_comments[0]["id"]
+    gh.head, gh.summary_error = MOVED, None
+    second = ok(cli, env, "flow-create", repo=REPO, pr=PR, head_sha=MOVED)["flow_id"]
+    _drive_clean(cli, env, tmp_path, second)
+    out = ok(cli, env, "publish", flow_id=second)
+    assert "resolve" in out["ops"] and "mark_not_reported" not in out["ops"], out["ops"]
+    assert gh.resolved == [f"T_{root}"]
+    assert seen == [["git", "diff", "--unified=0", HEAD, MOVED]]
+    replies = [c for c in gh.posts() if c[3].endswith(f"/comments/{root}/replies")]
+    assert len(replies) == 1

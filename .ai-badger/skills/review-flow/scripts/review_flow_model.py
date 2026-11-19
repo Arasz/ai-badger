@@ -464,6 +464,7 @@ class AuthorReply(BaseModel):
                          "FIRST_TIME_CONTRIBUTOR", "FIRST_TIMER", "MANNEQUIN", "NONE"]
     body: str
     at: UtcTimestamp
+    url: Optional[str] = None
 
 
 def verdict(round_: "Round") -> Verdict:

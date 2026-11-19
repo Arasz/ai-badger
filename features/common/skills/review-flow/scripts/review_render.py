@@ -8,7 +8,7 @@ dict with action, to, ground, reason, basis[{type,id}]), evidence.
 Round dict: n, head_sha, lanes{name: {status, error}}, findings, verdict (one of `VERDICTS`,
 computed by `review_flow_model.verdict`), not_reported (fingerprints, optional).
 Flow dict: ac_source, rules, facts, proposed_rules (each {id, statement}), lint, tools,
-dropped_rules.
+dropped_rules, skipped_issue_refs (owner/name#number of closing issues in other repositories).
 """
 
 import hashlib
@@ -30,6 +30,7 @@ _FINGERPRINT = re.compile(r"[0-9a-f]{8,64}")
 _SHA = re.compile(r"[0-9a-f]{7,40}")
 _WORD = re.compile(r"[a-z_]+")
 _REF = re.compile(r"[A-Z]-[0-9]+")
+_ISSUE_REF = re.compile(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+#[0-9]+")
 
 
 class RenderRefused(ValueError):
@@ -55,6 +56,12 @@ def _fence(text):
     longest = max((len(run) for run in re.findall(r"`+", text)), default=0)
     mark = "`" * max(3, longest + 1)
     return f"{mark}\n{text}\n{mark}"
+
+
+def _issue_ref(value):
+    if not isinstance(value, str) or not _ISSUE_REF.fullmatch(value):
+        raise RenderRefused(f"bad issue reference: {value!r}")
+    return value
 
 
 def _word(value, what):
@@ -279,6 +286,10 @@ def render_summary(round, flow, now):  # pylint: disable=redefined-builtin
         f"Updated: {_utc(now)}",
         ac_line,
     ]
+    skipped = [_issue_ref(ref) for ref in flow.get("skipped_issue_refs") or []]
+    if skipped:
+        facts.append("Issues in other repositories, not read for ACs: "
+                     + ", ".join(f"`{ref}`" for ref in skipped))
     if failed:
         facts.append("Failed lanes: " + ", ".join(_word(name, "lane") for name in failed))
     table = ["| Severity | Count |", "| --- | --- |"]

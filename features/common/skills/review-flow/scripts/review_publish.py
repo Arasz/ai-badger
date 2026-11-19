@@ -370,6 +370,13 @@ def _argv(action):
 SUMMARY_OPS = ("create_summary", "update_summary")
 
 
+def _stopped(results: list, error: GhError) -> Exception:
+    """The exception a gh failure mid-run becomes; it carries the writes already applied."""
+    if error.status == 403:
+        return PublishRefused("forbidden", str(error), results)
+    return PublishFailed(results, error)
+
+
 def apply(runner: Runner, actions: List[dict], dry_run: bool = False,
           check_head: Optional[Callable[[], None]] = None) -> List[dict]:
     """Run the planned writes in order; stops at the first failure. ``dry_run`` writes nothing.
@@ -391,13 +398,13 @@ def apply(runner: Runner, actions: List[dict], dry_run: bool = False,
             except PublishRefused as refusal:
                 refusal.results = results
                 raise
+            except GhError as error:
+                raise _stopped(results, error) from error
             checked = True
         try:
             out = runner(_argv(action), json.dumps(action["payload"]))
         except GhError as error:
-            if error.status == 403:
-                raise PublishRefused("forbidden", str(error), results) from error
-            raise PublishFailed(results, error) from error
+            raise _stopped(results, error) from error
         result["response"] = json.loads(out) if out.strip() else None
         results.append(result)
     return results

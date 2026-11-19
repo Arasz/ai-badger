@@ -62,6 +62,7 @@ FLOW_ID_PATTERN = r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$"
 REF_PATTERN = r"^[A-Za-z0-9][A-Za-z0-9._/-]{0,199}$"
 TOOL_NAME_PATTERN = r"^[A-Za-z0-9][A-Za-z0-9:_.@/-]{0,127}$"
 CONFIG_PATH = ".ai-badger/config.json"
+ISSUE_REF_PATTERN = r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+#[0-9]+$"
 
 LANES = tuple(lane.value for lane in model.Lane)
 BRIEF_KINDS = (*LANES, "integrator", "global_scope", "reply_analysis")
@@ -188,9 +189,15 @@ def _read_json(path: Path, default: Any = None) -> Any:
 
 
 def _write_json(path: Path, data: Any) -> Path:
+    """Write `data` atomically: a reader sees the old file or the whole new one, never a part."""
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(data, indent=2, ensure_ascii=False, sort_keys=True) + "\n",
-                    encoding="utf-8")
+    tmp = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+    try:
+        tmp.write_text(json.dumps(data, indent=2, ensure_ascii=False, sort_keys=True) + "\n",
+                       encoding="utf-8")
+        os.replace(tmp, path)
+    finally:
+        tmp.unlink(missing_ok=True)
     return path
 
 
@@ -253,6 +260,24 @@ def _resolve_base(ref: Optional[str], env: Env) -> str:
     return sha
 
 
+def _trusted_base(flow: "model.ReviewFlow", ref: Optional[str], env: Env) -> str:
+    """The commit `ref` names, once it is proven to be the PR base; else `base_untrusted`.
+
+    With gh it must equal GitHub's `baseRefOid`; offline it must be a full commit sha.
+    """
+    sha = _resolve_base(ref, env)
+    if _gh_ready(flow.flow_id, env):
+        oid = _gh_json(env, ["pr", "view", str(flow.pr), "--repo", flow.repo, "--json",
+                             "baseRefOid"]).get("baseRefOid")
+        if sha != oid:
+            raise VerbError("base_untrusted", f"base_ref {ref!r} resolves to {sha}, not the PR "
+                                              f"base commit {oid}; submit the probe's base_ref")
+    elif ref != sha:
+        raise VerbError("base_untrusted", f"without gh the base_ref must be the full 40-hex "
+                                          f"base commit sha, not {ref!r}")
+    return sha
+
+
 def _rules_at_base(flow: "model.ReviewFlow", env: Env) -> Tuple["model.RulesFile", str]:
     """The rules file at the base commit pinned in the round's context, and its digest."""
     rules_file = rules_mod.load(env.repo_root, _base_commit(flow), run=env.git)
@@ -300,11 +325,15 @@ class ContextSubmission(_Strict):
     issues: List[IssueText] = Field(default_factory=list)
     base_ref: Optional[str] = Field(default=None, pattern=REF_PATTERN)
     head_sha: Optional[str] = Field(default=None, pattern=model.HEAD_SHA_PATTERN)
+    skipped_issue_refs: List[str] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def _source(self) -> "ContextSubmission":
         if (self.ac_source == "absent") != (not self.acs):
             raise ValueError("ac_source is absent exactly when acs is empty")
+        bad = [ref for ref in self.skipped_issue_refs if not re.fullmatch(ISSUE_REF_PATTERN, ref)]
+        if bad:
+            raise ValueError(f"skipped_issue_refs must be owner/name#number: {bad}")
         return self
 
 
@@ -641,7 +670,7 @@ def _submit(args: SubmitArgs, env: Env) -> dict:
         parsed = _validate_worker(data, args.phase)
         kept = parsed.model_dump(mode="json")
         if args.phase is Phase.CONTEXT:
-            kept["base_commit"] = _resolve_base(parsed.base_ref, env)
+            kept["base_commit"] = _trusted_base(flow, parsed.base_ref, env)
     except machine.TransitionRefused as exc:
         refused(exc.code, exc.message)
         raise
@@ -992,17 +1021,30 @@ def _same_repo(repository: Any, repo: str) -> bool:
     return f"{owner}/{repository.get('name') or ''}".lower() == repo.lower()
 
 
+def _issue_ref(item: dict) -> str:
+    """`owner/name#number` of a closing-issue reference; `unknown/unknown#0` when malformed."""
+    repository = item.get("repository")
+    repository = repository if isinstance(repository, dict) else {}
+    owner = (repository.get("owner") or {}).get("login") or ""
+    ref = f"{owner}/{repository.get('name') or ''}#{item.get('number')}"
+    return ref if re.fullmatch(ISSUE_REF_PATTERN, ref) else "unknown/unknown#0"
+
+
 def _context_probe(args: ContextProbeArgs, env: Env) -> dict:
     flow, _ = store.get(args.flow_id)
     pr: dict = {}
     issues: List[dict] = []
     acs: List[str] = []
+    skipped: List[str] = []
     if "gh" in _confirmed_tools(flow.flow_id):
         pr = _gh_json(env, ["pr", "view", str(flow.pr), "--repo", flow.repo, "--json",
                             "title,body,files,headRefOid,baseRefName,baseRefOid,"
                             "closingIssuesReferences"])
-        numbers = [str(item.get("number")) for item in pr.get("closingIssuesReferences") or []
+        closing = pr.get("closingIssuesReferences") or []
+        numbers = [str(item.get("number")) for item in closing
                    if _same_repo(item.get("repository"), flow.repo)]
+        skipped = _union([_issue_ref(item) for item in closing
+                          if not _same_repo(item.get("repository"), flow.repo)])
         numbers += _CLOSING.findall(pr.get("body") or "")
         for number in _union(numbers):
             issue = _gh_json(env, ["issue", "view", number, "--repo", flow.repo, "--json",
@@ -1016,8 +1058,7 @@ def _context_probe(args: ContextProbeArgs, env: Env) -> dict:
         text = Path(args.pasted_acs).read_text(encoding="utf-8")
         acs = parse_acs(text) or [line.strip() for line in text.splitlines() if line.strip()]
         source = "pasted" if acs else "absent"
-    base = pr.get("baseRefOid") or (f"origin/{pr['baseRefName']}" if pr.get("baseRefName")
-                                    else None)
+    base = pr.get("baseRefOid") or None
     result = ContextSubmission.model_validate({
         "ac_source": source,
         "acs": [{"id": f"AC-{i}", "statement": text} for i, text in enumerate(acs, 1)],
@@ -1025,7 +1066,7 @@ def _context_probe(args: ContextProbeArgs, env: Env) -> dict:
         "changed_paths": [item.get("path") for item in pr.get("files") or []
                           if item.get("path")],
         "pr_title": pr.get("title") or "", "pr_body": pr.get("body") or "", "issues": issues,
-        "base_ref": base, "head_sha": pr.get("headRefOid"),
+        "base_ref": base, "head_sha": pr.get("headRefOid"), "skipped_issue_refs": skipped,
     }).model_dump(mode="json")
     if args.out:
         _write_json(Path(args.out), result)
@@ -1033,7 +1074,10 @@ def _context_probe(args: ContextProbeArgs, env: Env) -> dict:
 
 
 class ToolsProbeArgs(_Strict):
-    """`tools-probe`: list the tools this repo and machine offer the review."""
+    """`tools-probe`: list the tools this repo and machine offer the review; with `flow_id`,
+    `lint` is judged from the config at that flow's pinned base commit."""
+
+    flow_id: Optional[FlowId] = Field(default=None, pattern=FLOW_ID_PATTERN)
 
 
 class ToolEntry(_Strict):
@@ -1062,18 +1106,33 @@ def _gh_auth(env: Env) -> Tuple[bool, str]:
     return True, "gh is authenticated"
 
 
-def _tools_probe(_args: ToolsProbeArgs, env: Env) -> dict:
+def _lint_tool(args: ToolsProbeArgs, env: Env) -> dict:
+    """The `lint` entry, from the config at the flow's pinned base; the checkout only before."""
+    base = None
+    if args.flow_id is not None:
+        flow, _ = store.get(args.flow_id)
+        base = _context(flow).get("base_commit")
+    if base:
+        lint = bool(_base_commands(flow, env).get("lint"))
+        where = f"{CONFIG_PATH} at the pinned base commit {base[:12]}"
+    else:
+        config = _read_json(Path(env.repo_root) / CONFIG_PATH, {}) or {}
+        commands = config.get("commands") if isinstance(config, dict) else None
+        lint = bool((commands if isinstance(commands, dict) else {}).get("lint"))
+        where = f"{CONFIG_PATH} in the checkout, because no base commit is pinned yet"
+    return {"name": "lint", "kind": "command", "available": lint,
+            "detail": f"commands.lint is set in {where}" if lint
+            else f"no commands.lint in {where}"}
+
+
+def _tools_probe(args: ToolsProbeArgs, env: Env) -> dict:
     root = Path(env.repo_root)
     gh_ok, gh_detail = _gh_auth(env)
     uv = env.which("uv")
-    config = _read_json(root / CONFIG_PATH, {}) or {}
-    lint = bool((config.get("commands") or {}).get("lint"))
     tools = [{"name": "gh", "kind": "cli", "available": gh_ok, "detail": gh_detail},
              {"name": "uv", "kind": "cli", "available": uv is not None,
               "detail": uv or "uv is not on PATH"},
-             {"name": "lint", "kind": "command", "available": lint,
-              "detail": "the quality brief carries commands from the base commit's config"
-              if lint else f"no commands.lint in {CONFIG_PATH}"}]
+             _lint_tool(args, env)]
     skills = sorted(p.parent.name for p in (root / ".claude" / "skills").glob("*/SKILL.md"))
     tools += [{"name": f"skill:{name}", "kind": "skill", "available": True,
                "detail": f".claude/skills/{name}"} for name in skills]
@@ -1260,7 +1319,8 @@ def _render_flow(flow: "model.ReviewFlow", env: Env) -> dict:
             "proposed_rules": [{"id": r.id, "statement": r.statement}
                                for r in rules_file.rules if r.status == "proposed"],
             "tools": _confirmed_tools(flow.flow_id),
-            "dropped_rules": len(model.rule_conflicts(rules_file.rules))}
+            "dropped_rules": len(model.rule_conflicts(rules_file.rules)),
+            "skipped_issue_refs": _context(flow).get("skipped_issue_refs") or []}
 
 
 def _result_build(args: FlowArgs, env: Env) -> dict:
@@ -1306,17 +1366,35 @@ class PublishOut(_Strict):
     publication: Optional[model.Publication]
     path: str
     rendered_path: Optional[str] = None
+    receipt_unreadable: bool = False
 
 
 _NO_EXISTING = {"login": None, "inline": {}, "replied": set(), "summary": None, "threads": {}}
 
 
-def _changed_ranges(flow: "model.ReviewFlow", env: Env) -> dict:
-    if len(flow.rounds) < 2:
-        return {}
-    code, out, _ = env.git(["git", "diff", "--unified=0", flow.rounds[-2].head_sha,
-                            flow.rounds[-1].head_sha], Path(env.repo_root))
+def _changed_ranges(old_head: str, new_head: str, env: Env) -> dict:
+    """Old-side line ranges `git diff old_head new_head` changed, by path; {} when it fails."""
+    code, out, _ = env.git(["git", "diff", "--unified=0", old_head, new_head],
+                           Path(env.repo_root))
     return review_diff.parse_diff(out, side="old") if code == 0 else {}
+
+
+def _previous_round(flow: "model.ReviewFlow") -> Optional["model.Round"]:
+    """The round this one follows: the flow's own previous round, or, for round 1 of a flow
+    opened after `head_moved`, the last round of the PR's first flow at another head."""
+    if len(flow.rounds) > 1:
+        return flow.rounds[-2]
+    first_id = f"{flow.repo.replace('/', '-')}-{flow.pr}"
+    if flow.flow_id == first_id:
+        return None
+    try:
+        first, _ = store.get(first_id)
+    except store.FlowNotFound:
+        return None
+    last = first.rounds[-1]
+    if (first.repo, first.pr) != (flow.repo, flow.pr) or last.head_sha == flow.rounds[-1].head_sha:
+        return None
+    return last
 
 
 def _publication(results: List[dict], now: datetime,
@@ -1363,17 +1441,22 @@ def _publish(args: PublishArgs, env: Env) -> dict:
         raise VerbError("result_not_built", "run result-build before publish")
     now = env.now()
     previous = _read_json(_round_file(flow.flow_id, current.n - 1, ".reply-analysis.json"), {})
+    before = _previous_round(flow)
     state = {"repo": flow.repo, "pr": flow.pr, "now": now,
              "round": {**current.model_dump(mode="json"), "verdict": frozen["verdict"]},
              "flow": _render_flow(flow, env),
-             "previous_findings": [f.model_dump(mode="json") for f in flow.rounds[-2].findings]
-             if len(flow.rounds) > 1 else [],
-             "changed_ranges": _changed_ranges(flow, env),
+             "previous_findings": [f.model_dump(mode="json") for f in before.findings]
+             if before else [],
+             "changed_ranges": _changed_ranges(before.head_sha, current.head_sha, env)
+             if before else {},
              "verified_fixed": (previous or {}).get("verified_fixed", [])}
     offline = args.offline or not _gh_ready(flow.flow_id, env)
     dry_run = args.dry_run or offline
     path = _round_file(flow.flow_id, current.n, ".publish.json")
-    prior = (_read_json(path, {}) or {}).get("publication")
+    try:
+        prior, unreadable = (_read_json(path, {}) or {}).get("publication"), False
+    except VerbError:
+        prior, unreadable = None, True
     rendered_path = None
     if offline:
         actions = publisher.plan_publish(state, dict(_NO_EXISTING), current.head_sha)
@@ -1399,7 +1482,8 @@ def _publish(args: PublishArgs, env: Env) -> dict:
                        "publication": prior if dry_run else publication})
     return {"flow_id": flow.flow_id, "round": current.n, "dry_run": dry_run,
             "ops": [r["op"] for r in results], "publication": publication, "path": str(path),
-            "rendered_path": str(rendered_path) if rendered_path else None}
+            "rendered_path": str(rendered_path) if rendered_path else None,
+            "receipt_unreadable": unreadable}
 
 
 class ThreadsArgs(_Strict):
@@ -1435,7 +1519,7 @@ def _threads_fetch(args: ThreadsArgs, env: Env) -> dict:
                 f"https://github.com/{flow.repo}/pull/{flow.pr}",
                 "comment_id": item["comment_id"], "author": item.get("author") or "",
                 "association": item["association"], "body": item.get("body") or "",
-                "at": item["created_at"]}
+                "at": item["created_at"], "url": item.get("url")}
                for item in found]
     try:
         replies = [model.AuthorReply.model_validate(reply).model_dump(mode="json")
