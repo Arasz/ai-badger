@@ -70,6 +70,7 @@ def git_env(env: Optional[Mapping[str, str]] = None) -> dict:
 def _run_git(args: List[str], cwd: Path) -> Tuple[int, str, str]:
     try:
         done = subprocess.run(args, cwd=cwd, capture_output=True, text=True, check=False,
+                              encoding="utf-8", errors="replace",
                               env=git_env(), timeout=60)
     except (OSError, subprocess.SubprocessError) as exc:
         return 127, "", str(exc)
