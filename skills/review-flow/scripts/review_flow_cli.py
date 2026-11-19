@@ -127,6 +127,7 @@ def run_git(args: List[str], cwd: Path) -> Tuple[int, str, str]:
     """Run git without inherited git location variables; returns (code, stdout, stderr)."""
     try:
         done = subprocess.run(args, cwd=cwd, capture_output=True, text=True, check=False,
+                              encoding="utf-8", errors="replace",
                               env=rules_mod.git_env(), timeout=60)
     except (OSError, subprocess.SubprocessError) as exc:
         return 127, "", str(exc)
@@ -1636,7 +1637,10 @@ def main(argv: Optional[List[str]] = None) -> int:
         print("--json must be a JSON object", file=sys.stderr)
         return 2
     code, payload = invoke_verb(args.verb, arguments)
-    print(json.dumps(payload, ensure_ascii=False, sort_keys=True, indent=2))
+    text = json.dumps(payload, ensure_ascii=False, sort_keys=True, indent=2) + "\n"
+    sys.stdout.flush()
+    sys.stdout.buffer.write(text.encode("utf-8"))
+    sys.stdout.buffer.flush()
     return code
 
 

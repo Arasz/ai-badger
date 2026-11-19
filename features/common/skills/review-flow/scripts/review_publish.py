@@ -98,7 +98,7 @@ def parse_pages(text: str) -> list:
 def gh_runner(argv: List[str], stdin: Optional[str]) -> str:
     """Real runner: ``gh <argv>``; a non-zero exit raises GhError with the HTTP status."""
     proc = subprocess.run(["gh", *argv], input=stdin, capture_output=True, text=True,
-                          check=False)
+                          encoding="utf-8", errors="replace", check=False)
     if proc.returncode != 0:
         match = _STATUS.search(proc.stderr)
         raise GhError(int(match.group(1)) if match else 0, proc.stderr.strip())
