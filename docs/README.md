@@ -15,6 +15,7 @@ Everything written down about this project, grouped by what you came here to do.
 | [`../README.md`](../README.md) | What the project is, install, quickstart, the `features/{stack\|common}/{feature}` model, supported agents and stacks |
 | [framework-architecture.md](framework-architecture.md) | **The reference.** The stack × feature catalog model, the `config.json` / `manifest.json` contracts, the script-vs-agent responsibility split, plugins, `task` base + extensions, target repo structure, data-flow diagrams |
 | [skills.md](skills.md) | Every shipped skill grouped by what it's for, what it actually changes on disk, when to reach for it, and which ones are hook-backed rather than invoked by name |
+| [explanation/review-flow.md](explanation/review-flow.md) | How the `review-flow` skill reviews a pull request: the coordinator loop, the phase machine, how a finding becomes a verdict, publishing, learned rules, with diagrams |
 | [retrieval.md](retrieval.md) | How the MCP tool index is searched: BM25 over fused fields, why the gate is a coverage ratio rather than a score, the eval fixture set, and the telemetry that tells you whether any of it ran |
 | [codex.md](codex.md) | Codex project setup, native instructions/skills/personas/MCP/hooks, trust, preserved files and runtime limits |
 | [dictionary.md](dictionary.md) | How ai-badger's vocabulary (skills, hooks, instructions, personas, scaffolding) maps onto each supported agent's native terminology |

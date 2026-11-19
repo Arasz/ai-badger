@@ -19,6 +19,8 @@ When cutting a release:
 <!-- changelog-index:start -->
 | Version | Entry |
 |---|---|
+| 0.221.2 | [a guide to the review-flow skill](0.221.2-review-flow-guide.md) |
+| 0.221.1 | [review-flow reads and writes UTF-8 on any locale](0.221.1-review-flow-utf8-child-output.md) |
 | 0.221.0 | [review-flow: a coordinator-driven code review with a typed flow model](0.221.0-review-flow.md) |
 | 0.220.3 | [a declined MCP server loses its instructions section; ai-badger drops its own Hermes stack](0.220.3-declined-mcp-server-drops-its-doc-section.md) |
 | 0.220.2 | [den-refresh's skill-usage window reads real timestamps](0.220.2-skill-usage-window-reads-real-timestamps.md) |

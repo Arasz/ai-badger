@@ -98,6 +98,7 @@ def _main_checkout(project: Path) -> Path:
     try:
         done = subprocess.run(["git", "-C", str(project), "worktree", "list", "--porcelain"],
                               capture_output=True, text=True, check=False, timeout=10,
+                              encoding="utf-8", errors="replace",
                               env=rules_mod.git_env())
     except (OSError, subprocess.SubprocessError):
         return project

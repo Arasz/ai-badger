@@ -915,8 +915,8 @@ a test harness would actually catch a regression.
 
 **What it is.** A coordinator-driven pull request review: gather context, build a change model,
 run parallel review lanes, check global scope, post compact GitHub comments, and carry learned
-review rules across rounds. Design: [ADR-0051](adr/0051-review-flow-coordinator.md). Skeleton in
-this release; the procedure lands in a later step.
+review rules across rounds. Design: [ADR-0051](adr/0051-review-flow-coordinator.md). How it
+works, with diagrams: [explanation/review-flow.md](explanation/review-flow.md).
 
 **When to use it.** A pull request needs an end-to-end review, or a re-review after changes.
 
