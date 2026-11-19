@@ -75,6 +75,7 @@ external plugins are in [Install modes](docs/skills.md#install-modes).
 | Hooks | Behaviour that fires unasked: memory context, the dispatch gate, the generated-file guard, the drift notice | [Hooks](docs/framework-architecture.md#hooks) |
 | Gates | CI and pre-push checks that exit non-zero instead of warning | [scripts.md](docs/scripts.md) |
 | Task pipeline | `/task` runs one backlog item end to end; `task-graph` holds its step DAG | [task](docs/skills.md#task) |
+| PR review flow | `review-flow` reviews a pull request in typed rounds: four parallel lanes, one compact summary comment, and review rules learned from the author's replies | [review-flow.md](docs/explanation/review-flow.md) |
 | Shared scope | A group of repositories shares one parent `.ai-badger` while each keeps its own identity and state | [how-to](docs/how-to/share-a-parent-scope-across-repositories.md) |
 | MCP servers | Bundled servers, `task-graph` among them, written into the agent's MCP config | [Bundled MCP servers](docs/framework-architecture.md#bundled-mcp-servers) |
 | Tool recommendations | Each prompt is matched against an index of your MCP tools, and the best few are suggested to the agent | [retrieval.md](docs/retrieval.md) |

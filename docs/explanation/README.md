@@ -9,6 +9,9 @@ An explanation that binds a decision is not an explanation — it is an ADR, and
 
 ## Files
 
-Empty. `../framework-architecture.md` and `../hermes-claude-compatibility.md` are explanation
+- [review-flow.md](review-flow.md): how the `review-flow` skill reviews a pull request, with
+  diagrams of the coordinator loop, the phase machine, the verdict and publishing.
+
+`../framework-architecture.md` and `../hermes-claude-compatibility.md` are explanation
 pages still at the docs root; re-placing them is a job for the `documentation`
 gateway's `migrate-documentation` member, with its own PR.
