@@ -260,7 +260,7 @@ def _resolve_base(ref: Optional[str], env: Env) -> str:
     return sha
 
 
-def _trusted_base(flow: "model.ReviewFlow", ref: Optional[str], env: Env) -> str:
+def _verified_base(flow: "model.ReviewFlow", ref: Optional[str], env: Env) -> str:
     """The commit `ref` names, once it is proven to be the PR base; else `base_untrusted`.
 
     With gh it must equal GitHub's `baseRefOid`; offline it must be a full commit sha.
@@ -670,7 +670,7 @@ def _submit(args: SubmitArgs, env: Env) -> dict:
         parsed = _validate_worker(data, args.phase)
         kept = parsed.model_dump(mode="json")
         if args.phase is Phase.CONTEXT:
-            kept["base_commit"] = _trusted_base(flow, parsed.base_ref, env)
+            kept["base_commit"] = _verified_base(flow, parsed.base_ref, env)
     except machine.TransitionRefused as exc:
         refused(exc.code, exc.message)
         raise
