@@ -218,3 +218,4 @@ the first plain-markdown record here.
 | `2026-11-11-prune-retired-catalog-scaffold-entries-research.md` | Research for pruning config entries the catalog retired on re-scaffold: every additive merge point, the ownership signals that exist, and three candidate designs. |
 | `2026-11-18-code-review-coordinator-flow-research.md` | Research for the coordinator-driven code review flow: existing review skills to reuse, the task-graph pattern and ai-badger DB to mirror, limited-env limits, and CodeRabbit comment formats. |
 | `2026-11-18-review-flow-test-design.md` | Test design for the review-flow coordinator: one row per acceptance criterion naming the test, the failure mode it targets and the mutation that must turn it red. |
+| `2026-11-18-review-flow-demo.md` | Recorded dry run of the review-flow skill on merged PR #676: the verbs in order, the reviewed head commit, and the summary and inline comments exactly as rendered. Nothing was written to GitHub. |
