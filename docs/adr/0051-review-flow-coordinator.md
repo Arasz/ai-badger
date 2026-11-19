@@ -1,7 +1,7 @@
 # ADR-0051 — A typed review flow: one coordinator, one-shot workers, scripts move the state
 
 **Date:** 2026-11-18
-**Status:** Proposed (2026-11-18)
+**Status:** Accepted (2026-11-19, 0.221.0)
 **Author:** Rafał Araszkiewicz (Arasz) with Claude Code
 **Extends:** —
 **Research:** `docs/work/2026-11-18-code-review-coordinator-flow-research.md`; task plan `aib-code-review-coordinator-flow-model` (task tracking, not committed). The owner settled storage, rule activation, publishing and scope on 2026-11-18. This record writes those decisions down; it does not re-open them.
