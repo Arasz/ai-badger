@@ -104,5 +104,5 @@ Test list for task `aib-code-review-coordinator-flow-model`, written before any 
 | catalog-wiring/ac1 | tests/test_code_review_router_skill.py::test_router_routes_to_review_flow | Router never reaches the new skill | Remove the route row |
 | catalog-wiring/ac1 | tests/test_sync_plugin_skills.py::test_plugin_copy_in_sync | Plugin copy stale | Edit the catalog skill without a sync |
 | e2e/ac1 | tests/test_review_flow_e2e.py::test_two_round_flow_full_assertions | Real phase chain breaks across rounds (fake `gh`, tmp repo, fixed `now`) | Skip `reply_analysis` on round 2 |
-| e2e/ac1 | tests/test_review_flow_e2e.py::test_fixture_shape | Fixture drifts from the model so the e2e passes vacuously | Remove a required field from the fixture |
-| e2e/ac2 | tests/test_review_flow_e2e.py::test_guard_disabled_cases_fail_for_every_guard | A guard in `GUARDS` has no case that notices its removal | Add a new guard to `GUARDS` with no case; the derived loop must go red |
+| e2e/ac1 | tests/test_review_flow_e2e.py::test_fixture_has_the_fields_the_publisher_reads | Fixture drifts from the model so the e2e passes vacuously | Remove a required field from the fixture |
+| e2e/ac2 | tests/test_review_flow_e2e.py::test_every_guard_fails_its_scenario_when_disabled | A guard in `GUARDS` has no case that notices its removal | Add a new guard to `GUARDS` with no case; the derived loop must go red |

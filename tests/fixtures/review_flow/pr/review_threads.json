@@ -1,0 +1,72 @@
+{
+ "data": {
+  "repository": {
+   "pullRequest": {
+    "reviewThreads": {
+     "pageInfo": {
+      "hasNextPage": false,
+      "endCursor": "Y3Vyc29yOnYyOpK0MjAyNi0xMS0xM1QxMjoxNTowMFrOtxUffA=="
+     },
+     "nodes": [
+      {
+       "id": "PRRT_kwDOTc1EHs63DRGo",
+       "isResolved": true,
+       "comments": {
+        "nodes": [
+         {
+          "fullDatabaseId": "4562278668",
+          "body": "<!-- coderabbit-ai-generated:v1 -->\n\n**<picture><img src=\"https://storage.googleapis.com/coderabbit_public_assets/review-comment-icons-v1/major-16.svg\" width=\"16\" height=\"16\" align=\"absmiddle\" alt=\"\"></picture> Major** · **Functional Correctness** · **Quick win**\n\n<details>\n<summary><picture><source media=\"(prefers-color-scheme: dark)\" srcset=\"https://storage.googleapis.com/coderabbit_public_asset\n[truncated]",
+          "url": "https://github.com/Arasz/ai-badger/pull/676#discussion_r4562278668",
+          "createdAt": "2026-11-13T10:38:16Z",
+          "authorAssociation": "CONTRIBUTOR",
+          "author": {
+           "login": "coderabbitai"
+          }
+         }
+        ]
+       }
+      },
+      {
+       "id": "PRRT_kwDOTc1EHs63FR98",
+       "isResolved": true,
+       "comments": {
+        "nodes": [
+         {
+          "fullDatabaseId": "4563123953",
+          "body": "<!-- coderabbit-ai-generated:v1 -->\n\n**<picture><img src=\"https://storage.googleapis.com/coderabbit_public_assets/review-comment-icons-v1/major-16.svg\" width=\"16\" height=\"16\" align=\"absmiddle\" alt=\"\"></picture> Major** · **Data Integrity & Integration** · **Heavy lift**\n\n**Preserve project-owned regions after an intervening refresh.**\n\nAdd a keep region to `.ai-badger/HERMES.md`, refresh while Her\n[truncated]",
+          "url": "https://github.com/Arasz/ai-badger/pull/676#discussion_r4563123953",
+          "createdAt": "2026-11-13T12:15:00Z",
+          "authorAssociation": "CONTRIBUTOR",
+          "author": {
+           "login": "coderabbitai"
+          }
+         },
+         {
+          "fullDatabaseId": "4563494228",
+          "body": "Fixed in 82ae02ed. Confirmed first: a keep region carried by an intermediate refresh got a matching outputHash and the prune deleted the file. `SupersededPrune` now leaves any file that holds `ai-badger:keep` regions and reports it. Regression test with the intermediate refresh: `TestTheSourceOfTruthCopyStaysTheProjects::test_a_keep_region_carried_by_a_refresh_survives_the_agents_removal` (red bef\n[truncated]",
+          "url": "https://github.com/Arasz/ai-badger/pull/676#discussion_r4563494228",
+          "createdAt": "2026-11-13T12:54:00Z",
+          "authorAssociation": "OWNER",
+          "author": {
+           "login": "Arasz"
+          }
+         },
+         {
+          "fullDatabaseId": "4563495464",
+          "body": "Second finding, also fixed in 82ae02ed. Confirmed first: `generated_file_guard.py` denied an Edit of `.ai-badger/CLAUDE.md`. The aibCopy is now recorded with `editable: true` (schema updated); the guard skips such entries, and the prune record stays. All three script copies regenerated. Test: `test_the_edit_guard_allows_an_edit_to_the_source_of_truth_copy` (also asserts the primary `CLAUDE.md` is \n[truncated]",
+          "url": "https://github.com/Arasz/ai-badger/pull/676#discussion_r4563495464",
+          "createdAt": "2026-11-13T12:54:07Z",
+          "authorAssociation": "OWNER",
+          "author": {
+           "login": "Arasz"
+          }
+         }
+        ]
+       }
+      }
+     ]
+    }
+   }
+  }
+ }
+}

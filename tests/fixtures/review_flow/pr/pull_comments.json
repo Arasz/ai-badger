@@ -1,0 +1,288 @@
+[
+ {
+  "url": "https://api.github.com/repos/Arasz/ai-badger/pulls/comments/4562278668",
+  "pull_request_review_id": 5889554457,
+  "id": 4562278668,
+  "node_id": "PRRC_kwDOTc1EHs8AAAABD-7ZDA",
+  "diff_hunk": "@@ -1,7 +1,8 @@\n {\n   \"$schema\": \"./schemas/index.schema.json\",\n-  \"frameworkVersion\": \"0.220.1\",\n+  \"frameworkVersion\": \"0.220.2\",\n   \"stacks\": {\n+    \"ai-raccoon\": {},",
+  "path": "index.json",
+  "commit_id": "a10607fc69597b11cdbb2cf81710f0407db8aed6",
+  "original_commit_id": "d5727f2a75fbd52368e466d1c639dd143697fde8",
+  "user": {
+   "login": "coderabbitai[bot]",
+   "id": 136622811,
+   "node_id": "BOT_kgDOCCSy2w",
+   "avatar_url": "https://avatars.githubusercontent.com/in/347564?v=4",
+   "gravatar_id": "",
+   "url": "https://api.github.com/users/coderabbitai%5Bbot%5D",
+   "html_url": "https://github.com/apps/coderabbitai",
+   "followers_url": "https://api.github.com/users/coderabbitai%5Bbot%5D/followers",
+   "following_url": "https://api.github.com/users/coderabbitai%5Bbot%5D/following{/other_user}",
+   "gists_url": "https://api.github.com/users/coderabbitai%5Bbot%5D/gists{/gist_id}",
+   "starred_url": "https://api.github.com/users/coderabbitai%5Bbot%5D/starred{/owner}{/repo}",
+   "subscriptions_url": "https://api.github.com/users/coderabbitai%5Bbot%5D/subscriptions",
+   "organizations_url": "https://api.github.com/users/coderabbitai%5Bbot%5D/orgs",
+   "repos_url": "https://api.github.com/users/coderabbitai%5Bbot%5D/repos",
+   "events_url": "https://api.github.com/users/coderabbitai%5Bbot%5D/events{/privacy}",
+   "received_events_url": "https://api.github.com/users/coderabbitai%5Bbot%5D/received_events",
+   "type": "Bot",
+   "user_view_type": "public",
+   "site_admin": false
+  },
+  "body": "<!-- coderabbit-ai-generated:v1 -->\n\n**<picture><img src=\"https://storage.googleapis.com/coderabbit_public_assets/review-comment-icons-v1/major-16.svg\" width=\"16\" height=\"16\" align=\"absmiddle\" alt=\"\"></picture> Major** · **Functional Correctness** · **Quick win**\n\n<details>\n<summary><picture><source media=\"(prefers-color-scheme: dark)\" srcset=\"https://storage.googleapis.com/coderabbit_public_asset\n[truncated]",
+  "created_at": "2026-11-13T10:38:16Z",
+  "updated_at": "2026-11-13T10:38:17Z",
+  "html_url": "https://github.com/Arasz/ai-badger/pull/676#discussion_r4562278668",
+  "pull_request_url": "https://api.github.com/repos/Arasz/ai-badger/pulls/676",
+  "_links": {
+   "self": {
+    "href": "https://api.github.com/repos/Arasz/ai-badger/pulls/comments/4562278668"
+   },
+   "html": {
+    "href": "https://github.com/Arasz/ai-badger/pull/676#discussion_r4562278668"
+   },
+   "pull_request": {
+    "href": "https://api.github.com/repos/Arasz/ai-badger/pulls/676"
+   }
+  },
+  "reactions": {
+   "url": "https://api.github.com/repos/Arasz/ai-badger/pulls/comments/4562278668/reactions",
+   "total_count": 0,
+   "+1": 0,
+   "-1": 0,
+   "laugh": 0,
+   "hooray": 0,
+   "confused": 0,
+   "heart": 0,
+   "rocket": 0,
+   "eyes": 0
+  },
+  "start_line": null,
+  "original_start_line": null,
+  "start_side": null,
+  "line": null,
+  "original_line": 5,
+  "side": "RIGHT",
+  "author_association": "CONTRIBUTOR",
+  "original_position": 6,
+  "position": 1,
+  "subject_type": "line",
+  "is_copilot_code_review": false,
+  "copilot_code_review_sources": []
+ },
+ {
+  "url": "https://api.github.com/repos/Arasz/ai-badger/pulls/comments/4563123953",
+  "pull_request_review_id": 5890794300,
+  "id": 4563123953,
+  "node_id": "PRRC_kwDOTc1EHs8AAAABD_u-8Q",
+  "diff_hunk": "@@ -85,6 +85,8 @@ def _apply_scaffolding(self, agent_name: str, instructions_doc: str,  # pylint:\n                 if carried is not None:\n                     aib_dest.parent.mkdir(parents=True, exist_ok=True)\n                     aib_dest.write_text(carried, encoding=\"utf-8\")\n+                    if is_managed_template:\n+                        self.ctx.record_template(source, aib_dest)",
+  "path": "features/common/skills/welcome-ai-badger/scripts/agent_files.py",
+  "commit_id": "aba9cb4321b9f6d7d9c759a4141808c7b8a7a9ab",
+  "original_commit_id": "e30c54daa52bab6c931d61a349d78b97eab4763d",
+  "user": {
+   "login": "coderabbitai[bot]",
+   "id": 136622811,
+   "node_id": "BOT_kgDOCCSy2w",
+   "avatar_url": "https://avatars.githubusercontent.com/in/347564?v=4",
+   "gravatar_id": "",
+   "url": "https://api.github.com/users/coderabbitai%5Bbot%5D",
+   "html_url": "https://github.com/apps/coderabbitai",
+   "followers_url": "https://api.github.com/users/coderabbitai%5Bbot%5D/followers",
+   "following_url": "https://api.github.com/users/coderabbitai%5Bbot%5D/following{/other_user}",
+   "gists_url": "https://api.github.com/users/coderabbitai%5Bbot%5D/gists{/gist_id}",
+   "starred_url": "https://api.github.com/users/coderabbitai%5Bbot%5D/starred{/owner}{/repo}",
+   "subscriptions_url": "https://api.github.com/users/coderabbitai%5Bbot%5D/subscriptions",
+   "organizations_url": "https://api.github.com/users/coderabbitai%5Bbot%5D/orgs",
+   "repos_url": "https://api.github.com/users/coderabbitai%5Bbot%5D/repos",
+   "events_url": "https://api.github.com/users/coderabbitai%5Bbot%5D/events{/privacy}",
+   "received_events_url": "https://api.github.com/users/coderabbitai%5Bbot%5D/received_events",
+   "type": "Bot",
+   "user_view_type": "public",
+   "site_admin": false
+  },
+  "body": "<!-- coderabbit-ai-generated:v1 -->\n\n**<picture><img src=\"https://storage.googleapis.com/coderabbit_public_assets/review-comment-icons-v1/major-16.svg\" width=\"16\" height=\"16\" align=\"absmiddle\" alt=\"\"></picture> Major** · **Data Integrity & Integration** · **Heavy lift**\n\n**Preserve project-owned regions after an intervening refresh.**\n\nAdd a keep region to `.ai-badger/HERMES.md`, refresh while Her\n[truncated]",
+  "created_at": "2026-11-13T12:15:00Z",
+  "updated_at": "2026-11-13T12:54:05Z",
+  "html_url": "https://github.com/Arasz/ai-badger/pull/676#discussion_r4563123953",
+  "pull_request_url": "https://api.github.com/repos/Arasz/ai-badger/pulls/676",
+  "_links": {
+   "self": {
+    "href": "https://api.github.com/repos/Arasz/ai-badger/pulls/comments/4563123953"
+   },
+   "html": {
+    "href": "https://github.com/Arasz/ai-badger/pull/676#discussion_r4563123953"
+   },
+   "pull_request": {
+    "href": "https://api.github.com/repos/Arasz/ai-badger/pulls/676"
+   }
+  },
+  "reactions": {
+   "url": "https://api.github.com/repos/Arasz/ai-badger/pulls/comments/4563123953/reactions",
+   "total_count": 0,
+   "+1": 0,
+   "-1": 0,
+   "laugh": 0,
+   "hooray": 0,
+   "confused": 0,
+   "heart": 0,
+   "rocket": 0,
+   "eyes": 0
+  },
+  "start_line": null,
+  "original_start_line": null,
+  "start_side": null,
+  "line": null,
+  "original_line": 89,
+  "side": "RIGHT",
+  "author_association": "CONTRIBUTOR",
+  "original_position": 5,
+  "position": 1,
+  "subject_type": "line",
+  "is_copilot_code_review": false,
+  "copilot_code_review_sources": []
+ },
+ {
+  "url": "https://api.github.com/repos/Arasz/ai-badger/pulls/comments/4563494228",
+  "pull_request_review_id": 5891349552,
+  "id": 4563494228,
+  "node_id": "PRRC_kwDOTc1EHs8AAAABEAFlVA",
+  "diff_hunk": "@@ -85,6 +85,8 @@ def _apply_scaffolding(self, agent_name: str, instructions_doc: str,  # pylint:\n                 if carried is not None:\n                     aib_dest.parent.mkdir(parents=True, exist_ok=True)\n                     aib_dest.write_text(carried, encoding=\"utf-8\")\n+                    if is_managed_template:\n+                        self.ctx.record_template(source, aib_dest)",
+  "path": "features/common/skills/welcome-ai-badger/scripts/agent_files.py",
+  "commit_id": "aba9cb4321b9f6d7d9c759a4141808c7b8a7a9ab",
+  "original_commit_id": "e30c54daa52bab6c931d61a349d78b97eab4763d",
+  "user": {
+   "login": "Arasz",
+   "id": 9105216,
+   "node_id": "MDQ6VXNlcjkxMDUyMTY=",
+   "avatar_url": "https://avatars.githubusercontent.com/u/9105216?v=4",
+   "gravatar_id": "",
+   "url": "https://api.github.com/users/Arasz",
+   "html_url": "https://github.com/Arasz",
+   "followers_url": "https://api.github.com/users/Arasz/followers",
+   "following_url": "https://api.github.com/users/Arasz/following{/other_user}",
+   "gists_url": "https://api.github.com/users/Arasz/gists{/gist_id}",
+   "starred_url": "https://api.github.com/users/Arasz/starred{/owner}{/repo}",
+   "subscriptions_url": "https://api.github.com/users/Arasz/subscriptions",
+   "organizations_url": "https://api.github.com/users/Arasz/orgs",
+   "repos_url": "https://api.github.com/users/Arasz/repos",
+   "events_url": "https://api.github.com/users/Arasz/events{/privacy}",
+   "received_events_url": "https://api.github.com/users/Arasz/received_events",
+   "type": "User",
+   "user_view_type": "public",
+   "site_admin": false
+  },
+  "body": "Fixed in 82ae02ed. Confirmed first: a keep region carried by an intermediate refresh got a matching outputHash and the prune deleted the file. `SupersededPrune` now leaves any file that holds `ai-badger:keep` regions and reports it. Regression test with the intermediate refresh: `TestTheSourceOfTruthCopyStaysTheProjects::test_a_keep_region_carried_by_a_refresh_survives_the_agents_removal` (red bef\n[truncated]",
+  "created_at": "2026-11-13T12:54:00Z",
+  "updated_at": "2026-11-13T12:54:00Z",
+  "html_url": "https://github.com/Arasz/ai-badger/pull/676#discussion_r4563494228",
+  "pull_request_url": "https://api.github.com/repos/Arasz/ai-badger/pulls/676",
+  "_links": {
+   "self": {
+    "href": "https://api.github.com/repos/Arasz/ai-badger/pulls/comments/4563494228"
+   },
+   "html": {
+    "href": "https://github.com/Arasz/ai-badger/pull/676#discussion_r4563494228"
+   },
+   "pull_request": {
+    "href": "https://api.github.com/repos/Arasz/ai-badger/pulls/676"
+   }
+  },
+  "reactions": {
+   "url": "https://api.github.com/repos/Arasz/ai-badger/pulls/comments/4563494228/reactions",
+   "total_count": 1,
+   "+1": 0,
+   "-1": 0,
+   "laugh": 0,
+   "hooray": 0,
+   "confused": 0,
+   "heart": 0,
+   "rocket": 1,
+   "eyes": 0
+  },
+  "start_line": null,
+  "original_start_line": null,
+  "start_side": null,
+  "line": null,
+  "original_line": 89,
+  "side": "RIGHT",
+  "in_reply_to_id": 4563123953,
+  "author_association": "OWNER",
+  "original_position": 5,
+  "position": 1,
+  "subject_type": "line",
+  "is_copilot_code_review": false,
+  "copilot_code_review_sources": []
+ },
+ {
+  "url": "https://api.github.com/repos/Arasz/ai-badger/pulls/comments/4563495464",
+  "pull_request_review_id": 5891351008,
+  "id": 4563495464,
+  "node_id": "PRRC_kwDOTc1EHs8AAAABEAFqKA",
+  "diff_hunk": "@@ -85,6 +85,8 @@ def _apply_scaffolding(self, agent_name: str, instructions_doc: str,  # pylint:\n                 if carried is not None:\n                     aib_dest.parent.mkdir(parents=True, exist_ok=True)\n                     aib_dest.write_text(carried, encoding=\"utf-8\")\n+                    if is_managed_template:\n+                        self.ctx.record_template(source, aib_dest)",
+  "path": "features/common/skills/welcome-ai-badger/scripts/agent_files.py",
+  "commit_id": "aba9cb4321b9f6d7d9c759a4141808c7b8a7a9ab",
+  "original_commit_id": "e30c54daa52bab6c931d61a349d78b97eab4763d",
+  "user": {
+   "login": "Arasz",
+   "id": 9105216,
+   "node_id": "MDQ6VXNlcjkxMDUyMTY=",
+   "avatar_url": "https://avatars.githubusercontent.com/u/9105216?v=4",
+   "gravatar_id": "",
+   "url": "https://api.github.com/users/Arasz",
+   "html_url": "https://github.com/Arasz",
+   "followers_url": "https://api.github.com/users/Arasz/followers",
+   "following_url": "https://api.github.com/users/Arasz/following{/other_user}",
+   "gists_url": "https://api.github.com/users/Arasz/gists{/gist_id}",
+   "starred_url": "https://api.github.com/users/Arasz/starred{/owner}{/repo}",
+   "subscriptions_url": "https://api.github.com/users/Arasz/subscriptions",
+   "organizations_url": "https://api.github.com/users/Arasz/orgs",
+   "repos_url": "https://api.github.com/users/Arasz/repos",
+   "events_url": "https://api.github.com/users/Arasz/events{/privacy}",
+   "received_events_url": "https://api.github.com/users/Arasz/received_events",
+   "type": "User",
+   "user_view_type": "public",
+   "site_admin": false
+  },
+  "body": "Second finding, also fixed in 82ae02ed. Confirmed first: `generated_file_guard.py` denied an Edit of `.ai-badger/CLAUDE.md`. The aibCopy is now recorded with `editable: true` (schema updated); the guard skips such entries, and the prune record stays. All three script copies regenerated. Test: `test_the_edit_guard_allows_an_edit_to_the_source_of_truth_copy` (also asserts the primary `CLAUDE.md` is \n[truncated]",
+  "created_at": "2026-11-13T12:54:07Z",
+  "updated_at": "2026-11-13T12:54:07Z",
+  "html_url": "https://github.com/Arasz/ai-badger/pull/676#discussion_r4563495464",
+  "pull_request_url": "https://api.github.com/repos/Arasz/ai-badger/pulls/676",
+  "_links": {
+   "self": {
+    "href": "https://api.github.com/repos/Arasz/ai-badger/pulls/comments/4563495464"
+   },
+   "html": {
+    "href": "https://github.com/Arasz/ai-badger/pull/676#discussion_r4563495464"
+   },
+   "pull_request": {
+    "href": "https://api.github.com/repos/Arasz/ai-badger/pulls/676"
+   }
+  },
+  "reactions": {
+   "url": "https://api.github.com/repos/Arasz/ai-badger/pulls/comments/4563495464/reactions",
+   "total_count": 1,
+   "+1": 0,
+   "-1": 0,
+   "laugh": 0,
+   "hooray": 0,
+   "confused": 0,
+   "heart": 0,
+   "rocket": 1,
+   "eyes": 0
+  },
+  "start_line": null,
+  "original_start_line": null,
+  "start_side": null,
+  "line": null,
+  "original_line": 89,
+  "side": "RIGHT",
+  "in_reply_to_id": 4563123953,
+  "author_association": "OWNER",
+  "original_position": 5,
+  "position": 1,
+  "subject_type": "line",
+  "is_copilot_code_review": false,
+  "copilot_code_review_sources": []
+ }
+]
